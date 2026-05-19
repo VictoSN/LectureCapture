@@ -2,7 +2,7 @@ import sqlite3
 import os
 import shutil
 
-from ..models.lecture import Session, OCRCapture, TranscriptChunk
+from models.lecture import Session, OCRCapture, TranscriptChunk
 from datetime import datetime
 from pathlib import Path
 
