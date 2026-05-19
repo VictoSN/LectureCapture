@@ -40,8 +40,8 @@ class Storage:
                             CREATE TABLE IF NOT EXISTS ocrcapture(
                                 id INTEGER PRIMARY KEY AUTOINCREMENT, 
                                 timestamp REAL NOT NULL, 
-                                extracted_text TEXT NOT NULL, 
                                 image_path TEXT NOT NULL, 
+                                extracted_text TEXT NOT NULL, 
                                 session_id INTEGER NOT NULL, 
                                 FOREIGN KEY(session_id) REFERENCES session(id) ON DELETE CASCADE
                             )
@@ -125,6 +125,60 @@ class Storage:
             
         self.cursor.execute("DELETE FROM session WHERE id = ?", (id,))
         self.conn.commit()
+    
+    def create_ocr_capture(self, capture: OCRCapture) -> int:        
+        self.cursor.execute(
+            "INSERT INTO ocrcapture (timestamp, image_path, extracted_text, session_id) VALUES (?, ?, ?, ?)",
+            (capture.timestamp, capture.image_path, capture.extracted_text, capture.session_id)
+        )
+        
+        self.conn.commit()
+        
+        # Get new id and set it to the current capture's id
+        last_id = self.cursor.lastrowid
+        capture.id = last_id
+        return last_id 
+    
+    def _row_to_ocrcapture(self, row) -> OCRCapture:
+        # Convert the strings into datetime & guard for nulls
+        return OCRCapture(
+            timestamp=row[1],
+            image_path=row[2],
+            extracted_text=row[3],
+            id=row[0],
+            session_id=row[4]
+        )
+    
+    def get_captures_by_session(self, session_id: int) -> list[OCRCapture]:
+        self.cursor.execute("SELECT id, timestamp, image_path, extracted_text, session_id FROM ocrcapture WHERE session_id = ?", (session_id,))
+        return [self._row_to_ocrcapture(captures) for captures in self.cursor.fetchall()]        
+    
+    def create_transcript_chunk(self, chunk: TranscriptChunk) -> int:
+        self.cursor.execute(
+            "INSERT INTO transcriptchunk (start_timestamp, end_timestamp, extracted_text, session_id) VALUES (?, ?, ?, ?)",
+            (chunk.start_timestamp, chunk.end_timestamp, chunk.extracted_text, chunk.session_id)
+        )
+        
+        self.conn.commit()
+        
+        # Get new id and set it to the current capture's id
+        last_id = self.cursor.lastrowid
+        chunk.id = last_id
+        return last_id 
+    
+    def _row_to_transcriptchunk(self, row) -> TranscriptChunk:
+        # Convert the strings into datetime & guard for nulls
+        return TranscriptChunk(
+            start_timestamp=row[1],
+            end_timestamp=row[2],
+            extracted_text=row[3],
+            id=row[0],
+            session_id=row[4]
+        )
+    
+    def get_chunks_by_session(self, session_id: int) -> list[TranscriptChunk]:
+        self.cursor.execute("SELECT id, start_timestamp, end_timestamp, extracted_text, session_id FROM transcriptchunk WHERE session_id = ?", (session_id,))
+        return [self._row_to_transcriptchunk(chunks) for chunks in self.cursor.fetchall()]        
     
     def close(self):
         self.conn.close()
