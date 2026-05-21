@@ -16,7 +16,7 @@ class MainWindow(QMainWindow):
         self.storage = Storage()
         
         self.setWindowIcon(QIcon(str(ICON_PATH)))
-        self.setMinimumSize(800, 600)
+        self.setMinimumSize(800, 650)
         self.setWindowTitle("LectureCapture")
         
         splitter = QSplitter(Qt.Orientation.Horizontal)
