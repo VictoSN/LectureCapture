@@ -96,7 +96,7 @@ class Storage:
             summary_generated_at=self._parse_datetime(row[8])
         )
     
-    def get_all_session(self) -> list[Session]:
+    def get_all_sessions(self) -> list[Session]:
         self.cursor.execute("SELECT id, name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at FROM session")
         return [self._row_to_session(session) for session in self.cursor.fetchall()]        
 
