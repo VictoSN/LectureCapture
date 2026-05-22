@@ -34,7 +34,7 @@ class MainWindow(QMainWindow):
         self.sidebar = Sidebar(sessions, self.on_new_session, self.on_session_selected)
         splitter.addWidget(self.sidebar)
 
-        self.transcript_panel = TranscriptPanel()
+        self.transcript_panel = TranscriptPanel(self.storage.base_dir)
         splitter.addWidget(self.transcript_panel)
 
         # Wait until the other widgets are added

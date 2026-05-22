@@ -10,10 +10,11 @@ from ui.speech_panel import SpeechPanel
 from ui.summary_panel import SummaryPanel
 
 class TranscriptPanel(QWidget):
-    def __init__(self):
+    def __init__(self, base_dir):
         super().__init__()
         main_layout = QVBoxLayout()
         header = QHBoxLayout()
+        self.base_dir = base_dir
 
         # Header Layout
         self.session_name = QLineEdit()
@@ -32,8 +33,8 @@ class TranscriptPanel(QWidget):
 
         # Splitter Layout for content
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
-        self.ocr_panel = OCRPanel()
-        self.speech_panel = SpeechPanel()
+        self.ocr_panel = OCRPanel(base_dir)
+        self.speech_panel = SpeechPanel(base_dir)
         self.summary_panel = SummaryPanel()
 
         # Button Visibility Function
@@ -58,3 +59,11 @@ class TranscriptPanel(QWidget):
 
     def load_session(self, session: Session, captures: OCRCapture):
         self.session_name.setText(session.name)
+        
+        self.ocr_panel.load_captures(captures)
+        self.speech_panel.load_captures(captures)
+        
+        if session.summary:
+            self.summary_panel.summary.setText(session.summary)
+        else:
+            self.summary_panel.summary.setPlaceholderText('Press "Summarize" to generate a summary.')
