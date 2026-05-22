@@ -2,17 +2,17 @@ from PyQt6.QtWidgets import (
     QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QScrollArea, QLabel
 )
 
-class OCRPanel(QWidget):
+class SpeechPanel(QWidget):
     def __init__(self):
         super().__init__()
         main_layout = QVBoxLayout()
         header = QHBoxLayout()
         
         # Header Layout
-        ocr_label = QLabel("Screen OCR")
-        header.addWidget(ocr_label)
-        self.ocr_button = QPushButton("Editable")
-        header.addWidget(self.ocr_button)
+        speech_label = QLabel("Audio transcript")
+        header.addWidget(speech_label)
+        self.speech_button = QPushButton("Editable")
+        header.addWidget(self.speech_button)
         
         # Scrollable
         self.feed_widget = QWidget()

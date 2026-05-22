@@ -3,6 +3,9 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 
+from ui.ocr_panel import OCRPanel
+from ui.speech_panel import SpeechPanel
+from ui.summary_panel import SummaryPanel
 
 class TranscriptPanel(QWidget):
     def __init__(self):
@@ -17,24 +20,26 @@ class TranscriptPanel(QWidget):
         
         self.ocr_visibility_button = QPushButton("OCR")
         header.addWidget(self.ocr_visibility_button)
-        self.s2t_visibility_button = QPushButton("S2T")
-        header.addWidget(self.s2t_visibility_button)
-        self.ai_visibility_button = QPushButton("AI")
-        header.addWidget(self.ai_visibility_button)
+        self.speech_visibility_button = QPushButton("S2T")
+        header.addWidget(self.speech_visibility_button)
+        self.summary_visibility_button = QPushButton("AI")
+        header.addWidget(self.summary_visibility_button)
         
         self.record_button = QPushButton("Record")
         header.addWidget(self.record_button)
 
         # Splitter Layout for content
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
-        ocr_panel = QWidget()
-        s2t_panel = QWidget()
-        ai_panel = QWidget()
+        ocr_panel = OCRPanel()
+        speech_panel = SpeechPanel()
+        summary_panel = SummaryPanel()
         
         self.splitter.addWidget(ocr_panel)
-        self.splitter.addWidget(s2t_panel)
-        self.splitter.addWidget(ai_panel)
+        self.splitter.addWidget(speech_panel)
+        self.splitter.addWidget(summary_panel)
+        self.splitter.setSizes([100, 100, 100]) # 1 : 4 ratio
         
         main_layout.addLayout(header)
         main_layout.addWidget(self.splitter)
         self.setLayout(main_layout)
+        

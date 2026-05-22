@@ -20,7 +20,7 @@ class MainWindow(QMainWindow):
         
         # Window details
         self.setWindowIcon(QIcon(str(ICON_PATH)))
-        self.setMinimumSize(1000, 700)
+        self.setMinimumSize(1200, 700)
         self.setWindowTitle("LectureCapture")
         
         # Splitter Layout
