@@ -12,7 +12,7 @@ class Session:
     group_category: str | None = None
     summary: str | None = None
     summary_generated_at: datetime | None = None
-    
+
 @dataclass
 class OCRCapture:
     timestamp: float

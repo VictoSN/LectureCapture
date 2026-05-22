@@ -3,6 +3,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 
+from models.lecture import Session, OCRCapture
+
 from ui.ocr_panel import OCRPanel
 from ui.speech_panel import SpeechPanel
 from ui.summary_panel import SummaryPanel
@@ -12,12 +14,12 @@ class TranscriptPanel(QWidget):
         super().__init__()
         main_layout = QVBoxLayout()
         header = QHBoxLayout()
-        
+
         # Header Layout
         self.session_name = QLineEdit()
         self.session_name.setPlaceholderText("Session name...")
         header.addWidget(self.session_name)
-        
+
         self.ocr_visibility_button = QPushButton("OCR")
         header.addWidget(self.ocr_visibility_button)
         self.speech_visibility_button = QPushButton("S2T")
@@ -30,16 +32,29 @@ class TranscriptPanel(QWidget):
 
         # Splitter Layout for content
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
-        ocr_panel = OCRPanel()
-        speech_panel = SpeechPanel()
-        summary_panel = SummaryPanel()
-        
-        self.splitter.addWidget(ocr_panel)
-        self.splitter.addWidget(speech_panel)
-        self.splitter.addWidget(summary_panel)
+        self.ocr_panel = OCRPanel()
+        self.speech_panel = SpeechPanel()
+        self.summary_panel = SummaryPanel()
+
+        # Button Visibility Function
+        self.ocr_visibility_button.clicked.connect(
+            lambda: self.ocr_panel.setVisible(not self.ocr_panel.isVisible())
+        )
+        self.speech_visibility_button.clicked.connect(
+            lambda: self.speech_panel.setVisible(not self.speech_panel.isVisible())
+        )
+        self.summary_visibility_button.clicked.connect(
+            lambda: self.summary_panel.setVisible(not self.summary_panel.isVisible())
+        )
+
+        self.splitter.addWidget(self.ocr_panel)
+        self.splitter.addWidget(self.speech_panel)
+        self.splitter.addWidget(self.summary_panel)
         self.splitter.setSizes([100, 100, 100]) # 1 : 4 ratio
-        
+
         main_layout.addLayout(header)
         main_layout.addWidget(self.splitter)
         self.setLayout(main_layout)
-        
+
+    def load_session(self, session: Session, captures: OCRCapture):
+        self.session_name.setText(session.name)
