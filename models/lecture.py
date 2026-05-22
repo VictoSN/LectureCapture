@@ -20,11 +20,4 @@ class OCRCapture:
     extracted_text: str
     id: int | None = None
     session_id: int | None = None
-    
-@dataclass
-class TranscriptChunk:
-    start_timestamp: float
-    end_timestamp: float
-    extracted_text: str
-    id: int | None = None
-    session_id: int | None = None
+    speech_text: str | None = None
