@@ -4,7 +4,6 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 
 from models.lecture import Session, OCRCapture
-
 from ui.ocr_panel import OCRPanel
 from ui.speech_panel import SpeechPanel
 from ui.summary_panel import SummaryPanel
