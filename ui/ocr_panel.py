@@ -33,6 +33,33 @@ class OCRPanel(QWidget):
         main_layout.addWidget(scroll)
         self.setLayout(main_layout)
 
+    def _create_capture_widget(self, capture: OCRCapture) -> QWidget:
+        capture_widget = QWidget()
+        capture_layout = QVBoxLayout()
+        
+        # OCR Image
+        capture_image = QLabel()
+        capture_layout.addWidget(capture_image)
+        
+        pixmap = QPixmap(str(Path(self.base_dir) / 'sessions' / str(capture.session_id) / 'captures' / capture.image_path))
+        
+        # Check if image Exist
+        if pixmap.isNull():
+            capture_image.setText("[No image]")
+        else:
+            capture_image.setPixmap(pixmap)
+        capture_image.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        # Timestamp & Extracted ocr text
+        capture_timestamp = QLabel(f"{capture.timestamp:.2f}s")
+        capture_layout.addWidget(capture_timestamp)
+        
+        capture_text = QTextEdit(capture.extracted_text)
+        capture_layout.addWidget(capture_text)
+        
+        capture_widget.setLayout(capture_layout)
+        return capture_widget # Return to load and add methods
+
     def load_captures(self, captures: list[OCRCapture]):
         # Clear out the layout first
         while self.feed_layout.count():
@@ -41,23 +68,7 @@ class OCRPanel(QWidget):
                 item.widget().deleteLater()
 
         for capture in captures:
-            capture_widget = QWidget()
-            capture_layout = QVBoxLayout()
+            self.feed_layout.addWidget(self._create_capture_widget(capture))
             
-            # OCR Image
-            capture_image = QLabel()
-            capture_layout.addWidget(capture_image)
-            
-            pixmap = QPixmap(str(Path(self.base_dir) / 'sessions' / str(capture.session_id) / 'captures' / capture.image_path))
-            capture_image.setPixmap(pixmap)
-            capture_image.setAlignment(Qt.AlignmentFlag.AlignTop)
-
-            # Timestamp & Extracted ocr text
-            capture_timestamp = QLabel(f"{capture.timestamp:.2f}s")
-            capture_layout.addWidget(capture_timestamp)
-            
-            capture_text = QTextEdit(capture.extracted_text)
-            capture_layout.addWidget(capture_text)
-            
-            capture_widget.setLayout(capture_layout)
-            self.feed_layout.addWidget(capture_widget)
+    def add_capture(self, capture: OCRCapture):
+        self.feed_layout.addWidget(self._create_capture_widget(capture))
