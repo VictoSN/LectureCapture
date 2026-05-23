@@ -6,7 +6,7 @@ Final Year Project that uses python to create an automatic transcript for visual
 2. Create a virtual environment:
 ```bash
 python -m venv venv
-venv\Scripts\activate
+venv\Scripts\Activate
 ```
 3. Install dependencies:
 ```bash

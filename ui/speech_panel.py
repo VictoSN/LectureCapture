@@ -28,7 +28,21 @@ class SpeechPanel(QWidget):
         main_layout.addLayout(header)
         main_layout.addWidget(scroll)
         self.setLayout(main_layout)
+
+    def _create_capture_widget(self, capture: OCRCapture) -> QWidget:
+        capture_widget = QWidget()
+        capture_layout = QVBoxLayout()
         
+        # Timestamp & Extracted speech text
+        capture_timestamp = QLabel(f"{capture.timestamp:.2f}s")
+        capture_layout.addWidget(capture_timestamp)
+        
+        speech_text = QTextEdit(capture.speech_text)
+        capture_layout.addWidget(speech_text)
+        
+        capture_widget.setLayout(capture_layout)
+        return capture_widget # Return to load and add methods
+
     def load_captures(self, captures: list[OCRCapture]):
         # Clear out the layout first
         while self.feed_layout.count():
@@ -37,15 +51,7 @@ class SpeechPanel(QWidget):
                 item.widget().deleteLater()
 
         for capture in captures:
-            capture_widget = QWidget()
-            capture_layout = QVBoxLayout()
+            self.feed_layout.addWidget(self._create_capture_widget(capture))
             
-            # Timestamp & Extracted speech text
-            capture_timestamp = QLabel(f"{capture.timestamp:.2f}s")
-            capture_layout.addWidget(capture_timestamp)
-            
-            speech_text = QTextEdit(capture.speech_text)
-            capture_layout.addWidget(speech_text)
-            
-            capture_widget.setLayout(capture_layout)
-            self.feed_layout.addWidget(capture_widget)
+    def add_capture(self, capture: OCRCapture):
+        self.feed_layout.addWidget(self._create_capture_widget(capture))

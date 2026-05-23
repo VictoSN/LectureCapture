@@ -4,14 +4,16 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt
 
-from models.lecture import Session
+from models.lecture import Session, OCRCapture
 from storage.database import Storage
 from pathlib import Path
 from datetime import datetime
 
+from core.ocr import OCRWorker
 from ui.sidebar import Sidebar
 from ui.transcript_panel import TranscriptPanel
 from ui.new_session_dialog import NewSessionDialog
+from ui.recording_dialog import RecordingDialog
 
 BASE_DIR = Path(__file__).resolve().parent
 ICON_PATH = BASE_DIR.parent / 'assets' / 'icon.png'
@@ -20,6 +22,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.storage = Storage()
+        self.current_session = None
+        self.is_recording = False
 
         # Window details
         self.setWindowIcon(QIcon(str(ICON_PATH)))
@@ -35,6 +39,7 @@ class MainWindow(QMainWindow):
         splitter.addWidget(self.sidebar)
 
         self.transcript_panel = TranscriptPanel(self.storage.base_dir)
+        self.transcript_panel.record_clicked.connect(self.on_record_clicked)
         splitter.addWidget(self.transcript_panel)
 
         # Wait until the other widgets are added
@@ -56,5 +61,39 @@ class MainWindow(QMainWindow):
             self.sidebar.refresh(self.storage.get_all_sessions())
     
     def on_session_selected(self, session: Session):
+        self.current_session = session
         captures = self.storage.get_captures_by_session(session.id)
         self.transcript_panel.load_session(session, captures)
+        
+    def on_record_clicked(self):
+        if not self.current_session:
+            print('Need to select session first')
+            return
+        
+        if not self.is_recording:
+            # Get data from dialog
+            dialog = RecordingDialog()
+            
+            if dialog.exec():
+                self.is_recording = True
+                self.transcript_panel.record_button.setText("Stop Recording")
+                
+                data = dialog.get_data()
+                
+                if data["capture_option"] == "Mouse Select":
+                    # SnipOverlay here
+                    pass
+                
+                # Create ocr worker thread
+                self.ocr_worker = OCRWorker(self.current_session.id, self.storage.base_dir, data["interval"], data["region"])
+                self.ocr_worker.capture_read.connect(self.on_capture_ready)
+                self.ocr_worker.start()
+        else:
+            self.is_recording = False
+            self.transcript_panel.record_button.setText("Record")
+            self.ocr_worker.stop()
+            
+    def on_capture_ready(self, capture: OCRCapture):
+        self.storage.create_ocr_capture(capture)
+        self.transcript_panel.ocr_panel.add_capture(capture)
+        self.transcript_panel.speech_panel.add_capture(capture)

@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QLineEdit, QPushButton, QSplitter, QVBoxLayout, QHBoxLayout
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 
 from models.lecture import Session, OCRCapture
 from ui.ocr_panel import OCRPanel
@@ -9,6 +9,8 @@ from ui.speech_panel import SpeechPanel
 from ui.summary_panel import SummaryPanel
 
 class TranscriptPanel(QWidget):
+    record_clicked = pyqtSignal()
+    
     def __init__(self, base_dir):
         super().__init__()
         main_layout = QVBoxLayout()
@@ -28,6 +30,7 @@ class TranscriptPanel(QWidget):
         header.addWidget(self.summary_visibility_button)
         
         self.record_button = QPushButton("Record")
+        self.record_button.clicked.connect(self.record_clicked)
         header.addWidget(self.record_button)
 
         # Splitter Layout for content

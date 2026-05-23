@@ -15,9 +15,8 @@ from pathlib import Path
 class OCRWorker(QThread):    
     capture_read = pyqtSignal(OCRCapture)   
     
-    def __init__(self, Storage, session_id, base_dir, interval, region: dict | None):
+    def __init__(self, session_id, base_dir, interval, region: dict | None):
         super().__init__()
-        self.storage = Storage
         self._running = True
     
         self.session_id = session_id
@@ -34,6 +33,10 @@ class OCRWorker(QThread):
             self.region["y"] = self.region["y"] * ratio
             self.region["w"] = self.region["w"] * ratio
             self.region["h"] = self.region["h"] * ratio
+    
+        # Ensure the folders exist to avoid FileNotFoundError
+        captures_dir = Path(self.base_dir) / 'sessions' / str(self.session_id) / 'captures'
+        captures_dir.mkdir(parents=True, exist_ok=True)
     
     def compare_text(self, current_text) -> bool:
         ratio = SequenceMatcher(None, current_text, self.previous_text).ratio()
@@ -74,16 +77,14 @@ class OCRWorker(QThread):
                 name = "OCR_" + now.strftime('%y%m%d_%H%M%S.%f')[:-3]
                 full_path = str(Path(self.base_dir) / 'sessions' / str(self.session_id) / 'captures' / f"{name}.png")
                 image_path = f"{name}.png"
+                self.previous_text = extracted_text # become reference for comparison
                 
                 # Save to png
                 mss.tools.to_png(img.rgb, img.size, output=full_path)
                 
                 # Store to db and emit signal
                 new_capture = OCRCapture(timestamp, image_path, extracted_text, None, self.session_id, None)
-                self.storage.create_ocr_capture(new_capture)
                 self.capture_read.emit(new_capture)
-                
-                self.previous_text = extracted_text # become reference for comparison
     
     def run(self):
         self.start_time = time.time()
