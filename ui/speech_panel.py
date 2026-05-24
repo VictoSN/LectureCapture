@@ -40,6 +40,7 @@ class SpeechPanel(QWidget):
         speech_text = QTextEdit(capture.speech_text)
         capture_layout.addWidget(speech_text)
         
+        capture_widget.setProperty("capture_id", capture.id)
         capture_widget.setLayout(capture_layout)
         return capture_widget # Return to load and add methods
 
@@ -55,3 +56,10 @@ class SpeechPanel(QWidget):
             
     def add_capture(self, capture: OCRCapture):
         self.feed_layout.addWidget(self._create_capture_widget(capture))
+        
+    def update_capture_speech(self, capture_id, text):
+        for i in range(self.feed_layout.count()):
+            widget = self.feed_layout.itemAt(i).widget()
+            if widget and widget.property("capture_id") == capture_id:
+                text_field = widget.findChild(QTextEdit)
+                text_field.setText(text_field.toPlainText() + text)

@@ -102,7 +102,17 @@ class Storage:
 
         self.cursor.execute(
             "UPDATE session SET name = ?, session_category = ?, group_category = ?, date_recorded = ?, date_modified = ?, length = ?, summary = ?, summary_generated_at = ? WHERE id = ?", 
-            (session.name, session.session_category, session.group_category, session.date_recorded, session.date_modified, session.length, session.summary, session.summary_generated_at, session.id)
+            (
+                session.name,
+                session.session_category,
+                session.group_category,
+                session.date_recorded.isoformat() if isinstance(session.date_recorded, datetime) else session.date_recorded,
+                datetime.now().isoformat(), # Always now
+                session.length,
+                session.summary,
+                session.summary_generated_at.isoformat() if isinstance(session.summary_generated_at, datetime) else session.summary_generated_at,
+                session.id
+            )
         )
 
         self.conn.commit()
@@ -143,6 +153,13 @@ class Storage:
     def get_captures_by_session(self, session_id: int) -> list[OCRCapture]:
         self.cursor.execute("SELECT id, timestamp, image_path, extracted_text, speech_text, session_id FROM ocrcapture WHERE session_id = ?", (session_id,))
         return [self._row_to_ocrcapture(captures) for captures in self.cursor.fetchall()]        
+
+    def update_capture_speech(self, capture_id, speech_text):
+        self.cursor.execute(
+            "UPDATE ocrcapture SET speech_text = ? WHERE id = ?", (speech_text, capture_id)
+        )
+
+        self.conn.commit()
 
     def close(self):
         self.conn.close()

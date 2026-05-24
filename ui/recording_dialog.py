@@ -85,7 +85,8 @@ class RecordingDialog(QDialog):
         return {
             "interval": int(self.session_interval.text()),
             "region": self.region,
-            "capture_option": self.capture_method
+            "capture_option": self.capture_method,
+            "monitor": self.monitor_dropdown.currentData()
         }
         
     # UI Visibility

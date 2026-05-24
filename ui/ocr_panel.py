@@ -57,6 +57,7 @@ class OCRPanel(QWidget):
         capture_text = QTextEdit(capture.extracted_text)
         capture_layout.addWidget(capture_text)
         
+        capture_widget.setProperty("capture_id", capture.id)
         capture_widget.setLayout(capture_layout)
         return capture_widget # Return to load and add methods
 

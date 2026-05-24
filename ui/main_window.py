@@ -1,3 +1,5 @@
+import time
+
 from PyQt6.QtWidgets import (
     QMainWindow, QSplitter
 )
@@ -10,6 +12,7 @@ from pathlib import Path
 from datetime import datetime
 
 from core.ocr import OCRWorker
+from core.audio import AudioWorker
 from ui.sidebar import Sidebar
 from ui.capture_overlay import CaptureOverlay
 from ui.transcript_panel import TranscriptPanel
@@ -66,11 +69,19 @@ class MainWindow(QMainWindow):
         captures = self.storage.get_captures_by_session(session.id)
         self.transcript_panel.load_session(session, captures)
         
-    def start_recording(self, interval, region):
+    def start_recording(self, interval, region, monitor):
+        start_time = time.time()
+        self.recording_start_time = start_time
+        
         # Create ocr worker thread
-        self.ocr_worker = OCRWorker(self.current_session.id, self.storage.base_dir, interval, region)
-        self.ocr_worker.capture_read.connect(self.on_capture_ready)
+        self.ocr_worker = OCRWorker(self.current_session.id, self.storage.base_dir, interval, region, monitor, start_time, self.current_session.length)
+        self.ocr_worker.capture_ready.connect(self.on_capture_ready)
         self.ocr_worker.start()
+        
+        # Create audio worker thread
+        self.audio_worker = AudioWorker(self.current_session.id, self.storage.base_dir, interval, start_time, self.current_session.length)
+        self.audio_worker.chunk_ready.connect(self.on_chunk_ready)
+        self.audio_worker.start()
         
     def on_record_clicked(self):
         if not self.current_session:
@@ -89,18 +100,37 @@ class MainWindow(QMainWindow):
                 if data["capture_option"] == "Mouse Select":
                     self.showMinimized() # Hide the program
                     self.overlay = CaptureOverlay(
-                        lambda x, y, w, h: self.start_recording(data["interval"], {"left": x, "top": y, "width": w, "height": h}),
+                        lambda x, y, w, h: self.start_recording(data["interval"], {"left": x, "top": y, "width": w, "height": h}, data["monitor"]),
                         lambda: None  # cancel callback
                     )
                     QTimer.singleShot(200, self.showNormal) # Show the program back
                 else:
-                    self.start_recording(data["interval"], data["region"])
+                    self.start_recording(data["interval"], data["region"], data["monitor"])
         else:
             self.is_recording = False
             self.transcript_panel.record_button.setText("Record")
             self.ocr_worker.stop()
+            self.audio_worker.stop()
+            
+            # save total length
+            self.current_session.length += int(time.time() - self.recording_start_time)
+            self.storage.update_session(self.current_session)
             
     def on_capture_ready(self, capture: OCRCapture):
         self.storage.create_ocr_capture(capture)
         self.transcript_panel.ocr_panel.add_capture(capture)
         self.transcript_panel.speech_panel.add_capture(capture)
+        
+    def on_chunk_ready(self, timestamp, text):
+        captures = self.storage.get_captures_by_session(self.current_session.id)
+        
+        recent = None
+        for capture in captures:
+            if capture.timestamp <= timestamp:
+                recent = capture
+            else:
+                break
+        
+        if recent:
+            self.storage.update_capture_speech(recent.id, text)
+            self.transcript_panel.speech_panel.update_capture_speech(recent.id, text)

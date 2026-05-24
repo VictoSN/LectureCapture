@@ -13,9 +13,9 @@ from datetime import datetime
 from pathlib import Path
 
 class OCRWorker(QThread):    
-    capture_read = pyqtSignal(OCRCapture)   
+    capture_ready = pyqtSignal(OCRCapture)   
     
-    def __init__(self, session_id, base_dir, interval, region: dict | None):
+    def __init__(self, session_id, base_dir, interval, region: dict | None, monitor_index, start_time, offset):
         super().__init__()
         self._running = True
     
@@ -23,8 +23,10 @@ class OCRWorker(QThread):
         self.base_dir = base_dir
         self.interval = interval
         self.region = region
+        self.monitor_index = monitor_index or 1
+        self.start_time = start_time
+        self.offset = offset
         self.previous_text = ""
-        self.start_time = None
     
         # Adjust the coordinates with the scaling of the monitor
         if self.region:
@@ -57,9 +59,9 @@ class OCRWorker(QThread):
         
         return pytesseract.image_to_string(pil_img, config=config)
 
-    def screenshot(self, monitor_index=1):
+    def screenshot(self):
         with mss.mss() as sct:
-            monitor = sct.monitors[monitor_index]
+            monitor = sct.monitors[self.monitor_index]
             if not self.region:
                 # 0 = All monitors
                 # 1 = Main Monitor
@@ -72,7 +74,7 @@ class OCRWorker(QThread):
             
             # Ensure the capture image has different text
             if self.compare_text(extracted_text):
-                timestamp = time.time() - self.start_time
+                timestamp = time.time() - self.start_time + self.offset
                 now = datetime.now() # Capture the time for name and date
                 name = "OCR_" + now.strftime('%y%m%d_%H%M%S.%f')[:-3]
                 full_path = str(Path(self.base_dir) / 'sessions' / str(self.session_id) / 'captures' / f"{name}.png")
@@ -84,10 +86,9 @@ class OCRWorker(QThread):
                 
                 # Store to db and emit signal
                 new_capture = OCRCapture(timestamp, image_path, extracted_text, None, self.session_id, None)
-                self.capture_read.emit(new_capture)
+                self.capture_ready.emit(new_capture)
     
     def run(self):
-        self.start_time = time.time()
         while self._running:
             self.screenshot()
             time.sleep(self.interval)

@@ -22,10 +22,10 @@ class NewSessionDialog(QDialog):
         main_layout.addWidget(self.group_category)
 
         # Actions Buttons
-        self.create_button = QPushButton("Create")
-        button_layout.addWidget(self.create_button)
         self.cancel_button = QPushButton("Cancel")
         button_layout.addWidget(self.cancel_button)
+        self.create_button = QPushButton("Create")
+        button_layout.addWidget(self.create_button)
 
         self.create_button.clicked.connect(
             lambda: self.accept() if self.session_name.text().strip() else None
