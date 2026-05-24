@@ -13,6 +13,7 @@ from datetime import datetime
 
 from core.ocr import OCRWorker
 from core.audio import AudioWorker
+from core.summarizer import summarize
 from ui.sidebar import Sidebar
 from ui.capture_overlay import CaptureOverlay
 from ui.transcript_panel import TranscriptPanel
@@ -44,6 +45,7 @@ class MainWindow(QMainWindow):
 
         self.transcript_panel = TranscriptPanel(self.storage.base_dir)
         self.transcript_panel.record_clicked.connect(self.on_record_clicked)
+        self.transcript_panel.summary_panel.summarize_clicked.connect(self.on_summarize_clicked)
         splitter.addWidget(self.transcript_panel)
 
         # Wait until the other widgets are added
@@ -134,3 +136,22 @@ class MainWindow(QMainWindow):
         if recent:
             self.storage.update_capture_speech(recent.id, text)
             self.transcript_panel.speech_panel.update_capture_speech(recent.id, text)
+    
+    def on_summarize_clicked(self):
+        if not self.current_session:
+            print('Need to select session first')
+            return
+        
+        captures = self.storage.get_captures_by_session(self.current_session.id)
+        total_text = ""
+        
+        # Combine all the texts together
+        for capture in captures:
+            total_text += (capture.extracted_text or "") + (capture.speech_text or "")
+        
+        # Summarize then update the QTextEdit and current_session object
+        summarized_text = summarize(total_text)
+        self.transcript_panel.summary_panel.summary.setText(summarized_text)
+        self.current_session.summary = summarized_text
+        self.current_session.summary_generated_at = datetime.now()
+        self.storage.update_session(self.current_session)

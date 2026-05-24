@@ -1,8 +1,11 @@
 from PyQt6.QtWidgets import (
     QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit
 )
+from PyQt6.QtCore import pyqtSignal
 
 class SummaryPanel(QWidget):
+    summarize_clicked = pyqtSignal()
+    
     def __init__(self):
         super().__init__()
         main_layout = QVBoxLayout()
@@ -12,6 +15,7 @@ class SummaryPanel(QWidget):
         summary_label = QLabel("AI summary")
         header.addWidget(summary_label)
         self.summary_button = QPushButton("Summarize")
+        self.summary_button.clicked.connect(self.summarize_clicked)
         header.addWidget(self.summary_button)
 
         # Summary        

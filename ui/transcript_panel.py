@@ -68,4 +68,5 @@ class TranscriptPanel(QWidget):
         if session.summary:
             self.summary_panel.summary.setText(session.summary)
         else:
+            self.summary_panel.summary.clear()
             self.summary_panel.summary.setPlaceholderText('Press "Summarize" to generate a summary.')
