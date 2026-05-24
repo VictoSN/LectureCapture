@@ -22,6 +22,9 @@ class AudioWorker(QThread):
         self.offset = offset
 
     def record(self):
+        chunk_start = time.time() - self.start_time + self.offset # get start time for each chunk
+        
+        # Start recording
         audio = sd.rec(int(self.interval * 44100), samplerate=44100, channels=1)
         sd.wait() # blocks until the recording is done
         
@@ -33,8 +36,8 @@ class AudioWorker(QThread):
         segments, info = self.model.transcribe(tmp, beam_size=5, language="en")
         print("Detected language '%s' with probability %f" % (info.language, info.language_probability))
         for segment in segments:
-            print("[%.2fs -> %.2fs] %s" % (segment.start, segment.end, segment.text))
-            extracted_text += ("[%.2fs -> %.2fs] %s" % (segment.start, segment.end, segment.text))        
+            print(f"[{chunk_start + segment.start:.2f}s -> {chunk_start + segment.end:.2f}s] {segment.text.strip()}\n")
+            extracted_text += f"[{chunk_start + segment.start:.2f}s -> {chunk_start + segment.end:.2f}s] {segment.text.strip()}\n"
         timestamp = time.time() - self.start_time + self.offset # Time stamp for the transcript
 
         self.chunk_ready.emit(timestamp, extracted_text)

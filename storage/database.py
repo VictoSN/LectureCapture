@@ -96,10 +96,6 @@ class Storage:
         return self._row_to_session(row) if row else None
 
     def update_session(self, session: Session):
-        session.date_modified = session.date_modified.isoformat()
-        session.date_recorded = session.date_recorded.isoformat()
-        session.summary_generated_at = session.summary_generated_at.isoformat() if session.summary_generated_at else None
-
         self.cursor.execute(
             "UPDATE session SET name = ?, session_category = ?, group_category = ?, date_recorded = ?, date_modified = ?, length = ?, summary = ?, summary_generated_at = ? WHERE id = ?", 
             (
@@ -156,9 +152,9 @@ class Storage:
 
     def update_capture_speech(self, capture_id, speech_text):
         self.cursor.execute(
-            "UPDATE ocrcapture SET speech_text = ? WHERE id = ?", (speech_text, capture_id)
+            "UPDATE ocrcapture SET speech_text = COALESCE(speech_text, '') || ? WHERE id = ?", (speech_text, capture_id)
         )
-
+        
         self.conn.commit()
 
     def close(self):
