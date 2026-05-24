@@ -11,6 +11,8 @@ class RecordingDialog(QDialog):
         action_layout = QHBoxLayout()
         int_validator = QIntValidator()
 
+        self.region = None
+
         # Input Fields
         self.session_interval = QLineEdit()
         self.session_interval.setPlaceholderText("OCR Interval (Seconds)")
@@ -70,15 +72,15 @@ class RecordingDialog(QDialog):
         self.set_user_option()
 
     def get_data(self):
-        if self.capture_method == "Full Window":
-            self.region = None
-        else:
+        if self.capture_method == "Coordinates":
             self.region = {
-                "x": int(self.x_coords.text()),
-                "y": int(self.y_coords.text()),
-                "w": int(self.width_dimension.text()),
-                "h": int(self.height_dimension.text()),
+                "left": int(self.x_coords.text()),
+                "top": int(self.y_coords.text()),
+                "width": int(self.width_dimension.text()),
+                "height": int(self.height_dimension.text()),
             }
+        elif self.capture_method == "Full Window":
+            self.region = None
         
         return {
             "interval": int(self.session_interval.text()),

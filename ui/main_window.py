@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QSplitter
 )
 from PyQt6.QtGui import QIcon
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 
 from models.lecture import Session, OCRCapture
 from storage.database import Storage
@@ -11,6 +11,7 @@ from datetime import datetime
 
 from core.ocr import OCRWorker
 from ui.sidebar import Sidebar
+from ui.capture_overlay import CaptureOverlay
 from ui.transcript_panel import TranscriptPanel
 from ui.new_session_dialog import NewSessionDialog
 from ui.recording_dialog import RecordingDialog
@@ -65,6 +66,12 @@ class MainWindow(QMainWindow):
         captures = self.storage.get_captures_by_session(session.id)
         self.transcript_panel.load_session(session, captures)
         
+    def start_recording(self, interval, region):
+        # Create ocr worker thread
+        self.ocr_worker = OCRWorker(self.current_session.id, self.storage.base_dir, interval, region)
+        self.ocr_worker.capture_read.connect(self.on_capture_ready)
+        self.ocr_worker.start()
+        
     def on_record_clicked(self):
         if not self.current_session:
             print('Need to select session first')
@@ -75,19 +82,19 @@ class MainWindow(QMainWindow):
             dialog = RecordingDialog()
             
             if dialog.exec():
+                data = dialog.get_data()
                 self.is_recording = True
                 self.transcript_panel.record_button.setText("Stop Recording")
-                
-                data = dialog.get_data()
-                
+
                 if data["capture_option"] == "Mouse Select":
-                    # SnipOverlay here
-                    pass
-                
-                # Create ocr worker thread
-                self.ocr_worker = OCRWorker(self.current_session.id, self.storage.base_dir, data["interval"], data["region"])
-                self.ocr_worker.capture_read.connect(self.on_capture_ready)
-                self.ocr_worker.start()
+                    self.showMinimized() # Hide the program
+                    self.overlay = CaptureOverlay(
+                        lambda x, y, w, h: self.start_recording(data["interval"], {"left": x, "top": y, "width": w, "height": h}),
+                        lambda: None  # cancel callback
+                    )
+                    QTimer.singleShot(200, self.showNormal) # Show the program back
+                else:
+                    self.start_recording(data["interval"], data["region"])
         else:
             self.is_recording = False
             self.transcript_panel.record_button.setText("Record")
