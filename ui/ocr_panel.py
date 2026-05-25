@@ -14,11 +14,13 @@ class OCRPanel(QWidget):
         main_layout = QVBoxLayout()
         header = QHBoxLayout()
         self.base_dir = base_dir
+        self.is_locked = True
 
         # Header Layout
         ocr_label = QLabel("Screen OCR")
         header.addWidget(ocr_label)
-        self.ocr_button = QPushButton("Editable")
+        self.ocr_button = QPushButton("Locked")
+        self.ocr_button.clicked.connect(self.set_locked)
         header.addWidget(self.ocr_button)
 
         # Scrollable
@@ -55,6 +57,7 @@ class OCRPanel(QWidget):
         capture_layout.addWidget(capture_timestamp)
         
         capture_text = QTextEdit(capture.extracted_text)
+        capture_text.setReadOnly(self.is_locked)
         capture_layout.addWidget(capture_text)
         
         capture_widget.setProperty("capture_id", capture.id)
@@ -73,3 +76,15 @@ class OCRPanel(QWidget):
             
     def add_capture(self, capture: OCRCapture):
         self.feed_layout.addWidget(self._create_capture_widget(capture))
+        
+    def set_locked(self):
+        self.is_locked = not self.is_locked
+        self.ocr_button.setText("Locked" if self.is_locked else "Editable")
+        
+        # Lock only the text edit
+        for i in range(self.feed_layout.count()):
+            widget = self.feed_layout.itemAt(i).widget()
+            if widget:
+                text_edit = widget.findChild(QTextEdit)
+                if text_edit:
+                    text_edit.setReadOnly(self.is_locked)

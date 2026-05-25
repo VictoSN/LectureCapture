@@ -35,13 +35,22 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1100, 700)
         self.setWindowTitle("LectureCapture")
 
+        self.filter_name = ""
+        self.filter_category = ""
+        self.filter_group = ""
+
         # Splitter Layout
         splitter = QSplitter(Qt.Orientation.Horizontal)
         self.setCentralWidget(splitter)
 
         sessions = self.storage.get_all_sessions()
-        self.sidebar = Sidebar(sessions, self.on_new_session, self.on_session_selected)
+        group_categories = self.storage.get_group_categories() # Get all group categories
+        self.sidebar = Sidebar(sessions, self.on_new_session, self.on_session_selected, group_categories)
         splitter.addWidget(self.sidebar)
+        
+        self.sidebar.search_changed.connect(self.on_search_changed)
+        self.sidebar.category_filter_changed.connect(self.on_category_filter_changed)
+        self.sidebar.group_filter_changed.connect(self.on_group_filter_changed)
 
         self.transcript_panel = TranscriptPanel(self.storage.base_dir)
         self.transcript_panel.record_clicked.connect(self.on_record_clicked)
@@ -90,7 +99,7 @@ class MainWindow(QMainWindow):
             print('Need to select session first')
             return
         
-        if not self.is_recording:
+        if not self.is_recording:            
             # Get data from dialog
             dialog = RecordingDialog()
             
@@ -98,6 +107,7 @@ class MainWindow(QMainWindow):
                 data = dialog.get_data()
                 self.is_recording = True
                 self.transcript_panel.record_button.setText("Stop Recording")
+                self.sidebar.set_recording_locked(True)
 
                 if data["capture_option"] == "Mouse Select":
                     self.showMinimized() # Hide the program
@@ -111,6 +121,7 @@ class MainWindow(QMainWindow):
         else:
             self.is_recording = False
             self.transcript_panel.record_button.setText("Record")
+            self.sidebar.set_recording_locked(False)
             self.ocr_worker.stop()
             self.audio_worker.stop()
             
@@ -155,3 +166,19 @@ class MainWindow(QMainWindow):
         self.current_session.summary = summarized_text
         self.current_session.summary_generated_at = datetime.now()
         self.storage.update_session(self.current_session)
+        
+    def on_search_changed(self, text):
+        self.filter_name = text
+        self.apply_filters()
+
+    def on_category_filter_changed(self, category):
+        self.filter_category = category
+        self.apply_filters()
+
+    def on_group_filter_changed(self, group):
+        self.filter_group = group
+        self.apply_filters()
+
+    def apply_filters(self):
+        sessions = self.storage.search_sessions(self.filter_name, self.filter_category, self.filter_group)
+        self.sidebar.refresh(sessions)

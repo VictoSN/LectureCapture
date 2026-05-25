@@ -1,3 +1,5 @@
+import mss
+
 from PyQt6.QtWidgets import (
     QPushButton, QLineEdit, QComboBox, QDialog, QVBoxLayout,QHBoxLayout
 )
@@ -9,6 +11,7 @@ class RecordingDialog(QDialog):
         main_layout = QVBoxLayout()
         capture_layout = QVBoxLayout()
         action_layout = QHBoxLayout()
+        interval_validator = QIntValidator(1, 30)
         int_validator = QIntValidator()
 
         self.region = None
@@ -16,7 +19,7 @@ class RecordingDialog(QDialog):
         # Input Fields
         self.session_interval = QLineEdit()
         self.session_interval.setPlaceholderText("OCR Interval (Seconds)")
-        self.session_interval.setValidator(int_validator)
+        self.session_interval.setValidator(interval_validator)
         main_layout.addWidget(self.session_interval)
         
         ## Control Dropdown
@@ -61,7 +64,7 @@ class RecordingDialog(QDialog):
         action_layout.addWidget(start_button)
 
         start_button.clicked.connect(
-            lambda: self.accept() if self.session_interval.text().strip() else None
+            lambda: self.accept() if self.validate() else None
         )
         cancel_button.clicked.connect(lambda: self.reject())
 
@@ -122,3 +125,41 @@ class RecordingDialog(QDialog):
             self.monitor_dropdown.hide()
         elif self.capture_method == "Coordinates" or self.capture_method == "Full Window":
             self.monitor_dropdown.show()
+    
+    def set_error(self, widget, error: bool):
+        widget.setStyleSheet("border: 2px solid red;" if error else "")
+    
+    def validate(self):
+        error = False
+        monitor_info = None
+        with mss.mss() as sct:
+            if not self.capture_method == "Mouse Select":
+                monitor_info = sct.monitors[self.monitor_dropdown.currentData()]
+        
+        if not self.session_interval.text().strip():
+            error = True
+        self.set_error(self.session_interval, error)            
+
+        # Make sure coordinates exist
+        if self.capture_method == "Coordinates":
+            coords_filled = all([self.x_coords.text(), self.y_coords.text(), self.width_dimension.text(), \
+                self.height_dimension.text()])
+            
+            if not coords_filled:
+                error = True
+                self.set_error(self.x_coords, not self.x_coords.text())
+                self.set_error(self.y_coords, not self.y_coords.text())
+                self.set_error(self.width_dimension, not self.width_dimension.text())
+                self.set_error(self.height_dimension, not self.height_dimension.text())
+            else:
+                # Only check bounds if all fields are filled
+                # Make sure there are no absurd values
+                if int(self.x_coords.text()) + int(self.width_dimension.text()) > monitor_info["width"] or \
+                    int(self.y_coords.text()) + int(self.height_dimension.text()) > monitor_info["height"]:
+                    error = True
+                    self.set_error(self.x_coords, True)
+                    self.set_error(self.y_coords, True)
+                    self.set_error(self.width_dimension, True)
+                    self.set_error(self.height_dimension, True)                
+        
+        return not error

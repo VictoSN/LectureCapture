@@ -157,5 +157,28 @@ class Storage:
         
         self.conn.commit()
 
+    def get_group_categories(self) -> list[str]:
+        self.cursor.execute("SELECT DISTINCT group_category FROM session WHERE group_category IS NOT NULL")
+        return [row[0] for row in self.cursor.fetchall()]
+
+    def search_sessions(self, name, session_category, group_category):
+        query = "SELECT id, name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at FROM session WHERE 1=1"
+        params = []
+        
+        if name:
+            query += " AND name LIKE ?"
+            params.append(f"%{name}%")
+            
+        if session_category and session_category != "All":
+            query += " AND session_category = ?"
+            params.append(session_category)
+            
+        if group_category and group_category != "All":
+            query += " AND group_category = ?"
+            params.append(group_category)
+        
+        self.cursor.execute(query, params)
+        return [self._row_to_session(captures) for captures in self.cursor.fetchall()]
+
     def close(self):
         self.conn.close()

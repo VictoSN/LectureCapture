@@ -58,8 +58,10 @@ class TranscriptPanel(QWidget):
         main_layout.addLayout(header)
         main_layout.addWidget(self.splitter)
         self.setLayout(main_layout)
+        self.set_session_loaded(True)
 
     def load_session(self, session: Session, captures: OCRCapture):
+        self.set_session_loaded(False)
         self.session_name.setText(session.name)
         
         self.ocr_panel.load_captures(captures)
@@ -70,3 +72,14 @@ class TranscriptPanel(QWidget):
         else:
             self.summary_panel.summary.clear()
             self.summary_panel.summary.setPlaceholderText('Press "Summarize" to generate a summary.')
+            
+    def set_session_loaded(self, loaded: bool):
+        self.session_name.setDisabled(loaded)
+        self.ocr_visibility_button.setDisabled(loaded)
+        self.speech_visibility_button.setDisabled(loaded)
+        self.summary_visibility_button.setDisabled(loaded)
+        self.record_button.setDisabled(loaded)
+        
+        self.ocr_panel.ocr_button.setDisabled(loaded)
+        self.speech_panel.speech_button.setDisabled(loaded)
+        self.summary_panel.summary_button.setDisabled(loaded)

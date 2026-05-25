@@ -10,11 +10,13 @@ class SpeechPanel(QWidget):
         main_layout = QVBoxLayout()
         header = QHBoxLayout()
         self.base_dir = base_dir
+        self.is_locked = True
 
         # Header Layout
         speech_label = QLabel("Audio transcript")
         header.addWidget(speech_label)
-        self.speech_button = QPushButton("Editable")
+        self.speech_button = QPushButton("Locked")
+        self.speech_button.clicked.connect(self.set_locked)
         header.addWidget(self.speech_button)
 
         # Scrollable
@@ -37,7 +39,9 @@ class SpeechPanel(QWidget):
         capture_timestamp = QLabel(f"{capture.timestamp:.2f}s")
         capture_layout.addWidget(capture_timestamp)
         
-        speech_text = QTextEdit(capture.speech_text)
+        speech_text = QTextEdit()
+        speech_text.setPlainText(capture.speech_text or "")
+        speech_text.setReadOnly(self.is_locked)
         capture_layout.addWidget(speech_text)
         
         capture_widget.setProperty("capture_id", capture.id)
@@ -62,4 +66,16 @@ class SpeechPanel(QWidget):
             widget = self.feed_layout.itemAt(i).widget()
             if widget and widget.property("capture_id") == capture_id:
                 text_field = widget.findChild(QTextEdit)
-                text_field.setText(text_field.toPlainText() + text)
+                text_field.setPlainText(text_field.toPlainText() + text)       
+
+    def set_locked(self):
+        self.is_locked = not self.is_locked
+        self.speech_button.setText("Locked" if self.is_locked else "Editable")
+        
+        # Lock only the text edit
+        for i in range(self.feed_layout.count()):
+            widget = self.feed_layout.itemAt(i).widget()
+            if widget:
+                text_edit = widget.findChild(QTextEdit)
+                if text_edit:
+                    text_edit.setReadOnly(self.is_locked)
