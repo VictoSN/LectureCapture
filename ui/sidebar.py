@@ -1,9 +1,10 @@
 from PyQt6.QtWidgets import (
-    QWidget, QListWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QComboBox
+    QWidget, QListWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QComboBox, QListWidgetItem
 )
 from PyQt6.QtCore import pyqtSignal
 
 from models.lecture import Session
+from ui.session_card import SessionCard
 
 class Sidebar(QWidget):
     search_changed = pyqtSignal(str)
@@ -41,8 +42,13 @@ class Sidebar(QWidget):
         # List Layout
         self.lecture_list = QListWidget()
         for session in sessions:
-            self.lecture_list.addItem(session.name)
+            item = QListWidgetItem()
+            widget = SessionCard(session)
             
+            item.setSizeHint(widget.sizeHint())
+            self.lecture_list.addItem(item)
+            self.lecture_list.setItemWidget(item, widget)
+                
         self.lecture_list.itemClicked.connect(
             lambda item: on_session_selected(self.sessions[self.lecture_list.row(item)])
         )
