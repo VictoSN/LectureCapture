@@ -14,10 +14,11 @@ from datetime import datetime
 from core.ocr import OCRWorker
 from core.audio import AudioWorker
 from core.summarizer import summarize
-from ui.sidebar import Sidebar
 from ui.capture_overlay import CaptureOverlay
-from ui.transcript_panel import TranscriptPanel
+from ui.sidebar import Sidebar
 from ui.new_session_dialog import NewSessionDialog
+from ui.transcript_panel import TranscriptPanel
+from ui.properties_dialog import PropertiesDialog
 from ui.recording_dialog import RecordingDialog
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -52,7 +53,7 @@ class MainWindow(QMainWindow):
         self.sidebar.category_filter_changed.connect(self.on_category_filter_changed)
         self.sidebar.group_filter_changed.connect(self.on_group_filter_changed)
 
-        self.transcript_panel = TranscriptPanel(self.storage.base_dir)
+        self.transcript_panel = TranscriptPanel(self.storage.base_dir, self.on_properties_clicked)
         self.transcript_panel.record_clicked.connect(self.on_record_clicked)
         self.transcript_panel.summary_panel.summarize_clicked.connect(self.on_summarize_clicked)
         splitter.addWidget(self.transcript_panel)
@@ -108,6 +109,7 @@ class MainWindow(QMainWindow):
                 self.is_recording = True
                 self.transcript_panel.record_button.setText("Stop Recording")
                 self.sidebar.set_recording_locked(True)
+                self.transcript_panel.set_properties_locked(True)
 
                 if data["capture_option"] == "Mouse Select":
                     self.showMinimized() # Hide the program
@@ -122,6 +124,7 @@ class MainWindow(QMainWindow):
             self.is_recording = False
             self.transcript_panel.record_button.setText("Record")
             self.sidebar.set_recording_locked(False)
+            self.transcript_panel.set_properties_locked(False)
             self.ocr_worker.stop()
             self.audio_worker.stop()
             
@@ -164,7 +167,9 @@ class MainWindow(QMainWindow):
         summarized_text = summarize(total_text)
         self.transcript_panel.summary_panel.summary.setText(summarized_text)
         self.current_session.summary = summarized_text
-        self.current_session.summary_generated_at = datetime.now()
+        current_time = datetime.now()
+        self.current_session.summary_generated_at = current_time
+        self.current_session.date_modified = current_time
         self.storage.update_session(self.current_session)
         
     def on_search_changed(self, text):
@@ -182,3 +187,18 @@ class MainWindow(QMainWindow):
     def apply_filters(self):
         sessions = self.storage.search_sessions(self.filter_name, self.filter_category, self.filter_group)
         self.sidebar.refresh(sessions)
+        
+    def on_properties_clicked(self):
+        dialog = PropertiesDialog()
+        
+        # Exec blocks until dialog is closed (accepted/cancelled)
+        if dialog.exec():
+            # Used data to update session info
+            data = dialog.get_data() 
+            print(data)
+            self.current_session.name = data["name"]
+            self.current_session.date_modified = datetime.now()
+            self.current_session.session_category = data["session_category"]
+            self.current_session.group_category = data["group_category"]
+            self.storage.update_session(self.current_session)
+            self.sidebar.refresh(self.storage.get_all_sessions())

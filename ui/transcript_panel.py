@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (
-    QWidget, QLineEdit, QPushButton, QSplitter, QVBoxLayout, QHBoxLayout
+    QWidget, QLabel, QPushButton, QSplitter, QVBoxLayout, QHBoxLayout
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
@@ -11,17 +11,20 @@ from ui.summary_panel import SummaryPanel
 class TranscriptPanel(QWidget):
     record_clicked = pyqtSignal()
     
-    def __init__(self, base_dir):
+    def __init__(self, base_dir, on_properties_clicked):
         super().__init__()
         main_layout = QVBoxLayout()
         header = QHBoxLayout()
         self.base_dir = base_dir
 
         # Header Layout
-        self.session_name = QLineEdit()
-        self.session_name.setPlaceholderText("Session name...")
+        self.session_name = QLabel()
+        self.session_name.setText("Session name...")
         header.addWidget(self.session_name)
 
+        self.properties_button = QPushButton("Properties")
+        self.properties_button.clicked.connect(on_properties_clicked)
+        header.addWidget(self.properties_button)
         self.ocr_visibility_button = QPushButton("OCR")
         header.addWidget(self.ocr_visibility_button)
         self.speech_visibility_button = QPushButton("S2T")
@@ -58,10 +61,10 @@ class TranscriptPanel(QWidget):
         main_layout.addLayout(header)
         main_layout.addWidget(self.splitter)
         self.setLayout(main_layout)
-        self.set_session_loaded(True)
+        self.set_session_locked(True)
 
     def load_session(self, session: Session, captures: OCRCapture):
-        self.set_session_loaded(False)
+        self.set_session_locked(False)
         self.session_name.setText(session.name)
         
         self.ocr_panel.load_captures(captures)
@@ -73,13 +76,17 @@ class TranscriptPanel(QWidget):
             self.summary_panel.summary.clear()
             self.summary_panel.summary.setPlaceholderText('Press "Summarize" to generate a summary.')
             
-    def set_session_loaded(self, loaded: bool):
-        self.session_name.setDisabled(loaded)
-        self.ocr_visibility_button.setDisabled(loaded)
-        self.speech_visibility_button.setDisabled(loaded)
-        self.summary_visibility_button.setDisabled(loaded)
-        self.record_button.setDisabled(loaded)
+    def set_session_locked(self, locked: bool):
+        self.session_name.setDisabled(locked)
+        self.properties_button.setDisabled(locked)
+        self.ocr_visibility_button.setDisabled(locked)
+        self.speech_visibility_button.setDisabled(locked)
+        self.summary_visibility_button.setDisabled(locked)
+        self.record_button.setDisabled(locked)
         
-        self.ocr_panel.ocr_button.setDisabled(loaded)
-        self.speech_panel.speech_button.setDisabled(loaded)
-        self.summary_panel.summary_button.setDisabled(loaded)
+        self.ocr_panel.ocr_button.setDisabled(locked)
+        self.speech_panel.speech_button.setDisabled(locked)
+        self.summary_panel.summary_button.setDisabled(locked)
+
+    def set_properties_locked(self, locked: bool):
+        self.properties_button.setDisabled(locked)
