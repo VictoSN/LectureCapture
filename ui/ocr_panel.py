@@ -64,13 +64,16 @@ class OCRPanel(QWidget):
         capture_widget.setLayout(capture_layout)
         return capture_widget # Return to load and add methods
 
-    def load_captures(self, captures: list[OCRCapture]):
+    def clear_captures(self):
         # Clear out the layout first
         while self.feed_layout.count():
             item = self.feed_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
 
+    def load_captures(self, captures: list[OCRCapture]):
+        self.clear_captures()
+        
         for capture in captures:
             self.feed_layout.addWidget(self._create_capture_widget(capture))
             

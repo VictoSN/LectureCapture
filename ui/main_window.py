@@ -53,13 +53,14 @@ class MainWindow(QMainWindow):
         self.sidebar.category_filter_changed.connect(self.on_category_filter_changed)
         self.sidebar.group_filter_changed.connect(self.on_group_filter_changed)
 
-        self.transcript_panel = TranscriptPanel(self.storage.base_dir, self.on_session_properties)
+        self.transcript_panel = TranscriptPanel(self.storage.base_dir, self.on_properties_clicked)
         self.transcript_panel.record_clicked.connect(self.on_record_clicked)
         self.transcript_panel.summary_panel.summarize_clicked.connect(self.on_summarize_clicked)
         splitter.addWidget(self.transcript_panel)
 
         # Wait until the other widgets are added
         splitter.setSizes([100, 400]) # 1 : 4 ratio
+        self.transcript_panel.set_session_locked(True) # Locked buttons initially
 
     def on_new_session(self):
         dialog = NewSessionDialog()
@@ -188,8 +189,10 @@ class MainWindow(QMainWindow):
         sessions = self.storage.search_sessions(self.filter_name, self.filter_category, self.filter_group)
         self.sidebar.refresh(sessions)
         
-    def on_session_properties(self):
+    def on_properties_clicked(self):
         dialog = PropertiesDialog(self.current_session)
+        dialog.delete_clicked.connect(self.on_deleted_clicked)
+        dialog.duplicate_clicked.connect(self.on_duplicated_clicked)
         
         # Exec blocks until dialog is closed (accepted/cancelled)
         if dialog.exec():
@@ -203,8 +206,12 @@ class MainWindow(QMainWindow):
             self.storage.update_session(self.current_session)
             self.sidebar.refresh(self.storage.get_all_sessions())
     
-    def on_session_deleted(self):
-        pass
+    def on_deleted_clicked(self):
+        self.storage.delete_session(self.current_session.id)
+        self.sidebar.refresh(self.storage.get_all_sessions())
+        self.transcript_panel.clear_panels()
     
-    def on_session_duplicated(self):
-        pass
+    def on_duplicated_clicked(self):
+        self.current_session = self.storage.duplicate_sessions(self.current_session.id)
+        self.sidebar.refresh(self.storage.get_all_sessions())
+        self.on_session_selected(self.current_session)

@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import pyqtSignal
 
 from models.lecture import Session
+from ui.format_time import FormatDetailedTime
 
 class PropertiesDialog(QDialog):
     delete_clicked = pyqtSignal()
@@ -30,10 +31,10 @@ class PropertiesDialog(QDialog):
         self.group_category.setText(session.group_category or "")
         main_layout.addWidget(self.group_category)
 
-        self.date_recorded = QLabel(str(session.date_recorded))
+        self.date_recorded = QLabel(FormatDetailedTime(session.date_recorded))
         main_layout.addWidget(self.date_recorded)
 
-        self.date_modified = QLabel(str(session.date_modified))
+        self.date_modified = QLabel(FormatDetailedTime(session.date_modified))
         main_layout.addWidget(self.date_modified)
 
         # Actions Buttons
@@ -41,9 +42,15 @@ class PropertiesDialog(QDialog):
         button_layout.addWidget(self.delete_button)
         self.duplicate_button = QPushButton("Duplicate")
         button_layout.addWidget(self.duplicate_button)
+        self.cancel_button = QPushButton("Cancel")
+        button_layout.addWidget(self.cancel_button)
+        self.save_button = QPushButton("Save")
+        button_layout.addWidget(self.save_button)
 
-        self.delete_button.clicked.connect(self.delete_clicked)
-        self.duplicate_button.clicked.connect(self.duplicate_clicked)
+        self.delete_button.clicked.connect(lambda: (self.delete_clicked.emit(), self.reject()))
+        self.duplicate_button.clicked.connect(lambda: (self.duplicate_clicked.emit(), self.reject()))
+        self.cancel_button.clicked.connect(self.reject)
+        self.save_button.clicked.connect(self.accept)
 
         main_layout.addLayout(button_layout)
         self.setLayout(main_layout)

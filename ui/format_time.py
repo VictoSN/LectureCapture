@@ -5,11 +5,12 @@ def FormatTime(date: datetime):
 
     if date.date() == now.date():
         formatted = date.strftime("Today, %H:%M")
-
     elif date.date() == (now.date() - timedelta(days=1)):
         formatted = date.strftime("Yesterday, %H:%M")
-
     else:
         formatted = date.strftime("%A %#d %B, %H:%M")
 
     return formatted
+
+def FormatDetailedTime(date: datetime):
+    return date.strftime("%A %#d %B, %H:%M:%S")

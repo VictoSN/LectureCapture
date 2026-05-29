@@ -161,7 +161,7 @@ class Storage:
         self.cursor.execute("SELECT DISTINCT group_category FROM session WHERE group_category IS NOT NULL")
         return [row[0] for row in self.cursor.fetchall()]
 
-    def search_sessions(self, name, session_category, group_category):
+    def search_sessions(self, name, session_category, group_category) -> list[Session]:
         query = "SELECT id, name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at FROM session WHERE 1=1"
         params = []
         
@@ -180,5 +180,33 @@ class Storage:
         self.cursor.execute(query, params)
         return [self._row_to_session(captures) for captures in self.cursor.fetchall()]
 
+    def duplicate_sessions(self, id) -> Session:
+        # Copy session and captures in database
+        now = datetime.now().isoformat()
+        self.cursor.execute("""
+            INSERT INTO session (name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at)
+            SELECT name || ' (Copy)', session_category, group_category, ?, ?, length, summary, summary_generated_at
+            FROM session WHERE id = ?
+        """, (now, now, id))
+
+        duplicated_id = self.cursor.lastrowid
+
+        self.cursor.execute("""
+            INSERT INTO ocrcapture (timestamp, image_path, extracted_text, speech_text, session_id)
+            SELECT timestamp, image_path, extracted_text, speech_text, ?
+            FROM ocrcapture WHERE session_id = ?
+        """, (duplicated_id, id))
+
+        self.conn.commit()    
+        
+        # Copy images folder
+        src = Path(self.base_dir) / 'sessions' / str(id)
+        dst = Path(self.base_dir) / 'sessions' / str(duplicated_id)
+        
+        if src.exists():
+            shutil.copytree(src, dst)
+            
+        return self.get_session(duplicated_id)
+    
     def close(self):
         self.conn.close()

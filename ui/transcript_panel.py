@@ -61,7 +61,6 @@ class TranscriptPanel(QWidget):
         main_layout.addLayout(header)
         main_layout.addWidget(self.splitter)
         self.setLayout(main_layout)
-        self.set_session_locked(True)
 
     def load_session(self, session: Session, captures: OCRCapture):
         self.set_session_locked(False)
@@ -90,3 +89,10 @@ class TranscriptPanel(QWidget):
 
     def set_properties_locked(self, locked: bool):
         self.properties_button.setDisabled(locked)
+    
+    def clear_panels(self):
+        self.session_name.setText("")
+        self.set_session_locked(True)
+        self.ocr_panel.clear_captures()
+        self.speech_panel.clear_captures()
+        self.summary_panel.summary.clear()
