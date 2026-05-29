@@ -77,8 +77,15 @@ class OCRPanel(QWidget):
         for capture in captures:
             self.feed_layout.addWidget(self._create_capture_widget(capture))
             
+        # Disable button if empty
+        if self.has_content():
+            self.ocr_button.setDisabled(False)
+        else:
+            self.ocr_button.setDisabled(True)
+            
     def add_capture(self, capture: OCRCapture):
         self.feed_layout.addWidget(self._create_capture_widget(capture))
+        self.ocr_button.setDisabled(False)
         
     def set_locked(self):
         self.is_locked = not self.is_locked
@@ -91,3 +98,6 @@ class OCRPanel(QWidget):
                 text_edit = widget.findChild(QTextEdit)
                 if text_edit:
                     text_edit.setReadOnly(self.is_locked)
+
+    def has_content(self) -> bool:
+        return self.feed_layout.count() > 0

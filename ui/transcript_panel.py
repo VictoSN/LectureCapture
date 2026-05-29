@@ -69,6 +69,10 @@ class TranscriptPanel(QWidget):
         self.ocr_panel.load_captures(captures)
         self.speech_panel.load_captures(captures)
         
+        #  Lock summary button if no content is available
+        has_content = self.ocr_panel.has_content() or self.speech_panel.has_content()
+        self.summary_panel.summary_button.setDisabled(not has_content)
+        
         if session.summary:
             self.summary_panel.summary.setText(session.summary)
         else:

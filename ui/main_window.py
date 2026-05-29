@@ -1,7 +1,7 @@
 import time
 
 from PyQt6.QtWidgets import (
-    QMainWindow, QSplitter
+    QMainWindow, QSplitter, QMessageBox
 )
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt, QTimer
@@ -137,7 +137,7 @@ class MainWindow(QMainWindow):
         self.storage.create_ocr_capture(capture)
         self.transcript_panel.ocr_panel.add_capture(capture)
         self.transcript_panel.speech_panel.add_capture(capture)
-        
+
     def on_chunk_ready(self, timestamp, text):
         captures = self.storage.get_captures_by_session(self.current_session.id)
         
@@ -215,3 +215,16 @@ class MainWindow(QMainWindow):
         self.current_session = self.storage.duplicate_sessions(self.current_session.id)
         self.sidebar.refresh(self.storage.get_all_sessions())
         self.on_session_selected(self.current_session)
+    
+    def closeEvent(self, event):
+        if self.is_recording:
+            reply = QMessageBox.question(self, "Recording in progress",
+                                "Stop recording and close?")
+            if reply == QMessageBox.StandardButton.Yes:
+                self.ocr_worker.stop()
+                self.audio_worker.stop()
+                event.accept()
+            else:
+                event.ignore()
+        else:
+            event.accept()

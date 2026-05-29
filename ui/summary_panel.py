@@ -16,6 +16,7 @@ class SummaryPanel(QWidget):
         header.addWidget(summary_label)
         self.summary_button = QPushButton("Summarize")
         self.summary_button.clicked.connect(self.summarize_clicked)
+        self.summary_button.setDisabled(False)
         header.addWidget(self.summary_button)
 
         # Summary        

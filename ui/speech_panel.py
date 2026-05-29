@@ -61,8 +61,15 @@ class SpeechPanel(QWidget):
         for capture in captures:
             self.feed_layout.addWidget(self._create_capture_widget(capture))
             
+        # Disable button if empty
+        if self.has_content():
+            self.speech_button.setDisabled(False)
+        else:
+            self.speech_button.setDisabled(True)
+
     def add_capture(self, capture: OCRCapture):
         self.feed_layout.addWidget(self._create_capture_widget(capture))
+        self.speech_button.setDisabled(False)
         
     def update_capture_speech(self, capture_id, text):
         for i in range(self.feed_layout.count()):
@@ -82,3 +89,6 @@ class SpeechPanel(QWidget):
                 text_edit = widget.findChild(QTextEdit)
                 if text_edit:
                     text_edit.setReadOnly(self.is_locked)
+
+    def has_content(self) -> bool:
+        return self.feed_layout.count() > 0
