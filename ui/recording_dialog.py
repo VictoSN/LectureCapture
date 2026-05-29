@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QLineEdit, QComboBox, QDialog, QVBoxLayout,QHBoxLayout
 )
 from PyQt6.QtGui import QIntValidator, QGuiApplication
+from PyQt6.QtCore import QSettings
 
 class RecordingDialog(QDialog):
     def __init__(self):
@@ -15,22 +16,35 @@ class RecordingDialog(QDialog):
         int_validator = QIntValidator()
 
         self.region = None
+        self.settings = QSettings("LectureCapture", "LectureCapture")
+
+        self.interval = self.settings.value("interval", 10)
+        self.capture_method = self.settings.value("capture_method", "Mouse Select")
+        self.region = self.settings.value("region", {
+            "left": 0,
+            "top": 0,
+            "width": 800,
+            "height": 800
+        })
 
         # Input Fields
         self.session_interval = QLineEdit()
         self.session_interval.setPlaceholderText("OCR Interval (Seconds)")
         self.session_interval.setValidator(interval_validator)
+        self.session_interval.setText(str(self.interval))
         main_layout.addWidget(self.session_interval)
         
         ## Control Dropdown
         self.capture_method_dropdown = QComboBox()
         self.capture_method_dropdown.addItems(["Mouse Select", "Coordinates", "Full Window"])
+        self.capture_method_dropdown.setCurrentText(self.capture_method)
         self.capture_method_dropdown.currentTextChanged.connect(self.set_user_option)
         capture_layout.addWidget(self.capture_method_dropdown)
 
         ## Monitor Dropdown
         self.monitor_dropdown = QComboBox()
         self.setup_monitor()
+        self.monitor_dropdown.setCurrentText(str(self.settings.value("monitor", "Monitor 1")))
         capture_layout.addWidget(self.monitor_dropdown)
 
         ## Coords Layout
@@ -40,21 +54,25 @@ class RecordingDialog(QDialog):
         self.x_coords = QLineEdit()
         self.x_coords.setPlaceholderText("X Coordinate")
         self.x_coords.setValidator(int_validator)
+        self.x_coords.setText(str(self.region["left"]))
         self.coords_layout.addWidget(self.x_coords)
 
         self.y_coords = QLineEdit()
         self.y_coords.setPlaceholderText("Y Coordinate")
         self.y_coords.setValidator(int_validator)
+        self.y_coords.setText(str(self.region["top"]))
         self.coords_layout.addWidget(self.y_coords)
 
         self.width_dimension = QLineEdit()
         self.width_dimension.setPlaceholderText("Width")
         self.width_dimension.setValidator(int_validator)
+        self.width_dimension.setText(str(self.region["width"]))
         self.coords_layout.addWidget(self.width_dimension)
 
         self.height_dimension = QLineEdit()
         self.height_dimension.setPlaceholderText("Height")
         self.height_dimension.setValidator(int_validator)
+        self.height_dimension.setText(str(self.region["height"]))
         self.coords_layout.addWidget(self.height_dimension)
 
         # Actions Buttons
@@ -75,12 +93,26 @@ class RecordingDialog(QDialog):
         self.set_user_option()
 
     def get_data(self):
+        # Save preferences
+        self.settings.setValue("interval", int(self.session_interval.text().strip()))
+        self.settings.setValue("capture_method", self.capture_method)
+        if self.capture_method == "Coordinates" or self.capture_method == "Full Window":
+            self.settings.setValue("monitor", self.monitor_dropdown.currentText())
+        
+        if self.capture_method == "Coordinates":
+            self.settings.setValue("region", {
+                "left": int(self.x_coords.text()),
+                "top": int(self.y_coords.text()),
+                "width": int(self.width_dimension.text()),
+                "height": int(self.height_dimension.text())
+            })
+        
         if self.capture_method == "Coordinates":
             self.region = {
                 "left": int(self.x_coords.text()),
                 "top": int(self.y_coords.text()),
                 "width": int(self.width_dimension.text()),
-                "height": int(self.height_dimension.text()),
+                "height": int(self.height_dimension.text())
             }
         elif self.capture_method == "Full Window":
             self.region = None

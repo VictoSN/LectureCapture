@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (
-    QPushButton, QLineEdit, QComboBox, QDialog, QVBoxLayout,QHBoxLayout, QLabel
+    QPushButton, QLineEdit, QComboBox, QDialog, QVBoxLayout,QHBoxLayout, QLabel, QMessageBox
 )
 from PyQt6.QtCore import pyqtSignal
 
@@ -43,6 +43,7 @@ class PropertiesDialog(QDialog):
         # Actions Buttons
         self.delete_button = QPushButton("Delete")
         button_layout.addWidget(self.delete_button)
+        
         self.duplicate_button = QPushButton("Duplicate")
         button_layout.addWidget(self.duplicate_button)
         self.cancel_button = QPushButton("Cancel")
@@ -50,7 +51,7 @@ class PropertiesDialog(QDialog):
         self.save_button = QPushButton("Save")
         button_layout.addWidget(self.save_button)
 
-        self.delete_button.clicked.connect(lambda: (self.delete_clicked.emit(), self.reject()))
+        self.delete_button.clicked.connect(self.deleteEvent)
         self.duplicate_button.clicked.connect(lambda: (self.duplicate_clicked.emit(), self.reject()))
         self.cancel_button.clicked.connect(self.reject)
         self.save_button.clicked.connect(self.accept)
@@ -65,3 +66,12 @@ class PropertiesDialog(QDialog):
             "session_category": self.session_category.currentText(),
             "group_category": self.group_category.text() if self.group_category.text().strip() else None
         }
+    
+    def deleteEvent(self):
+        reply = QMessageBox.question(self, "Delete Session",
+                            "Delete the current session?")
+        if reply == QMessageBox.StandardButton.No:
+            return
+        else:
+            self.delete_clicked.emit()
+            self.reject()

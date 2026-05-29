@@ -2,7 +2,6 @@ from PyQt6.QtWidgets import QWidget, QApplication
 from PyQt6.QtCore import Qt, QRect
 from PyQt6.QtGui import QPainter, QColor, QPixmap
 import mss, mss.tools
-import tempfile, os
 
 class CaptureOverlay(QWidget):
     def __init__(self, callback, cancel_callback):
@@ -11,6 +10,8 @@ class CaptureOverlay(QWidget):
         self.cancel_callback = cancel_callback
         self.start = None
         self.end = None
+        
+        self.sct = mss.mss()
         self.background = self._grab_screen()
 
         self.setWindowFlags(
@@ -23,23 +24,20 @@ class CaptureOverlay(QWidget):
         self.activateWindow()
 
     def _grab_screen(self):
-        with mss.mss() as sct:
-            img = sct.grab(sct.monitors[1])
-            tmp = tempfile.mktemp(suffix=".png")
-            mss.tools.to_png(img.rgb, img.size, output=tmp)
-            pixmap = QPixmap(tmp)
+        monitor = self.sct.monitors[2]
+        img = self.sct.grab(monitor)
 
-            # Adjust the overlay with the monitor's scaling
-            screen = QApplication.primaryScreen()
-            scaled = pixmap.scaled(
-                screen.geometry().width(),
-                screen.geometry().height(),
-                Qt.AspectRatioMode.IgnoreAspectRatio,
-                Qt.TransformationMode.SmoothTransformation
-            )
-            os.remove(tmp)
-            return scaled
+        pixmap = QPixmap()
+        pixmap.loadFromData(mss.tools.to_png(img.rgb, img.size))
 
+        screen = QApplication.primaryScreen()
+        return pixmap.scaled(
+            screen.geometry().width(),
+            screen.geometry().height(),
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+    
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.drawPixmap(0, 0, self.background) # Set screenshot as background

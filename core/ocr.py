@@ -28,6 +28,8 @@ class OCRWorker(QThread):
         self.offset = offset
         self.previous_text = ""
     
+        self.sct = mss.mss()
+    
         # Adjust the coordinates with the scaling of the monitor
         if self.region:
             ratio = QApplication.primaryScreen().devicePixelRatio()
@@ -60,33 +62,32 @@ class OCRWorker(QThread):
         return pytesseract.image_to_string(pil_img, config=config)
 
     def screenshot(self):
-        with mss.mss() as sct:
-            monitor = sct.monitors[self.monitor_index]
-            if not self.region:
-                # 0 = All monitors
-                # 1 = Main Monitor
-                # 2 = Secondary Monitor and etc..
-                img = sct.grab(monitor)
-            else:
-                img = sct.grab(self.region)
+        monitor = self.sct.monitors[self.monitor_index]
+        if not self.region:
+            # 0 = All monitors
+            # 1 = Main Monitor
+            # 2 = Secondary Monitor and etc..
+            img = self.sct.grab(monitor)
+        else:
+            img = self.sct.grab(self.region)
 
-            extracted_text = self.ocr(img) # Convert image into text
+        extracted_text = self.ocr(img) # Convert image into text
+        
+        # Ensure the capture image has different text
+        if self.compare_text(extracted_text):
+            timestamp = time.time() - self.start_time + self.offset
+            now = datetime.now() # Capture the time for name and date
+            name = "OCR_" + now.strftime('%y%m%d_%H%M%S.%f')[:-3]
+            full_path = str(Path(self.base_dir) / 'sessions' / str(self.session_id) / 'captures' / f"{name}.png")
+            image_path = f"{name}.png"
+            self.previous_text = extracted_text # become reference for comparison
             
-            # Ensure the capture image has different text
-            if self.compare_text(extracted_text):
-                timestamp = time.time() - self.start_time + self.offset
-                now = datetime.now() # Capture the time for name and date
-                name = "OCR_" + now.strftime('%y%m%d_%H%M%S.%f')[:-3]
-                full_path = str(Path(self.base_dir) / 'sessions' / str(self.session_id) / 'captures' / f"{name}.png")
-                image_path = f"{name}.png"
-                self.previous_text = extracted_text # become reference for comparison
-                
-                # Save to png
-                mss.tools.to_png(img.rgb, img.size, output=full_path)
-                
-                # Store to db and emit signal
-                new_capture = OCRCapture(timestamp, image_path, extracted_text, None, self.session_id, None)
-                self.capture_ready.emit(new_capture)
+            # Save to png
+            mss.tools.to_png(img.rgb, img.size, output=full_path)
+            
+            # Store to db and emit signal
+            new_capture = OCRCapture(timestamp, image_path, extracted_text, None, self.session_id, None)
+            self.capture_ready.emit(new_capture)
     
     def run(self):
         while self._running:
