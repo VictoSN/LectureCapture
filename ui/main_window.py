@@ -58,8 +58,9 @@ class MainWindow(QMainWindow):
         self.transcript_panel.summary_panel.summarize_clicked.connect(self.on_summarize_clicked)
         
         # When any content is changed
-        self.transcript_panel.ocr_panel.ocr_text_changed.connect(lambda cid, text: self.on_text_changed(cid, text, True))
-        self.transcript_panel.speech_panel.speech_text_changed.connect(lambda cid, text: self.on_text_changed(cid, text, False))
+        self.transcript_panel.ocr_panel.ocr_text_changed.connect(lambda cid, text: self.on_text_changed(cid, text, 1))
+        self.transcript_panel.speech_panel.speech_text_changed.connect(lambda cid, text: self.on_text_changed(cid, text, 2))
+        self.transcript_panel.summary_panel.summary_text_changed.connect(lambda text: self.on_text_changed(self.current_session.id, text, 3))
         splitter.addWidget(self.transcript_panel)
 
         # Wait until the other widgets are added
@@ -170,7 +171,27 @@ class MainWindow(QMainWindow):
         
         # Summarize then update the QTextEdit and current_session object
         summarized_text = summarize(total_text)
-        self.transcript_panel.summary_panel.summary.setText(summarized_text)
+        current = self.transcript_panel.summary_panel.summary.toPlainText()
+        
+        # If the user has modified the summary, double confirm
+        if current and summarized_text != current:
+            reply = QMessageBox.question(
+                self,
+                "Summarized text modified",
+                "Overwrite summarized text?"
+            )
+            if reply == QMessageBox.StandardButton.No:
+                return
+        # Ensure its not the same, to avoid updating the time period
+        elif summarized_text == current:
+            return        
+        
+        # Assign while blocking the signal to avoid triggering on_text_changed
+        summary_widget = self.transcript_panel.summary_panel.summary
+        summary_widget.blockSignals(True)
+        summary_widget.setText(summarized_text)
+        summary_widget.blockSignals(False)
+        
         self.current_session.summary = summarized_text
         current_time = datetime.now()
         self.current_session.summary_generated_at = current_time
@@ -220,16 +241,19 @@ class MainWindow(QMainWindow):
         self.sidebar.refresh(self.storage.get_all_sessions())
         self.on_session_selected(self.current_session)
     
-    def on_text_changed(self, capture_id, text, change_ocr: bool):
-        self.current_session.date_modified = datetime.now()
-        self.storage.update_session(self.current_session)
+    def on_text_changed(self, id, text, option: int):
+        now = datetime.now()
+        self.current_session.date_modified = now
         
-        # Change OCR or Speech Text
-        if change_ocr:
-            self.storage.update_extracted_text(capture_id, text)
-        else:
-            self.storage.update_speech_text(capture_id, text)
-            
+        # Change OCR or Speech or Summary Text 
+        if option == 1:
+            self.storage.update_extracted_text(id, text)
+        elif option == 2:
+            self.storage.update_speech_text(id, text)
+        elif option == 3:
+            self.current_session.summary = text
+
+        self.storage.update_session(self.current_session)
         self.sidebar.refresh(self.storage.get_all_sessions())
     
     def closeEvent(self, event):

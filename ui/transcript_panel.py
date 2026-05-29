@@ -72,9 +72,14 @@ class TranscriptPanel(QWidget):
         #  Lock summary button if no content is available
         has_content = self.ocr_panel.has_content() or self.speech_panel.has_content()
         self.summary_panel.summary_button.setDisabled(not has_content)
+        self.summary_panel.summary.setReadOnly(not has_content)
         
         if session.summary:
-            self.summary_panel.summary.setText(session.summary)
+            # Assign the summary text, while blocking signal to prevent triggering on_text_changed
+            summary_widget = self.summary_panel.summary
+            summary_widget.blockSignals(True)
+            summary_widget.setText(session.summary)
+            summary_widget.blockSignals(False)
         else:
             self.summary_panel.summary.clear()
             self.summary_panel.summary.setPlaceholderText('Press "Summarize" to generate a summary.')

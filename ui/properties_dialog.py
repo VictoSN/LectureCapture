@@ -36,6 +36,9 @@ class PropertiesDialog(QDialog):
 
         self.date_modified = QLabel(FormatDetailedTime(session.date_modified))
         main_layout.addWidget(self.date_modified)
+        
+        self.summary_generated = QLabel(FormatDetailedTime(session.summary_generated_at) or "")
+        main_layout.addWidget(self.summary_generated)
 
         # Actions Buttons
         self.delete_button = QPushButton("Delete")
