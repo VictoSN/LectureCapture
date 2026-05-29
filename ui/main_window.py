@@ -44,6 +44,10 @@ class MainWindow(QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         self.setCentralWidget(splitter)
 
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_timer)
+        self.elapse_s = 0
+
         sessions = self.storage.get_all_sessions()
         group_categories = self.storage.get_group_categories() # Get all group categories
         self.sidebar = Sidebar(sessions, self.on_new_session, self.on_session_selected, group_categories)
@@ -101,8 +105,13 @@ class MainWindow(QMainWindow):
         self.audio_worker.chunk_ready.connect(self.on_chunk_ready)
         self.audio_worker.start()
 
-    # def start_timer(self):
-    #     Q
+    def update_timer(self):
+        if self.is_recording:
+            self.elapse_s += 1
+            
+            minutes = self.elapse_s // 60
+            seconds = self.elapse_s % 60
+            self.transcript_panel.recording_time_label.setText(f"{minutes:02}:{seconds:02}")
 
     def on_record_clicked(self):
         if not self.current_session:
@@ -114,6 +123,7 @@ class MainWindow(QMainWindow):
             dialog = RecordingDialog()
             
             if dialog.exec():
+                self.timer.start(1000) # Start Timer
                 data = dialog.get_data()
                 self.is_recording = True
                 self.transcript_panel.record_button.setText("Stop Recording")
@@ -126,10 +136,15 @@ class MainWindow(QMainWindow):
                         lambda x, y, w, h: self.start_recording(data["interval"], {"left": x, "top": y, "width": w, "height": h}, data["monitor"]),
                         lambda: None  # cancel callback
                     )
-                    QTimer.singleShot(200, self.showNormal) # Show the program back
+                    QTimer.singleShot(500, self.showNormal) # Show the program back
                 else:
                     self.start_recording(data["interval"], data["region"], data["monitor"])
         else:
+            # Stop Timer and reset time
+            self.timer.stop() 
+            self.elapse_s = 0
+            self.transcript_panel.recording_time_label.setText("00:00")
+            
             self.is_recording = False
             self.transcript_panel.record_button.setText("Record")
             self.sidebar.set_recording_locked(False)
