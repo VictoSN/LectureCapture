@@ -56,6 +56,10 @@ class MainWindow(QMainWindow):
         self.transcript_panel = TranscriptPanel(self.storage.base_dir, self.on_properties_clicked)
         self.transcript_panel.record_clicked.connect(self.on_record_clicked)
         self.transcript_panel.summary_panel.summarize_clicked.connect(self.on_summarize_clicked)
+        
+        # When any content is changed
+        self.transcript_panel.ocr_panel.ocr_text_changed.connect(lambda cid, text: self.on_text_changed(cid, text, True))
+        self.transcript_panel.speech_panel.speech_text_changed.connect(lambda cid, text: self.on_text_changed(cid, text, False))
         splitter.addWidget(self.transcript_panel)
 
         # Wait until the other widgets are added
@@ -149,7 +153,7 @@ class MainWindow(QMainWindow):
                 break
         
         if recent:
-            self.storage.update_capture_speech(recent.id, text)
+            self.storage.append_speech_text(recent.id, text)
             self.transcript_panel.speech_panel.update_capture_speech(recent.id, text)
     
     def on_summarize_clicked(self):
@@ -215,6 +219,18 @@ class MainWindow(QMainWindow):
         self.current_session = self.storage.duplicate_sessions(self.current_session.id)
         self.sidebar.refresh(self.storage.get_all_sessions())
         self.on_session_selected(self.current_session)
+    
+    def on_text_changed(self, capture_id, text, change_ocr: bool):
+        self.current_session.date_modified = datetime.now()
+        self.storage.update_session(self.current_session)
+        
+        # Change OCR or Speech Text
+        if change_ocr:
+            self.storage.update_extracted_text(capture_id, text)
+        else:
+            self.storage.update_speech_text(capture_id, text)
+            
+        self.sidebar.refresh(self.storage.get_all_sessions())
     
     def closeEvent(self, event):
         if self.is_recording:

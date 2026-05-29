@@ -3,12 +3,14 @@ from PyQt6.QtWidgets import (
     QTextEdit
 )
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 
 from models.lecture import OCRCapture
 from pathlib import Path
 
 class OCRPanel(QWidget):
+    ocr_text_changed = pyqtSignal(int, str) # capture_id & new text
+    
     def __init__(self, base_dir):
         super().__init__()
         main_layout = QVBoxLayout()
@@ -56,9 +58,25 @@ class OCRPanel(QWidget):
         capture_timestamp = QLabel(f"{capture.timestamp:.2f}s")
         capture_layout.addWidget(capture_timestamp)
         
-        capture_text = QTextEdit(capture.extracted_text)
-        capture_text.setReadOnly(self.is_locked)
-        capture_layout.addWidget(capture_text)
+        ocr_text = QTextEdit()
+        ocr_text.blockSignals(True)
+        ocr_text.setPlainText(capture.extracted_text or "")
+        ocr_text.blockSignals(False)
+        ocr_text.setReadOnly(self.is_locked)
+        
+        # Update after 500ms
+        timer = QTimer(ocr_text)
+        timer.setSingleShot(True)
+        ocr_text._save_timer = timer
+        
+        ocr_text.textChanged.connect(lambda: ocr_text._save_timer.start(500))
+
+        ocr_text._save_timer.timeout.connect(
+            lambda cap_id=capture.id, w=ocr_text:
+                self.ocr_text_changed.emit(cap_id, w.toPlainText())
+        )
+        
+        capture_layout.addWidget(ocr_text)
         
         capture_widget.setProperty("capture_id", capture.id)
         capture_widget.setLayout(capture_layout)

@@ -150,7 +150,22 @@ class Storage:
         self.cursor.execute("SELECT id, timestamp, image_path, extracted_text, speech_text, session_id FROM ocrcapture WHERE session_id = ?", (session_id,))
         return [self._row_to_ocrcapture(captures) for captures in self.cursor.fetchall()]        
 
-    def update_capture_speech(self, capture_id, speech_text):
+    def update_extracted_text(self, capture_id, extracted_text):
+        self.cursor.execute(
+            "UPDATE ocrcapture SET extracted_text = ? WHERE id = ?", (extracted_text, capture_id)
+        )
+        self.conn.commit()
+    
+    # Update without duplication bug (Used by updating the text field)
+    def update_speech_text(self, capture_id, speech_text):
+        self.cursor.execute(
+            "UPDATE ocrcapture SET speech_text = ? WHERE id = ?", (speech_text, capture_id)
+        )
+        
+        self.conn.commit()
+    
+    # Append without deleting the previous (Used by the audio worker thread)
+    def append_speech_text(self, capture_id, speech_text):
         self.cursor.execute(
             "UPDATE ocrcapture SET speech_text = COALESCE(speech_text, '') || ? WHERE id = ?", (speech_text, capture_id)
         )
