@@ -1,9 +1,15 @@
 from PyQt6.QtWidgets import (
-    QPushButton, QLineEdit, QComboBox, QDialog, QVBoxLayout,QHBoxLayout
+    QPushButton, QLineEdit, QComboBox, QDialog, QVBoxLayout,QHBoxLayout, QLabel
 )
+from PyQt6.QtCore import pyqtSignal
+
+from models.lecture import Session
 
 class PropertiesDialog(QDialog):
-    def __init__(self):
+    delete_clicked = pyqtSignal()
+    duplicate_clicked = pyqtSignal()
+    
+    def __init__(self, session: Session):
         super().__init__()
         main_layout = QVBoxLayout()
         button_layout = QHBoxLayout()
@@ -11,26 +17,33 @@ class PropertiesDialog(QDialog):
         # Input Fields
         self.session_name = QLineEdit()
         self.session_name.setPlaceholderText("Session name...")
+        self.session_name.setText(session.name)
         main_layout.addWidget(self.session_name)
 
         self.session_category = QComboBox()
         self.session_category.addItems(["Lab", "Tutorial", "Lecture"])
+        self.session_category.setCurrentText(session.session_category)
         main_layout.addWidget(self.session_category)
 
         self.group_category = QLineEdit()
         self.group_category.setPlaceholderText("Group Category...")
+        self.group_category.setText(session.group_category or "")
         main_layout.addWidget(self.group_category)
 
-        # Actions Buttons
-        self.cancel_button = QPushButton("Cancel")
-        button_layout.addWidget(self.cancel_button)
-        self.create_button = QPushButton("Create")
-        button_layout.addWidget(self.create_button)
+        self.date_recorded = QLabel(str(session.date_recorded))
+        main_layout.addWidget(self.date_recorded)
 
-        self.create_button.clicked.connect(
-            lambda: self.accept() if self.session_name.text().strip() else None
-        )
-        self.cancel_button.clicked.connect(lambda: self.reject())
+        self.date_modified = QLabel(str(session.date_modified))
+        main_layout.addWidget(self.date_modified)
+
+        # Actions Buttons
+        self.delete_button = QPushButton("Delete")
+        button_layout.addWidget(self.delete_button)
+        self.duplicate_button = QPushButton("Duplicate")
+        button_layout.addWidget(self.duplicate_button)
+
+        self.delete_button.clicked.connect(self.delete_clicked)
+        self.duplicate_button.clicked.connect(self.duplicate_clicked)
 
         main_layout.addLayout(button_layout)
         self.setLayout(main_layout)

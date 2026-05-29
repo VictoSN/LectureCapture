@@ -64,9 +64,15 @@ class Sidebar(QWidget):
         self.sessions = sessions # Renew sessions
         self.lecture_list.clear()
         
+        # List Layout
         for session in sessions:
-            self.lecture_list.addItem(session.name)
+            item = QListWidgetItem()
+            widget = SessionCard(session)
             
+            item.setSizeHint(widget.sizeHint())
+            self.lecture_list.addItem(item)
+            self.lecture_list.setItemWidget(item, widget)
+                    
     def set_recording_locked(self, locked: bool):
         self.new_session_button.setDisabled(locked)
         self.session_search.setDisabled(locked)

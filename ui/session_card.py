@@ -33,7 +33,7 @@ class SessionCard(QWidget):
         name_label = QLabel(self.session.name)
         name_category_layout.addWidget(name_label)
         
-        group_category_label = QLabel(self.session.group_category)
+        group_category_label = QLabel(self.session.group_category or "")
         name_category_layout.addWidget(group_category_label)
         
         main_layout.addStretch()

@@ -53,7 +53,7 @@ class MainWindow(QMainWindow):
         self.sidebar.category_filter_changed.connect(self.on_category_filter_changed)
         self.sidebar.group_filter_changed.connect(self.on_group_filter_changed)
 
-        self.transcript_panel = TranscriptPanel(self.storage.base_dir, self.on_properties_clicked)
+        self.transcript_panel = TranscriptPanel(self.storage.base_dir, self.on_session_properties)
         self.transcript_panel.record_clicked.connect(self.on_record_clicked)
         self.transcript_panel.summary_panel.summarize_clicked.connect(self.on_summarize_clicked)
         splitter.addWidget(self.transcript_panel)
@@ -188,8 +188,8 @@ class MainWindow(QMainWindow):
         sessions = self.storage.search_sessions(self.filter_name, self.filter_category, self.filter_group)
         self.sidebar.refresh(sessions)
         
-    def on_properties_clicked(self):
-        dialog = PropertiesDialog()
+    def on_session_properties(self):
+        dialog = PropertiesDialog(self.current_session)
         
         # Exec blocks until dialog is closed (accepted/cancelled)
         if dialog.exec():
@@ -202,3 +202,9 @@ class MainWindow(QMainWindow):
             self.current_session.group_category = data["group_category"]
             self.storage.update_session(self.current_session)
             self.sidebar.refresh(self.storage.get_all_sessions())
+    
+    def on_session_deleted(self):
+        pass
+    
+    def on_session_duplicated(self):
+        pass

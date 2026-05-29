@@ -11,7 +11,7 @@ from ui.summary_panel import SummaryPanel
 class TranscriptPanel(QWidget):
     record_clicked = pyqtSignal()
     
-    def __init__(self, base_dir, on_properties_clicked):
+    def __init__(self, base_dir, on_session_properties):
         super().__init__()
         main_layout = QVBoxLayout()
         header = QHBoxLayout()
@@ -23,7 +23,7 @@ class TranscriptPanel(QWidget):
         header.addWidget(self.session_name)
 
         self.properties_button = QPushButton("Properties")
-        self.properties_button.clicked.connect(on_properties_clicked)
+        self.properties_button.clicked.connect(on_session_properties)
         header.addWidget(self.properties_button)
         self.ocr_visibility_button = QPushButton("OCR")
         header.addWidget(self.ocr_visibility_button)
