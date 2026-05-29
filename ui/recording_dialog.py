@@ -136,15 +136,21 @@ class RecordingDialog(QDialog):
                     item.widget().hide()
             elif item.layout():
                 self.set_layout_visible(item.layout(), visible)
-        
+
     def setup_monitor(self):
-        if len(QGuiApplication.screens()) > 1:
-            self.monitor_dropdown.addItem(f"All Monitor", 0)
-            for i in range(1, len(QGuiApplication.screens()) + 1):
-                self.monitor_dropdown.addItem(f"Monitor {i}", i)
-            return
-        self.monitor_dropdown.addItem(f"Monitor 1", 1)
-        
+        self.monitor_dropdown.clear()
+
+        with mss.mss() as sct:
+            self.monitors = sct.monitors[1:]  # store real monitors
+
+            if len(self.monitors) > 1:
+                self.monitor_dropdown.addItem("All Monitor", 0)
+
+            for i, m in enumerate(self.monitors, 1):
+                self.monitor_dropdown.addItem(
+                    f"Monitor {i} | {m['width']}x{m['height']} ({m['left']},{m['top']})", i
+                )
+
     # Hide or Show the user option for screenshots
     def set_user_option(self):
         self.capture_method = self.capture_method_dropdown.currentText()

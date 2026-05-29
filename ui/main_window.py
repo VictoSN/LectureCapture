@@ -100,7 +100,10 @@ class MainWindow(QMainWindow):
         self.audio_worker = AudioWorker(self.current_session.id, self.storage.base_dir, interval, start_time, self.current_session.length)
         self.audio_worker.chunk_ready.connect(self.on_chunk_ready)
         self.audio_worker.start()
-        
+
+    # def start_timer(self):
+    #     Q
+
     def on_record_clicked(self):
         if not self.current_session:
             print('Need to select session first')

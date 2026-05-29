@@ -15,11 +15,12 @@ class TranscriptPanel(QWidget):
         super().__init__()
         main_layout = QVBoxLayout()
         header = QHBoxLayout()
+        footer = QHBoxLayout()
         self.base_dir = base_dir
 
         # Header Layout
         self.session_name = QLabel()
-        self.session_name.setText("Session name...")
+        self.session_name.setText("Select a session")
         header.addWidget(self.session_name)
 
         self.properties_button = QPushButton("Properties")
@@ -58,8 +59,29 @@ class TranscriptPanel(QWidget):
         self.splitter.addWidget(self.summary_panel)
         self.splitter.setSizes([100, 100, 100]) # 1 : 4 ratio
 
+        # Info Footer
+        self.recording_time_label = QLabel("00:00") 
+        footer.addWidget(self.recording_time_label)
+        self.ocr_engine_label = QLabel("pytesseract") 
+        footer.addWidget(self.ocr_engine_label)
+        self.speech_engine_label = QLabel("faster-whisper") 
+        footer.addWidget(self.speech_engine_label)
+        self.summarize_engine_label = QLabel("sumy") 
+        footer.addWidget(self.summarize_engine_label)
+
+
+        # TODO: Put this into Styles
+        footer.setContentsMargins(0, 0, 0, 0)
+        footer.setSpacing(10)
+        self.recording_time_label.setFixedHeight(20)
+        self.ocr_engine_label.setFixedHeight(20)
+        self.speech_engine_label.setFixedHeight(20)
+        self.summarize_engine_label.setFixedHeight(20)
+
+
         main_layout.addLayout(header)
         main_layout.addWidget(self.splitter)
+        main_layout.addLayout(footer)
         self.setLayout(main_layout)
 
     def load_session(self, session: Session, captures: OCRCapture):
