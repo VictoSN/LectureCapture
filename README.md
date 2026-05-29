@@ -10,7 +10,7 @@ venv\Scripts\Activate
 ```
 3. Install dependencies:
 ```bash
-pip install PyQt6 pytesseract Pillow mss
+pip install PyQt6 pytesseract Pillow mss sounddevice soundfile faster_whisper sumy
 ```
 4. Install Tesseract:
 ```bash
