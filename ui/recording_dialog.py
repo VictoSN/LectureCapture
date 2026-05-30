@@ -1,7 +1,7 @@
 import mss
 
 from PyQt6.QtWidgets import (
-    QPushButton, QLineEdit, QComboBox, QDialog, QVBoxLayout,QHBoxLayout
+    QPushButton, QLineEdit, QComboBox, QDialog, QVBoxLayout,QHBoxLayout, QSpinBox
 )
 from PyQt6.QtGui import QIntValidator
 from PyQt6.QtCore import QSettings, Qt
@@ -28,10 +28,10 @@ class RecordingDialog(QDialog):
         })
 
         # Input Fields
-        self.session_interval = QLineEdit()
-        self.session_interval.setPlaceholderText("OCR Interval (Seconds)")
-        self.session_interval.setValidator(interval_validator)
-        self.session_interval.setText(str(self.interval))
+        # Used QSpinBox for integer validation
+        self.session_interval = QSpinBox()
+        self.session_interval.setRange(1, 30)
+        self.session_interval.setValue(int(self.interval))
         main_layout.addWidget(self.session_interval)
         
         ## Control Dropdown
@@ -94,7 +94,7 @@ class RecordingDialog(QDialog):
 
     def get_data(self) -> dict[str, object]:
         # Save preferences
-        self.settings.setValue("interval", int(self.session_interval.text().strip()))
+        self.settings.setValue("interval", self.session_interval.value())
         self.settings.setValue("capture_method", self.capture_method)
         if self.capture_method == "Coordinates" or self.capture_method == "Full Window":
             self.settings.setValue("monitor", self.monitor_dropdown.currentText())
@@ -118,7 +118,7 @@ class RecordingDialog(QDialog):
             self.region = None
         
         return {
-            "interval": int(self.session_interval.text()),
+            "interval": self.session_interval.value(),
             "region": self.region,
             "capture_option": self.capture_method,
             "monitor": self.monitor_dropdown.currentData()
@@ -141,16 +141,17 @@ class RecordingDialog(QDialog):
         self.monitor_dropdown.clear()
 
         with mss.mss() as sct:
-            self.monitors = sct.monitors[1:]  # store real monitors
+            monitors_with_index = list(enumerate(sct.monitors[1:], 1)) # [(1, {...}), (2, {...})]
+            monitors_with_index.sort(key=lambda x: not x[1].get('is_primary', False)) # primary first
 
-            if len(self.monitors) > 1:
+            if len(monitors_with_index) > 1:
                 self.monitor_dropdown.addItem("All Monitor", 0)
 
-            for i, m in enumerate(self.monitors, 1):
+            for display_num, (mss_index, m) in enumerate(monitors_with_index, 1):
                 self.monitor_dropdown.addItem(
-                    f"Monitor {i} | {m['width']}x{m['height']} ({m['left']},{m['top']})", i
+                    f"Monitor {display_num} | {m['width']}x{m['height']} ({m['left']},{m['top']})", mss_index
                 )
-
+                
     # Hide or Show the user option for screenshots
     def set_user_option(self) -> None:
         self.capture_method = self.capture_method_dropdown.currentText()

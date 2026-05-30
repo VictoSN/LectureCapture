@@ -32,9 +32,10 @@ class OCRWorker(QThread):
     
         # Adjust the coordinates with the scaling of the monitor
         if self.region:
+            monitor = self.sct.monitors[self.monitor_index]
             ratio = QApplication.primaryScreen().devicePixelRatio()
-            self.region["left"] = int(self.region["left"] * ratio)
-            self.region["top"] = int(self.region["top"] * ratio)
+            self.region["left"] = int((self.region["left"] + monitor["left"]) * ratio)
+            self.region["top"] = int((self.region["top"] + monitor["top"]) * ratio)
             self.region["width"] = int(self.region["width"] * ratio)
             self.region["height"] = int(self.region["height"] * ratio)
 
@@ -92,7 +93,13 @@ class OCRWorker(QThread):
     def run(self) -> None:
         while self._running:
             self.screenshot()
-            time.sleep(self.interval)
+            
+            # Due to using '.wait' in MainWindow, the thread will only close at interval time
+            # Make interval 1/10th as fast, to be able to close it in time.
+            for _ in range(self.interval * 10):
+                if not self._running:
+                    break
+                time.sleep(0.1)
         
     def stop(self) -> None:
         self._running = False

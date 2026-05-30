@@ -158,8 +158,12 @@ class MainWindow(QMainWindow):
             self.transcript_panel.record_button.setText("Record")
             self.sidebar.set_recording_locked(False)
             self.transcript_panel.set_properties_locked(False)
+            
+            # Stop the threads
             self.ocr_worker.stop()
             self.audio_worker.stop()
+            self.ocr_worker.wait()
+            self.audio_worker.wait()
             
             # save total length
             self.current_session.length += int(time.time() - self.recording_start_time)
@@ -293,8 +297,11 @@ class MainWindow(QMainWindow):
             reply = QMessageBox.question(self, "Recording in progress",
                                 "Stop recording and close?")
             if reply == QMessageBox.StandardButton.Yes:
+                # Stop the threads
                 self.ocr_worker.stop()
                 self.audio_worker.stop()
+                self.ocr_worker.wait()
+                self.audio_worker.wait()
                 event.accept()
             else:
                 event.ignore()
