@@ -7,7 +7,7 @@ class SummaryPanel(QWidget):
     summarize_clicked = pyqtSignal()
     summary_text_changed = pyqtSignal(str) # new text
     
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         header = QHBoxLayout()

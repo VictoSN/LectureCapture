@@ -7,7 +7,7 @@ from PyQt6.QtGui import QIntValidator, QGuiApplication
 from PyQt6.QtCore import QSettings
 
 class RecordingDialog(QDialog):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         capture_layout = QVBoxLayout()
@@ -92,7 +92,7 @@ class RecordingDialog(QDialog):
         
         self.set_user_option()
 
-    def get_data(self):
+    def get_data(self) -> dict[str, object]:
         # Save preferences
         self.settings.setValue("interval", int(self.session_interval.text().strip()))
         self.settings.setValue("capture_method", self.capture_method)
@@ -125,7 +125,7 @@ class RecordingDialog(QDialog):
         }
         
     # UI Visibility
-    def set_layout_visible(self, layout, visible):
+    def set_layout_visible(self, layout, visible) -> None:
         for i in range(layout.count()):
             item = layout.itemAt(i)
 
@@ -137,7 +137,7 @@ class RecordingDialog(QDialog):
             elif item.layout():
                 self.set_layout_visible(item.layout(), visible)
 
-    def setup_monitor(self):
+    def setup_monitor(self) -> None:
         self.monitor_dropdown.clear()
 
         with mss.mss() as sct:
@@ -152,7 +152,7 @@ class RecordingDialog(QDialog):
                 )
 
     # Hide or Show the user option for screenshots
-    def set_user_option(self):
+    def set_user_option(self) -> None:
         self.capture_method = self.capture_method_dropdown.currentText()
         if self.capture_method == "Mouse Select" or self.capture_method == "Full Window":
             self.set_layout_visible(self.coords_layout, False)
@@ -164,10 +164,10 @@ class RecordingDialog(QDialog):
         elif self.capture_method == "Coordinates" or self.capture_method == "Full Window":
             self.monitor_dropdown.show()
     
-    def set_error(self, widget, error: bool):
+    def set_error(self, widget, error: bool) -> None:
         widget.setStyleSheet("border: 2px solid red;" if error else "")
     
-    def validate(self):
+    def validate(self) -> bool:
         error = False
         monitor_info = None
         with mss.mss() as sct:

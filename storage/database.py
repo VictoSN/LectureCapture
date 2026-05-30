@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 class Storage:
-    def __init__(self):
+    def __init__(self) -> None:
         # Get %APPDATA% path
         app_data = os.environ['APPDATA']
         self.base_dir = os.path.join(app_data, 'LectureCapture')
@@ -21,7 +21,7 @@ class Storage:
         self.cursor.execute("PRAGMA foreign_keys = ON") # Enable foreign keys
         self.create_table()
 
-    def create_table(self):
+    def create_table(self) -> None:
         self.cursor.execute("""
                             CREATE TABLE IF NOT EXISTS session(
                                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -69,7 +69,7 @@ class Storage:
         session.id = last_id
         return last_id 
 
-    def _parse_datetime(self, value):
+    def _parse_datetime(self, value) -> datetime | None:
         return datetime.fromisoformat(value) if value is not None else None
 
     def _row_to_session(self, row) -> Session:
@@ -95,7 +95,7 @@ class Storage:
         row = self.cursor.fetchone()
         return self._row_to_session(row) if row else None
 
-    def update_session(self, session: Session):
+    def update_session(self, session: Session) -> None:
         self.cursor.execute(
             "UPDATE session SET name = ?, session_category = ?, group_category = ?, date_recorded = ?, date_modified = ?, length = ?, summary = ?, summary_generated_at = ? WHERE id = ?", 
             (
@@ -113,7 +113,7 @@ class Storage:
 
         self.conn.commit()
     
-    def delete_session(self, id: int):
+    def delete_session(self, id: int) -> None:
         file_path = Path(self.base_dir) / 'sessions' / str(id)
         
         if file_path.exists():
@@ -150,14 +150,14 @@ class Storage:
         self.cursor.execute("SELECT id, timestamp, image_path, extracted_text, speech_text, session_id FROM ocrcapture WHERE session_id = ?", (session_id,))
         return [self._row_to_ocrcapture(captures) for captures in self.cursor.fetchall()]        
 
-    def update_extracted_text(self, capture_id, extracted_text):
+    def update_extracted_text(self, capture_id, extracted_text) -> None:
         self.cursor.execute(
             "UPDATE ocrcapture SET extracted_text = ? WHERE id = ?", (extracted_text, capture_id)
         )
         self.conn.commit()
     
     # Update without duplication bug (Used by updating the text field)
-    def update_speech_text(self, capture_id, speech_text):
+    def update_speech_text(self, capture_id, speech_text) -> None:
         self.cursor.execute(
             "UPDATE ocrcapture SET speech_text = ? WHERE id = ?", (speech_text, capture_id)
         )
@@ -165,7 +165,7 @@ class Storage:
         self.conn.commit()
     
     # Append without deleting the previous (Used by the audio worker thread)
-    def append_speech_text(self, capture_id, speech_text):
+    def append_speech_text(self, capture_id, speech_text) -> None:
         self.cursor.execute(
             "UPDATE ocrcapture SET speech_text = COALESCE(speech_text, '') || ? WHERE id = ?", (speech_text, capture_id)
         )
@@ -223,5 +223,5 @@ class Storage:
             
         return self.get_session(duplicated_id)
     
-    def close(self):
+    def close(self) -> None:
         self.conn.close()

@@ -11,7 +11,7 @@ from ui.summary_panel import SummaryPanel
 class TranscriptPanel(QWidget):
     record_clicked = pyqtSignal()
     
-    def __init__(self, base_dir, on_session_properties):
+    def __init__(self, base_dir, on_session_properties) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         header = QHBoxLayout()
@@ -84,7 +84,7 @@ class TranscriptPanel(QWidget):
         main_layout.addLayout(footer)
         self.setLayout(main_layout)
 
-    def load_session(self, session: Session, captures: OCRCapture):
+    def load_session(self, session: Session, captures: OCRCapture) -> None:
         self.set_session_locked(False)
         self.session_name.setText(session.name)
         
@@ -106,7 +106,7 @@ class TranscriptPanel(QWidget):
             self.summary_panel.summary.clear()
             self.summary_panel.summary.setPlaceholderText('Press "Summarize" to generate a summary.')
             
-    def set_session_locked(self, locked: bool):
+    def set_session_locked(self, locked: bool) -> None:
         self.session_name.setDisabled(locked)
         self.properties_button.setDisabled(locked)
         self.ocr_visibility_button.setDisabled(locked)
@@ -118,10 +118,10 @@ class TranscriptPanel(QWidget):
         self.speech_panel.speech_button.setDisabled(locked)
         self.summary_panel.summary_button.setDisabled(locked)
 
-    def set_properties_locked(self, locked: bool):
+    def set_properties_locked(self, locked: bool) -> None:
         self.properties_button.setDisabled(locked)
     
-    def clear_panels(self):
+    def clear_panels(self) -> None:
         self.session_name.setText("")
         self.set_session_locked(True)
         self.ocr_panel.clear_captures()

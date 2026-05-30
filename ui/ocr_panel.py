@@ -11,7 +11,7 @@ from pathlib import Path
 class OCRPanel(QWidget):
     ocr_text_changed = pyqtSignal(int, str) # capture_id & new text
     
-    def __init__(self, base_dir):
+    def __init__(self, base_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         header = QHBoxLayout()
@@ -82,14 +82,14 @@ class OCRPanel(QWidget):
         capture_widget.setLayout(capture_layout)
         return capture_widget # Return to load and add methods
 
-    def clear_captures(self):
+    def clear_captures(self) -> None:
         # Clear out the layout first
         while self.feed_layout.count():
             item = self.feed_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
 
-    def load_captures(self, captures: list[OCRCapture]):
+    def load_captures(self, captures: list[OCRCapture]) -> None:
         self.clear_captures()
         
         for capture in captures:
@@ -101,11 +101,11 @@ class OCRPanel(QWidget):
         else:
             self.ocr_button.setDisabled(True)
             
-    def add_capture(self, capture: OCRCapture):
+    def add_capture(self, capture: OCRCapture) -> None:
         self.feed_layout.addWidget(self._create_capture_widget(capture))
         self.ocr_button.setDisabled(False)
         
-    def set_locked(self):
+    def set_locked(self) -> None:
         self.is_locked = not self.is_locked
         self.ocr_button.setText("Locked" if self.is_locked else "Editable")
         

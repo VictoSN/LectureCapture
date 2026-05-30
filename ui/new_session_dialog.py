@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
 )
 
 class NewSessionDialog(QDialog):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         button_layout = QHBoxLayout()
@@ -35,7 +35,7 @@ class NewSessionDialog(QDialog):
         main_layout.addLayout(button_layout)
         self.setLayout(main_layout)
         
-    def get_data(self):
+    def get_data(self) -> dict[str, str | None]:
         # accept() will automatically call the method
         return {
             "session_name": self.session_name.text(),

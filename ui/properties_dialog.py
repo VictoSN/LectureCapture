@@ -10,7 +10,7 @@ class PropertiesDialog(QDialog):
     delete_clicked = pyqtSignal()
     duplicate_clicked = pyqtSignal()
     
-    def __init__(self, session: Session):
+    def __init__(self, session: Session) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         button_layout = QHBoxLayout()
@@ -59,7 +59,7 @@ class PropertiesDialog(QDialog):
         main_layout.addLayout(button_layout)
         self.setLayout(main_layout)
         
-    def get_data(self):
+    def get_data(self) -> dict[str, str | None]:
         # accept() will automatically call the method
         return {
             "name": self.session_name.text(),
@@ -67,7 +67,7 @@ class PropertiesDialog(QDialog):
             "group_category": self.group_category.text() if self.group_category.text().strip() else None
         }
     
-    def deleteEvent(self):
+    def deleteEvent(self) -> None:
         reply = QMessageBox.question(self, "Delete Session",
                             "Delete the current session?")
         if reply == QMessageBox.StandardButton.No:

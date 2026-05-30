@@ -11,7 +11,7 @@ class Sidebar(QWidget):
     category_filter_changed = pyqtSignal(str)
     group_filter_changed = pyqtSignal(str)
     
-    def __init__(self, sessions: list[Session], on_new_session, on_session_selected, group_categories: list[str]):
+    def __init__(self, sessions: list[Session], on_new_session, on_session_selected, group_categories: list[str]) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         header = QVBoxLayout()
@@ -60,7 +60,7 @@ class Sidebar(QWidget):
         # Keep the list to pass it to on_session_selected method
         self.sessions = sessions
         
-    def refresh(self, sessions: list[Session]):
+    def refresh(self, sessions: list[Session]) -> None:
         self.sessions = sessions # Renew sessions
         self.lecture_list.clear()
         
@@ -73,7 +73,7 @@ class Sidebar(QWidget):
             self.lecture_list.addItem(item)
             self.lecture_list.setItemWidget(item, widget)
                     
-    def set_recording_locked(self, locked: bool):
+    def set_recording_locked(self, locked: bool) -> None:
         self.new_session_button.setDisabled(locked)
         self.session_search.setDisabled(locked)
         self.session_category.setDisabled(locked)

@@ -6,7 +6,7 @@ from models.lecture import Session
 from ui.format_time import FormatTime
 
 class SessionCard(QWidget):
-    def __init__(self, session: Session):
+    def __init__(self, session: Session) -> None:
         super().__init__()
         self.session = session
         

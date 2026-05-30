@@ -25,7 +25,7 @@ BASE_DIR = Path(__file__).resolve().parent
 ICON_PATH = BASE_DIR.parent / 'assets' / 'icon.png'
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.storage = Storage()
         self.current_session = None
@@ -71,7 +71,7 @@ class MainWindow(QMainWindow):
         splitter.setSizes([100, 400]) # 1 : 4 ratio
         self.transcript_panel.set_session_locked(True) # Locked buttons initially
 
-    def on_new_session(self):
+    def on_new_session(self) -> None:
         dialog = NewSessionDialog()
         
         # Exec blocks until dialog is closed (accepted/cancelled)
@@ -86,12 +86,12 @@ class MainWindow(QMainWindow):
             self.storage.create_session(new_session)
             self.sidebar.refresh(self.storage.get_all_sessions())
     
-    def on_session_selected(self, session: Session):
+    def on_session_selected(self, session: Session) -> None:
         self.current_session = session
         captures = self.storage.get_captures_by_session(session.id)
         self.transcript_panel.load_session(session, captures)
         
-    def start_recording(self, interval, region, monitor):
+    def start_recording(self, interval, region, monitor) -> None:
         start_time = time.time()
         self.recording_start_time = start_time
         
@@ -105,7 +105,7 @@ class MainWindow(QMainWindow):
         self.audio_worker.chunk_ready.connect(self.on_chunk_ready)
         self.audio_worker.start()
 
-    def update_timer(self):
+    def update_timer(self) -> None:
         if self.is_recording:
             self.elapse_s += 1
             
@@ -113,7 +113,7 @@ class MainWindow(QMainWindow):
             seconds = self.elapse_s % 60
             self.transcript_panel.recording_time_label.setText(f"{minutes:02}:{seconds:02}")
 
-    def on_record_clicked(self):
+    def on_record_clicked(self) -> None:
         if not self.current_session:
             print('Need to select session first')
             return
@@ -156,12 +156,12 @@ class MainWindow(QMainWindow):
             self.current_session.length += int(time.time() - self.recording_start_time)
             self.storage.update_session(self.current_session)
             
-    def on_capture_ready(self, capture: OCRCapture):
+    def on_capture_ready(self, capture: OCRCapture) -> None:
         self.storage.create_ocr_capture(capture)
         self.transcript_panel.ocr_panel.add_capture(capture)
         self.transcript_panel.speech_panel.add_capture(capture)
 
-    def on_chunk_ready(self, timestamp, text):
+    def on_chunk_ready(self, timestamp, text) -> None:
         captures = self.storage.get_captures_by_session(self.current_session.id)
         
         recent = None
@@ -175,7 +175,7 @@ class MainWindow(QMainWindow):
             self.storage.append_speech_text(recent.id, text)
             self.transcript_panel.speech_panel.update_capture_speech(recent.id, text)
     
-    def on_summarize_clicked(self):
+    def on_summarize_clicked(self) -> None:
         if not self.current_session:
             print('Need to select session first')
             return
@@ -216,23 +216,23 @@ class MainWindow(QMainWindow):
         self.current_session.date_modified = current_time
         self.storage.update_session(self.current_session)
         
-    def on_search_changed(self, text):
+    def on_search_changed(self, text) -> None:
         self.filter_name = text
         self.apply_filters()
 
-    def on_category_filter_changed(self, category):
+    def on_category_filter_changed(self, category) -> None:
         self.filter_category = category
         self.apply_filters()
 
-    def on_group_filter_changed(self, group):
+    def on_group_filter_changed(self, group) -> None:
         self.filter_group = group
         self.apply_filters()
 
-    def apply_filters(self):
+    def apply_filters(self) -> None:
         sessions = self.storage.search_sessions(self.filter_name, self.filter_category, self.filter_group)
         self.sidebar.refresh(sessions)
         
-    def on_properties_clicked(self):
+    def on_properties_clicked(self) -> None:
         dialog = PropertiesDialog(self.current_session)
         dialog.delete_clicked.connect(self.on_deleted_clicked)
         dialog.duplicate_clicked.connect(self.on_duplicated_clicked)
@@ -249,17 +249,17 @@ class MainWindow(QMainWindow):
             self.storage.update_session(self.current_session)
             self.sidebar.refresh(self.storage.get_all_sessions())
     
-    def on_deleted_clicked(self):
+    def on_deleted_clicked(self) -> None:
         self.storage.delete_session(self.current_session.id)
         self.sidebar.refresh(self.storage.get_all_sessions())
         self.transcript_panel.clear_panels()
     
-    def on_duplicated_clicked(self):
+    def on_duplicated_clicked(self) -> None:
         self.current_session = self.storage.duplicate_sessions(self.current_session.id)
         self.sidebar.refresh(self.storage.get_all_sessions())
         self.on_session_selected(self.current_session)
     
-    def on_text_changed(self, id, text, option: int):
+    def on_text_changed(self, id, text, option: int) -> None:
         now = datetime.now()
         self.current_session.date_modified = now
         
@@ -274,7 +274,7 @@ class MainWindow(QMainWindow):
         self.storage.update_session(self.current_session)
         self.sidebar.refresh(self.storage.get_all_sessions())
     
-    def closeEvent(self, event):
+    def closeEvent(self, event) -> None:
         if self.is_recording:
             reply = QMessageBox.question(self, "Recording in progress",
                                 "Stop recording and close?")

@@ -8,7 +8,7 @@ from models.lecture import OCRCapture
 class SpeechPanel(QWidget):
     speech_text_changed =pyqtSignal(int, str)
     
-    def __init__(self, base_dir):
+    def __init__(self, base_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         header = QHBoxLayout()
@@ -66,14 +66,14 @@ class SpeechPanel(QWidget):
         capture_widget.setLayout(capture_layout)
         return capture_widget # Return to load and add methods
 
-    def clear_captures(self):
+    def clear_captures(self) -> None:
         # Clear out the layout first
         while self.feed_layout.count():
             item = self.feed_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
 
-    def load_captures(self, captures: list[OCRCapture]):
+    def load_captures(self, captures: list[OCRCapture]) -> None:
         self.clear_captures()
 
         for capture in captures:
@@ -85,12 +85,12 @@ class SpeechPanel(QWidget):
         else:
             self.speech_button.setDisabled(True)
 
-    def add_capture(self, capture: OCRCapture):
+    def add_capture(self, capture: OCRCapture) -> None:
         self.feed_layout.addWidget(self._create_capture_widget(capture))
         self.speech_button.setDisabled(False)
     
     # Used to update the current capture text while recording
-    def update_capture_speech(self, capture_id, text):
+    def update_capture_speech(self, capture_id, text) -> None:
         for i in range(self.feed_layout.count()):
             widget = self.feed_layout.itemAt(i).widget()
             if widget and widget.property("capture_id") == capture_id:
@@ -99,7 +99,7 @@ class SpeechPanel(QWidget):
                 text_field.setPlainText(text_field.toPlainText() + text)
                 text_field.blockSignals(False)
 
-    def set_locked(self):
+    def set_locked(self) -> None:
         self.is_locked = not self.is_locked
         self.speech_button.setText("Locked" if self.is_locked else "Editable")
         

@@ -15,7 +15,7 @@ from pathlib import Path
 class OCRWorker(QThread):    
     capture_ready = pyqtSignal(OCRCapture)   
     
-    def __init__(self, session_id, base_dir, interval, region: dict | None, monitor_index, start_time, offset):
+    def __init__(self, session_id, base_dir, interval, region: dict | None, monitor_index, start_time, offset) -> None:
         super().__init__()
         self._running = True
     
@@ -50,7 +50,7 @@ class OCRWorker(QThread):
             return False
         return True
     
-    def ocr(self, img):
+    def ocr(self, img) -> str:
         pil_img = Image.frombytes("RGB", img.size, img.rgb)
 
         ## 1. Convert to grayscale
@@ -61,7 +61,7 @@ class OCRWorker(QThread):
         
         return pytesseract.image_to_string(pil_img, config=config)
 
-    def screenshot(self):
+    def screenshot(self) -> None:
         monitor = self.sct.monitors[self.monitor_index]
         if not self.region:
             # 0 = All monitors
@@ -89,10 +89,10 @@ class OCRWorker(QThread):
             new_capture = OCRCapture(timestamp, image_path, extracted_text, None, self.session_id, None)
             self.capture_ready.emit(new_capture)
     
-    def run(self):
+    def run(self) -> None:
         while self._running:
             self.screenshot()
             time.sleep(self.interval)
         
-    def stop(self):
+    def stop(self) -> None:
         self._running = False

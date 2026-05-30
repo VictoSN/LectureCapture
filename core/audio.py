@@ -11,7 +11,7 @@ from faster_whisper import WhisperModel
 class AudioWorker(QThread):    
     chunk_ready = pyqtSignal(float, str)   
     
-    def __init__(self, session_id, base_dir, interval, start_time, offset):
+    def __init__(self, session_id, base_dir, interval, start_time, offset) -> None:
         super().__init__()
         self._running = True
     
@@ -21,7 +21,7 @@ class AudioWorker(QThread):
         self.start_time = start_time        
         self.offset = offset
 
-    def record(self):
+    def record(self) -> None:
         chunk_start = time.time() - self.start_time + self.offset # get start time for each chunk
         
         # Start recording
@@ -43,11 +43,11 @@ class AudioWorker(QThread):
         self.chunk_ready.emit(timestamp, extracted_text)
         os.remove(tmp) # Delete temp file
 
-    def run(self):
+    def run(self) -> None:
         self.model = WhisperModel("base", device="cpu", compute_type="int8")
         while self._running:
             self.record()
         
-    def stop(self):
+    def stop(self) -> None:
         self._running = False
         sd.stop()

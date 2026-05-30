@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-def FormatTime(date: datetime):
+def FormatTime(date: datetime) -> str:
     if date:
         now = datetime.now()
 
@@ -13,6 +13,6 @@ def FormatTime(date: datetime):
 
         return formatted or ""
 
-def FormatDetailedTime(date: datetime):
+def FormatDetailedTime(date: datetime) -> str:
     if date:
         return date.strftime("%A %#d %B, %H:%M:%S") or ""
