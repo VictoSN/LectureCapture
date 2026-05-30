@@ -143,7 +143,8 @@ class MainWindow(QMainWindow):
                     self.showMinimized() # Hide the program
                     self.overlay = CaptureOverlay(
                         lambda x, y, w, h: self.start_recording(data["interval"], {"left": x, "top": y, "width": w, "height": h}, data["monitor"]),
-                        self.on_record_cancelled # cancel callback
+                        self.on_record_cancelled, # cancel callback
+                        data["monitor"]
                     )
                     QTimer.singleShot(500, self.showNormal) # Show the program back
                 else:

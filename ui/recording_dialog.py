@@ -96,24 +96,19 @@ class RecordingDialog(QDialog):
         # Save preferences
         self.settings.setValue("interval", self.session_interval.value())
         self.settings.setValue("capture_method", self.capture_method)
-        if self.capture_method == "Coordinates" or self.capture_method == "Full Window":
-            self.settings.setValue("monitor", self.monitor_dropdown.currentText())
-        
+        self.settings.setValue("monitor", self.monitor_dropdown.currentText())
+                
         if self.capture_method == "Coordinates":
-            self.settings.setValue("region", {
-                "left": int(self.x_coords.text()),
-                "top": int(self.y_coords.text()),
-                "width": int(self.width_dimension.text()),
-                "height": int(self.height_dimension.text())
-            })
-        
-        if self.capture_method == "Coordinates":
+            # Saved to return
             self.region = {
                 "left": int(self.x_coords.text()),
                 "top": int(self.y_coords.text()),
                 "width": int(self.width_dimension.text()),
                 "height": int(self.height_dimension.text())
             }
+
+            # Saved for preferences
+            self.settings.setValue("region", self.region)
         elif self.capture_method == "Full Window":
             self.region = None
         
@@ -159,11 +154,6 @@ class RecordingDialog(QDialog):
             self.set_layout_visible(self.coords_layout, False)
         elif self.capture_method == "Coordinates":
             self.set_layout_visible(self.coords_layout, True)
-
-        if self.capture_method == "Mouse Select":
-            self.monitor_dropdown.hide()
-        elif self.capture_method == "Coordinates" or self.capture_method == "Full Window":
-            self.monitor_dropdown.show()
     
     def set_error(self, widget, error: bool) -> None:
         widget.setStyleSheet("border: 2px solid red;" if error else "")

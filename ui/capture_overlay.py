@@ -4,10 +4,11 @@ from PyQt6.QtGui import QPainter, QColor, QPixmap
 import mss, mss.tools
 
 class CaptureOverlay(QWidget):
-    def __init__(self, callback, cancel_callback) -> None:
+    def __init__(self, callback, cancel_callback, monitor_index) -> None:
         super().__init__()
         self.callback = callback
         self.cancel_callback = cancel_callback
+        self.monitor_index = monitor_index
         self.start = None
         self.end = None
         
@@ -29,7 +30,7 @@ class CaptureOverlay(QWidget):
         self.grabKeyboard()
 
     def _grab_screen(self) -> QPixmap:
-        monitor = self.sct.monitors[2]
+        monitor = self.sct.monitors[self.monitor_index]
         img = self.sct.grab(monitor)
 
         pixmap = QPixmap()
