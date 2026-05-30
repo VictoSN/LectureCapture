@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QPushButton, QLineEdit, QComboBox, QDialog, QVBoxLayout,QHBoxLayout, QLabel, QMessageBox
 )
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal, Qt
 
 from models.lecture import Session
 from ui.format_time import FormatDetailedTime
@@ -75,3 +75,9 @@ class PropertiesDialog(QDialog):
         else:
             self.delete_clicked.emit()
             self.reject()
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() == Qt.Key.Key_Escape:
+            self.reject()
+        else:
+            super().keyPressEvent(event)

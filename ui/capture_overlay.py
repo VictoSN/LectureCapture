@@ -22,6 +22,11 @@ class CaptureOverlay(QWidget):
         self.setCursor(Qt.CursorShape.CrossCursor)
         self.show()
         self.activateWindow()
+        
+        # Focus to enable ESC to work
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setFocus()
+        self.grabKeyboard()
 
     def _grab_screen(self) -> QPixmap:
         monitor = self.sct.monitors[2]

@@ -2,6 +2,8 @@ from PyQt6.QtWidgets import (
     QPushButton, QLineEdit, QComboBox, QDialog, QVBoxLayout,QHBoxLayout
 )
 
+from PyQt6.QtCore import Qt
+
 class NewSessionDialog(QDialog):
     def __init__(self) -> None:
         super().__init__()
@@ -42,3 +44,9 @@ class NewSessionDialog(QDialog):
             "session_category": self.session_category.currentText(),
             "group_category": self.group_category.text() if self.group_category.text().strip() else None
         }
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() == Qt.Key.Key_Escape:
+            self.reject()
+        else:
+            super().keyPressEvent(event)

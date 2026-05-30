@@ -3,8 +3,8 @@ import mss
 from PyQt6.QtWidgets import (
     QPushButton, QLineEdit, QComboBox, QDialog, QVBoxLayout,QHBoxLayout
 )
-from PyQt6.QtGui import QIntValidator, QGuiApplication
-from PyQt6.QtCore import QSettings
+from PyQt6.QtGui import QIntValidator
+from PyQt6.QtCore import QSettings, Qt
 
 class RecordingDialog(QDialog):
     def __init__(self) -> None:
@@ -201,3 +201,9 @@ class RecordingDialog(QDialog):
                     self.set_error(self.height_dimension, True)                
         
         return not error
+    
+    def keyPressEvent(self, event) -> None:
+        if event.key() == Qt.Key.Key_Escape:
+            self.reject()
+        else:
+            super().keyPressEvent(event)

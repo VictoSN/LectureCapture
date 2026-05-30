@@ -113,6 +113,15 @@ class MainWindow(QMainWindow):
             seconds = self.elapse_s % 60
             self.transcript_panel.recording_time_label.setText(f"{minutes:02}:{seconds:02}")
 
+    def on_record_cancelled(self) -> None:
+        self.is_recording = False
+        self.timer.stop()
+        self.elapse_s = 0
+        self.transcript_panel.recording_time_label.setText("00:00")
+        self.transcript_panel.record_button.setText("Record")
+        self.sidebar.set_recording_locked(False)
+        self.transcript_panel.set_properties_locked(False)
+
     def on_record_clicked(self) -> None:
         if not self.current_session:
             print('Need to select session first')
@@ -134,7 +143,7 @@ class MainWindow(QMainWindow):
                     self.showMinimized() # Hide the program
                     self.overlay = CaptureOverlay(
                         lambda x, y, w, h: self.start_recording(data["interval"], {"left": x, "top": y, "width": w, "height": h}, data["monitor"]),
-                        lambda: None  # cancel callback
+                        self.on_record_cancelled # cancel callback
                     )
                     QTimer.singleShot(500, self.showNormal) # Show the program back
                 else:
@@ -155,6 +164,11 @@ class MainWindow(QMainWindow):
             # save total length
             self.current_session.length += int(time.time() - self.recording_start_time)
             self.storage.update_session(self.current_session)
+            
+            # Assuming that recording will always give content, enable the summarize
+            has_content = self.transcript_panel.ocr_panel.has_content() or self.transcript_panel.speech_panel.has_content()
+            self.transcript_panel.summary_panel.summary_button.setDisabled(not has_content)
+            self.transcript_panel.summary_panel.summary.setReadOnly(not has_content)
             
     def on_capture_ready(self, capture: OCRCapture) -> None:
         self.storage.create_ocr_capture(capture)
