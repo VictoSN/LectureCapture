@@ -2,7 +2,6 @@ import time
 import tempfile, os
 import sounddevice as sd
 import soundfile as sf
-import numpy as np
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
@@ -11,13 +10,14 @@ from faster_whisper import WhisperModel
 class AudioWorker(QThread):    
     chunk_ready = pyqtSignal(float, str)   
     
-    def __init__(self, session_id, base_dir, interval, start_time, offset) -> None:
+    def __init__(self, session_id: int, base_dir: str, interval: int, device: int, start_time: time, offset: int) -> None:
         super().__init__()
         self._running = True
     
         self.session_id = session_id
         self.base_dir = base_dir
         self.interval = interval
+        self.device = device
         self.start_time = start_time        
         self.offset = offset
 
@@ -25,7 +25,7 @@ class AudioWorker(QThread):
         chunk_start = time.time() - self.start_time + self.offset # get start time for each chunk
         
         # Start recording
-        audio = sd.rec(int(self.interval * 44100), samplerate=44100, channels=1)
+        audio = sd.rec(int(self.interval * 44100), samplerate=44100, channels=1, device=self.device)
         sd.wait() # blocks until the recording is done
         
         tmp = tempfile.mktemp(suffix=".wav") # Create temp wav file

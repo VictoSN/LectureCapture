@@ -1,4 +1,5 @@
 import mss
+import sounddevice as sd
 
 from PyQt6.QtWidgets import (
     QPushButton, QLineEdit, QComboBox, QDialog, QVBoxLayout,QHBoxLayout, QSpinBox
@@ -12,7 +13,6 @@ class RecordingDialog(QDialog):
         main_layout = QVBoxLayout()
         capture_layout = QVBoxLayout()
         action_layout = QHBoxLayout()
-        interval_validator = QIntValidator(1, 30)
         int_validator = QIntValidator()
 
         self.region = None
@@ -75,6 +75,11 @@ class RecordingDialog(QDialog):
         self.height_dimension.setText(str(self.region["height"]))
         self.coords_layout.addWidget(self.height_dimension)
 
+        self.audio_dropdown = QComboBox()
+        self.setup_audio()
+        self.audio_dropdown.setCurrentText(str(self.settings.value("audio")))
+        capture_layout.addWidget(self.audio_dropdown)
+
         # Actions Buttons
         cancel_button = QPushButton("Cancel")
         action_layout.addWidget(cancel_button)
@@ -97,7 +102,8 @@ class RecordingDialog(QDialog):
         self.settings.setValue("interval", self.session_interval.value())
         self.settings.setValue("capture_method", self.capture_method)
         self.settings.setValue("monitor", self.monitor_dropdown.currentText())
-                
+        self.settings.setValue("audio", self.audio_dropdown.currentText())
+        
         if self.capture_method == "Coordinates":
             # Saved to return
             self.region = {
@@ -116,7 +122,8 @@ class RecordingDialog(QDialog):
             "interval": self.session_interval.value(),
             "region": self.region,
             "capture_option": self.capture_method,
-            "monitor": self.monitor_dropdown.currentData()
+            "monitor": self.monitor_dropdown.currentData(),
+            "audio_device": self.audio_dropdown.currentData()
         }
         
     # UI Visibility
@@ -139,14 +146,21 @@ class RecordingDialog(QDialog):
             monitors_with_index = list(enumerate(sct.monitors[1:], 1)) # [(1, {...}), (2, {...})]
             monitors_with_index.sort(key=lambda x: not x[1].get('is_primary', False)) # primary first
 
-            if len(monitors_with_index) > 1:
-                self.monitor_dropdown.addItem("All Monitor", 0)
+            # a tad bit broken, not to mention insane amount of api usage
+            # if len(monitors_with_index) > 1:
+            #     self.monitor_dropdown.addItem("All Monitor", 0)
 
             for display_num, (mss_index, m) in enumerate(monitors_with_index, 1):
                 self.monitor_dropdown.addItem(
                     f"Monitor {display_num} | {m['width']}x{m['height']} ({m['left']},{m['top']})", mss_index
                 )
-                
+    
+    def setup_audio(self) -> None:
+        devices = sd.query_devices()
+        for i, device in enumerate(devices):
+            if device["max_input_channels"] > 0 and device["hostapi"] == 0:
+                self.audio_dropdown.addItem(device["name"], i)
+    
     # Hide or Show the user option for screenshots
     def set_user_option(self) -> None:
         self.capture_method = self.capture_method_dropdown.currentText()
