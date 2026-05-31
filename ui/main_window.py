@@ -4,7 +4,8 @@ from PyQt6.QtWidgets import (
     QMainWindow, QSplitter, QMessageBox
 )
 from PyQt6.QtGui import QIcon
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QUrl
+from PyQt6.QtMultimedia import QSoundEffect
 
 from models.lecture import Session, OCRCapture
 from storage.database import Storage
@@ -35,6 +36,14 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(QIcon(str(ICON_PATH)))
         self.setMinimumSize(1100, 700)
         self.setWindowTitle("LectureCapture")
+
+        # Sound Effects
+        # TODO: Add option in settings panel to change the audio
+        self.start_audio = QSoundEffect()
+        self.start_audio.setSource(QUrl.fromLocalFile(str(BASE_DIR.parent / 'assets' / 'Beep 1.wav')))
+
+        self.end_audio = QSoundEffect()
+        self.end_audio.setSource(QUrl.fromLocalFile(str(BASE_DIR.parent / 'assets' / 'Chirp 1.wav')))
 
         self.filter_name = ""
         self.filter_category = ""
@@ -132,13 +141,20 @@ class MainWindow(QMainWindow):
             dialog = RecordingDialog()
             
             if dialog.exec():
-                self.timer.start(1000) # Start Timer
                 data = dialog.get_data()
+                self.timer.start(1000) # Start Timer
+                
+                self.start_audio.play()
                 self.is_recording = True
+                
+                # Update Label
                 self.transcript_panel.record_button.setText("Stop Recording")
+                
+                # Lock inputs
                 self.sidebar.set_recording_locked(True)
                 self.transcript_panel.set_properties_locked(True)
 
+                # Start the OCR and Audio threads
                 if data["capture_option"] == "Mouse Select":
                     self.showMinimized() # Hide the program
                     self.overlay = CaptureOverlay(
@@ -153,10 +169,15 @@ class MainWindow(QMainWindow):
             # Stop Timer and reset time
             self.timer.stop() 
             self.elapse_s = 0
-            self.transcript_panel.recording_time_label.setText("00:00")
             
+            self.end_audio.play()
             self.is_recording = False
+            
+            # Update labels
+            self.transcript_panel.recording_time_label.setText("00:00")
             self.transcript_panel.record_button.setText("Record")
+            
+            # Unlock inputs
             self.sidebar.set_recording_locked(False)
             self.transcript_panel.set_properties_locked(False)
             
@@ -182,7 +203,6 @@ class MainWindow(QMainWindow):
 
     def on_chunk_ready(self, timestamp, text) -> None:
         captures = self.storage.get_captures_by_session(self.current_session.id)
-        
         recent = None
         for capture in captures:
             if capture.timestamp <= timestamp:
