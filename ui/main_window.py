@@ -21,6 +21,7 @@ from ui.new_session_dialog import NewSessionDialog
 from ui.transcript_panel import TranscriptPanel
 from ui.properties_dialog import PropertiesDialog
 from ui.recording_dialog import RecordingDialog
+from ui.settings_panel import SettingsPanel
 
 BASE_DIR = Path(__file__).resolve().parent
 ICON_PATH = BASE_DIR.parent / 'assets' / 'icon.png'
@@ -31,6 +32,7 @@ class MainWindow(QMainWindow):
         self.storage = Storage()
         self.current_session = None
         self.is_recording = False
+        self.is_settings_open = False
 
         # Window details
         self.setWindowIcon(QIcon(str(ICON_PATH)))
@@ -59,7 +61,7 @@ class MainWindow(QMainWindow):
 
         sessions = self.storage.get_all_sessions()
         group_categories = self.storage.get_group_categories() # Get all group categories
-        self.sidebar = Sidebar(sessions, self.on_new_session, self.on_session_selected, group_categories)
+        self.sidebar = Sidebar(sessions, self.on_new_session, self.on_settings_opened, self.on_session_selected, group_categories)
         splitter.addWidget(self.sidebar)
         
         self.sidebar.search_changed.connect(self.on_search_changed)
@@ -70,6 +72,11 @@ class MainWindow(QMainWindow):
         self.transcript_panel.record_clicked.connect(self.on_record_clicked)
         self.transcript_panel.summary_panel.summarize_clicked.connect(self.on_summarize_clicked)
         
+        # Init the settings, and hide it
+        self.settings_panel = SettingsPanel(self.storage.base_dir)
+        splitter.addWidget(self.settings_panel)
+        self.settings_panel.setVisible(False)
+        
         # When any content is changed
         self.transcript_panel.ocr_panel.ocr_text_changed.connect(lambda cid, text: self.on_text_changed(cid, text, 1))
         self.transcript_panel.speech_panel.speech_text_changed.connect(lambda cid, text: self.on_text_changed(cid, text, 2))
@@ -77,7 +84,7 @@ class MainWindow(QMainWindow):
         splitter.addWidget(self.transcript_panel)
 
         # Wait until the other widgets are added
-        splitter.setSizes([100, 400]) # 1 : 4 ratio
+        splitter.setSizes([100, 400, 400]) # 1 : 4 ratio
         self.transcript_panel.set_session_locked(True) # Locked buttons initially
 
     def on_new_session(self) -> None:
@@ -99,6 +106,10 @@ class MainWindow(QMainWindow):
         self.current_session = session
         captures = self.storage.get_captures_by_session(session.id)
         self.transcript_panel.load_session(session, captures)
+        
+        # Close the settings panel if its opened
+        if self.is_settings_open:
+            self.on_settings_opened()
         
     def start_recording(self, interval, region, monitor, device) -> None:
         start_time = time.time()
@@ -312,7 +323,14 @@ class MainWindow(QMainWindow):
 
         self.storage.update_session(self.current_session)
         self.sidebar.refresh(self.storage.get_all_sessions())
-    
+
+    def on_settings_opened(self) -> None:
+        self.is_settings_open = not self.is_settings_open
+        
+        # Only show either the transcript or settings panel
+        self.transcript_panel.setVisible(not self.is_settings_open)
+        self.settings_panel.setVisible(self.is_settings_open)
+
     def closeEvent(self, event) -> None:
         if self.is_recording:
             reply = QMessageBox.question(self, "Recording in progress",

@@ -11,7 +11,7 @@ class Sidebar(QWidget):
     category_filter_changed = pyqtSignal(str)
     group_filter_changed = pyqtSignal(str)
     
-    def __init__(self, sessions: list[Session], on_new_session, on_session_selected, group_categories: list[str]) -> None:
+    def __init__(self, sessions: list[Session], on_new_session, on_settings_opened, on_session_selected, group_categories: list[str]) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         header = QVBoxLayout()
@@ -23,6 +23,10 @@ class Sidebar(QWidget):
         self.new_session_button = QPushButton("+ New Session")
         self.new_session_button.clicked.connect(on_new_session)
         header.addWidget(self.new_session_button)
+
+        self.settings_button = QPushButton("Settings")
+        self.settings_button.clicked.connect(on_settings_opened)
+        header.addWidget(self.settings_button)
 
         self.session_search = QLineEdit()
         self.session_search.setPlaceholderText("Search")
