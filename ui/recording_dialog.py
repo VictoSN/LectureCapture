@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import QSettings, Qt
 
 from ui.set_layout_visible import set_layout_visible
+from ui.setup_monitor import setup_monitor
 
 class RecordingDialog(QDialog):
     def __init__(self) -> None:
@@ -43,7 +44,7 @@ class RecordingDialog(QDialog):
 
         ## Monitor Dropdown
         self.monitor_dropdown = QComboBox()
-        self.setup_monitor()
+        setup_monitor(self.monitor_dropdown)
         self.monitor_dropdown.setCurrentText(str(self.settings.value("monitor", "Monitor 1")))
         capture_layout.addWidget(self.monitor_dropdown)
 
@@ -121,23 +122,7 @@ class RecordingDialog(QDialog):
             "monitor": self.monitor_dropdown.currentData(),
             "audio_device": self.audio_dropdown.currentData()
         }
-        
-    def setup_monitor(self) -> None:
-        self.monitor_dropdown.clear()
-
-        with mss.mss() as sct:
-            monitors_with_index = list(enumerate(sct.monitors[1:], 1)) # [(1, {...}), (2, {...})]
-            monitors_with_index.sort(key=lambda x: not x[1].get('is_primary', False)) # primary first
-
-            # a tad bit broken, not to mention insane amount of api usage
-            # if len(monitors_with_index) > 1:
-            #     self.monitor_dropdown.addItem("All Monitor", 0)
-
-            for display_num, (mss_index, m) in enumerate(monitors_with_index, 1):
-                self.monitor_dropdown.addItem(
-                    f"Monitor {display_num} | {m['width']}x{m['height']} ({m['left']},{m['top']})", mss_index
-                )
-    
+            
     def setup_audio(self) -> None:
         devices = sd.query_devices()
         for i, device in enumerate(devices):
@@ -158,15 +143,16 @@ class RecordingDialog(QDialog):
     def validate(self) -> bool:
         error = False
         monitor_info = None
-        with mss.mss() as sct:
-            if not self.capture_method == "Mouse Select":
-                monitor_info = sct.monitors[self.monitor_dropdown.currentData()]
         
+        with mss.mss() as sct:
+            monitor_info = sct.monitors[self.monitor_dropdown.currentData()]
+        
+        # Make sure interval not empty
         if not self.session_interval.text().strip():
             error = True
         self.set_error(self.session_interval, error)            
 
-        # Make sure coordinates exist
+        # Make sure coordinates not empty
         if self.capture_method == "Coordinates":
             coords_filled = all([self.x_coords.text(), self.y_coords.text(), self.width_dimension.text(), \
                 self.height_dimension.text()])

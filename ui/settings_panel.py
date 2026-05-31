@@ -1,9 +1,10 @@
 from PyQt6.QtWidgets import (
-    QWidget, QLabel, QPushButton, QComboBox, QVBoxLayout, QHBoxLayout, QGridLayout
+    QWidget, QLabel, QPushButton, QComboBox, QVBoxLayout, QHBoxLayout, QGridLayout, QSpinBox
 )
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal, QSettings
 
 from ui.set_layout_visible import set_layout_visible
+from ui.setup_monitor import setup_monitor
 
 class SettingsPanel(QWidget):
     record_clicked = pyqtSignal()
@@ -15,20 +16,16 @@ class SettingsPanel(QWidget):
         # Processing
         processing_layout = QVBoxLayout()
         processing_button_layout = QHBoxLayout()
-        processing_layout.addLayout(processing_button_layout)
-        
         self.api_layout = QGridLayout()
-        processing_layout.addLayout(self.api_layout)
         
         # Themes
         theme_layout = QVBoxLayout()
         theme_buttons_layout = QHBoxLayout()
-        theme_layout.addLayout(theme_buttons_layout)
         
         # Preferences
         preferences_layout = QVBoxLayout()
         preferences_buttons_layout = QHBoxLayout()
-        preferences_layout.addLayout(preferences_buttons_layout)
+        self.default_layout = QGridLayout()
         
         # Sound Effects
         start_sound_layout = QHBoxLayout()
@@ -38,7 +35,16 @@ class SettingsPanel(QWidget):
         export_layout = QHBoxLayout()
         
         self.base_dir = base_dir
+        self.settings = QSettings("LectureCapture", "LectureCapture")
         self.local_processing = True
+        self.interval = self.settings.value("interval", 10)
+        self.capture_method = self.settings.value("capture_method", "Mouse Select")
+        self.region = self.settings.value("region", {
+            "left": 0,
+            "top": 0,
+            "width": 800,
+            "height": 800
+        })
 
         # Visibility Logic
         self.processing_visibility()
@@ -60,6 +66,7 @@ class SettingsPanel(QWidget):
         self.api_layout.addWidget(ocr_label, 0, 0)
         self.ocr_dropdown = QComboBox()
         self.api_layout.addWidget(self.ocr_dropdown, 0, 1)
+        processing_layout.addLayout(processing_button_layout)
         
         speech_label = QLabel("Speech-to-Text")
         self.api_layout.addWidget(speech_label, 1, 0)
@@ -70,6 +77,7 @@ class SettingsPanel(QWidget):
         self.api_layout.addWidget(summarize_label, 2, 0)
         self.summarize_dropdown = QComboBox()
         self.api_layout.addWidget(self.summarize_dropdown, 2, 1)
+        processing_layout.addLayout(self.api_layout)
 
         # Dark, Light, Auto?
         theme_label = QLabel("Application Theme")
@@ -81,6 +89,7 @@ class SettingsPanel(QWidget):
         theme_buttons_layout.addWidget(self.light_button)
         self.dark_button = QPushButton("Dark Theme")
         theme_buttons_layout.addWidget(self.dark_button)
+        theme_layout.addLayout(theme_buttons_layout)
         
         # Last used, Set Default, Empty
         preferences_label = QLabel("Recording Preferences")
@@ -92,6 +101,68 @@ class SettingsPanel(QWidget):
         preferences_buttons_layout.addWidget(self.default_button)
         self.clear_button = QPushButton("Clear Options")
         preferences_buttons_layout.addWidget(self.clear_button)
+        preferences_layout.addLayout(preferences_buttons_layout)
+        
+        ## Interval
+        self.interval_label = QLabel("Default Interval")
+        self.default_layout.addWidget(self.interval_label, 0, 0)
+        
+        self.interval_input = QSpinBox()
+        self.interval_input.setRange(1, 30)
+        self.interval_input.setValue(int(self.interval))
+        self.default_layout.addWidget(self.interval_input, 0, 1)
+        
+        ## Control Dropdown
+        self.capture_method_label = QLabel("Default Capture Method")
+        self.default_layout.addWidget(self.capture_method_label, 1, 0)
+        
+        self.capture_method_dropdown = QComboBox()
+        self.capture_method_dropdown.addItems(["Mouse Select", "Coordinates", "Full Window"])
+        self.capture_method_dropdown.setCurrentText(self.capture_method)
+        self.default_layout.addWidget(self.capture_method_dropdown, 1, 1)
+
+        ## Monitor Dropdown
+        self.monitor_label = QLabel("Default Monitor")
+        self.default_layout.addWidget(self.monitor_label, 2, 0)
+
+        self.monitor_dropdown = QComboBox()
+        setup_monitor(self.monitor_dropdown)
+        self.monitor_dropdown.setCurrentText(str(self.settings.value("monitor", "Monitor 1")))
+        self.default_layout.addWidget(self.monitor_dropdown, 2, 1)
+
+        # ## Coords Layout
+        # self.coords_layout = QHBoxLayout()
+        # capture_layout.addLayout(self.coords_layout)
+
+        # self.x_coords = QLineEdit()
+        # self.x_coords.setPlaceholderText("X Coordinate")
+        # self.x_coords.setValidator(int_validator)
+        # self.x_coords.setText(str(self.region["left"]))
+        # self.coords_layout.addWidget(self.x_coords)
+
+        # self.y_coords = QLineEdit()
+        # self.y_coords.setPlaceholderText("Y Coordinate")
+        # self.y_coords.setValidator(int_validator)
+        # self.y_coords.setText(str(self.region["top"]))
+        # self.coords_layout.addWidget(self.y_coords)
+
+        # self.width_dimension = QLineEdit()
+        # self.width_dimension.setPlaceholderText("Width")
+        # self.width_dimension.setValidator(int_validator)
+        # self.width_dimension.setText(str(self.region["width"]))
+        # self.coords_layout.addWidget(self.width_dimension)
+
+        # self.height_dimension = QLineEdit()
+        # self.height_dimension.setPlaceholderText("Height")
+        # self.height_dimension.setValidator(int_validator)
+        # self.height_dimension.setText(str(self.region["height"]))
+        # self.coords_layout.addWidget(self.height_dimension)
+
+        # self.audio_dropdown = QComboBox()
+        # self.setup_audio()
+        # self.audio_dropdown.setCurrentText(str(self.settings.value("audio")))
+        # capture_layout.addWidget(self.audio_dropdown)
+        preferences_layout.addLayout(self.default_layout)
         
         # Start & Stop sound effects
         start_sound_label = QLabel("Start Recording Sound Effects")
