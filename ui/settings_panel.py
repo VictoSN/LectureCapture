@@ -46,9 +46,11 @@ class SettingsPanel(QWidget):
         import_layout = QHBoxLayout()
 
         action_layout = QHBoxLayout()
-        
-        self.base_dir = base_dir
+
         self.settings = QSettings("LectureCapture", "LectureCapture")
+        self.base_dir = base_dir
+        self.proc_mode = str(self.settings.value("processing_mode", "local")) # local, api
+        self.pref_mode = str(self.settings.value("preferences_mode", "last")) # last, default, empty
 
         # Header Layout
         self.settings_name = QLabel("Settings")
@@ -60,11 +62,11 @@ class SettingsPanel(QWidget):
         
         self.local_button = QPushButton("Local")
         processing_button_layout.addWidget(self.local_button)
-        self.local_button.clicked.connect(lambda: self._set_processing(True))
+        self.local_button.clicked.connect(lambda: self.set_proc_mode("local"))
         
         self.api_button = QPushButton("API")
         processing_button_layout.addWidget(self.api_button)
-        self.api_button.clicked.connect(lambda: self._set_processing(False))
+        self.api_button.clicked.connect(lambda: self.set_proc_mode("api"))
         processing_layout.addLayout(processing_button_layout)
         
         ocr_label = QLabel("OCR")
@@ -81,7 +83,10 @@ class SettingsPanel(QWidget):
         self.api_layout.addWidget(summarize_label, 2, 0)
         self.summarize_dropdown = QComboBox()
         self.api_layout.addWidget(self.summarize_dropdown, 2, 1)
-        processing_layout.addLayout(self.api_layout)
+
+        self.api_container = QWidget()
+        self.api_container.setLayout(self.api_layout)
+        processing_layout.addWidget(self.api_container)
 
         # Dark, Light, Auto?
         theme_label = QLabel("Application Theme")
@@ -100,15 +105,15 @@ class SettingsPanel(QWidget):
         preferences_layout.addWidget(preferences_label)
         
         self.last_button = QPushButton("Last Used Options")
-        self.last_button.clicked.connect(lambda: self.settings.setValue("preferences_mode", "last"))
+        self.last_button.clicked.connect(lambda: self.set_pref_mode("last"))
         preferences_buttons_layout.addWidget(self.last_button)
 
         self.default_button = QPushButton("Default Options")
-        self.default_button.clicked.connect(lambda: self.settings.setValue("preferences_mode", "default"))
+        self.default_button.clicked.connect(lambda: self.set_pref_mode("default"))
         preferences_buttons_layout.addWidget(self.default_button)
 
         self.clear_button = QPushButton("Empty Options")
-        self.clear_button.clicked.connect(lambda: self.settings.setValue("preferences_mode", "empty"))
+        self.clear_button.clicked.connect(lambda: self.set_pref_mode("empty"))
         preferences_buttons_layout.addWidget(self.clear_button)
         preferences_layout.addLayout(preferences_buttons_layout)
 
@@ -177,6 +182,10 @@ class SettingsPanel(QWidget):
         self.height_dimension.setRange(0, 5000)
         self.default_layout.addWidget(self.height_dimension, 6, 1)
 
+        self.default_container = QWidget()
+        self.default_container.setLayout(self.default_layout)
+        preferences_layout.addWidget(self.default_container)
+
         # Audio
         self.audio_label = QLabel("Default Audio")
         self.default_layout.addWidget(self.audio_label, 7, 0)
@@ -185,7 +194,6 @@ class SettingsPanel(QWidget):
         setup_audio(self.audio_dropdown)
         self.audio_dropdown.setCurrentText(self.settings.value("default_audio", ""))
         self.default_layout.addWidget(self.audio_dropdown, 7, 1)
-        preferences_layout.addLayout(self.default_layout)
         
         # Start & Stop sound effects
         sound_label = QLabel("Sound Effects")
@@ -246,13 +254,25 @@ class SettingsPanel(QWidget):
         main_layout.addLayout(action_layout)
         self.setLayout(main_layout)
 
-        self._set_processing(True)
         self.setup_sound_effects()
         self.refresh_sessions(sessions)
+        self.update_ui()
 
-    def _set_processing(self, is_local: bool) -> None:
-        self.local_processing = is_local
-        set_layout_visible(self.api_layout, not is_local)
+    def update_ui(self):
+        self.api_container.setVisible(self.proc_mode == "api")
+        self.default_container.setVisible(self.pref_mode == "default")
+
+    def set_proc_mode(self, mode):
+        self.proc_mode = mode
+        self.settings.setValue("processing_mode", mode)
+        self.settings.sync()
+        self.update_ui()
+        
+    def set_pref_mode(self, mode):
+        self.pref_mode = mode
+        self.settings.setValue("preferences_mode", mode)
+        self.settings.sync()
+        self.update_ui()
 
     def setup_sound_effects(self) -> None:
         sound_dir = Path(self.base_dir) / 'sound_effects'
@@ -301,11 +321,6 @@ class SettingsPanel(QWidget):
         start = self.start_sound_dropdown.currentData() or ""
         stop = self.stop_sound_dropdown.currentData() or ""
         self.sound_effects_changed.emit(start, stop)
-        
-        self.settings.setValue("start_sound", start)
-        self.settings.setValue("stop_sound", stop)
-    
-        self.settings.sync()
     
     def import_sound(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Import Sound", "", "WAV Files (*.wav)")
@@ -313,7 +328,7 @@ class SettingsPanel(QWidget):
             dst = Path(self.base_dir) / 'sound_effects' / Path(path).name
             
             # Ensure there is no file with the same name
-            if not dst.exist():
+            if not dst.exists():
                 shutil.copy2(path, dst)
                 self.start_sound_dropdown.addItem(Path(path).name, str(dst))
                 self.stop_sound_dropdown.addItem(Path(path).name, str(dst))
