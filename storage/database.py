@@ -13,6 +13,10 @@ class Storage:
         self.base_dir = os.path.join(app_data, 'LectureCapture')
         os.makedirs(self.base_dir, exist_ok=True) # Create directory
 
+        # Directory for sound effects
+        sound_effects_dir = Path(self.base_dir) / 'sound_effects'
+        sound_effects_dir.mkdir(parents=True, exist_ok=True)
+
         # Connect to SQLite
         db_path = os.path.join(self.base_dir, 'database.db')
         self.conn = sqlite3.connect(db_path)

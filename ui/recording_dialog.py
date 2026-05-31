@@ -1,5 +1,4 @@
 import mss
-import sounddevice as sd
 
 from PyQt6.QtWidgets import (
     QPushButton, QComboBox, QDialog, QVBoxLayout,QHBoxLayout, QSpinBox
@@ -7,7 +6,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import QSettings, Qt
 
 from ui.set_layout_visible import set_layout_visible
-from ui.setup_monitor import setup_monitor
+from ui.setup_recording import setup_monitor, setup_audio
 
 class RecordingDialog(QDialog):
     def __init__(self) -> None:
@@ -73,7 +72,7 @@ class RecordingDialog(QDialog):
         self.coords_layout.addWidget(self.height_dimension)
 
         self.audio_dropdown = QComboBox()
-        self.setup_audio()
+        setup_audio(self.audio_dropdown)
         self.audio_dropdown.setCurrentText(str(self.settings.value("audio")))
         capture_layout.addWidget(self.audio_dropdown)
 
@@ -122,13 +121,7 @@ class RecordingDialog(QDialog):
             "monitor": self.monitor_dropdown.currentData(),
             "audio_device": self.audio_dropdown.currentData()
         }
-            
-    def setup_audio(self) -> None:
-        devices = sd.query_devices()
-        for i, device in enumerate(devices):
-            if device["max_input_channels"] > 0 and device["hostapi"] == 0:
-                self.audio_dropdown.addItem(device["name"], i)
-    
+                
     # Hide or Show the user option for screenshots
     def set_user_option(self) -> None:
         self.capture_method = self.capture_method_dropdown.currentText()

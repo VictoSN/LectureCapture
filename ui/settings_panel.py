@@ -1,13 +1,21 @@
-from PyQt6.QtWidgets import (
-    QWidget, QLabel, QPushButton, QComboBox, QVBoxLayout, QHBoxLayout, QGridLayout, QSpinBox
-)
-from PyQt6.QtCore import pyqtSignal, QSettings
+import shutil
 
+from PyQt6.QtWidgets import (
+    QWidget, QLabel, QPushButton, QComboBox, QVBoxLayout, QHBoxLayout, QGridLayout, QSpinBox, QFileDialog
+)
+from PyQt6.QtCore import pyqtSignal, QSettings, QUrl
+from PyQt6.QtMultimedia import QSoundEffect
+
+from models.lecture import Session
 from ui.set_layout_visible import set_layout_visible
-from ui.setup_monitor import setup_monitor
+from ui.setup_recording import setup_monitor, setup_audio
+
+from pathlib import Path
 
 class SettingsPanel(QWidget):
-    record_clicked = pyqtSignal()
+    sound_effects_changed = pyqtSignal(str, str)  # start path, stop path
+    export_clicked = pyqtSignal(int) # session_id
+    import_clicked = pyqtSignal()
     
     def __init__(self, base_dir) -> None:
         super().__init__()
@@ -28,11 +36,16 @@ class SettingsPanel(QWidget):
         self.default_layout = QGridLayout()
         
         # Sound Effects
+        sound_layout = QVBoxLayout()
         start_sound_layout = QHBoxLayout()
         stop_sound_layout = QHBoxLayout()
+        sound_import_layout = QHBoxLayout()
         
-        # Exports
+        # Exports & Import
         export_layout = QHBoxLayout()
+        import_layout = QHBoxLayout()
+
+        action_layout = QHBoxLayout()
         
         self.base_dir = base_dir
         self.settings = QSettings("LectureCapture", "LectureCapture")
@@ -46,9 +59,6 @@ class SettingsPanel(QWidget):
             "height": 800
         })
 
-        # Visibility Logic
-        self.processing_visibility()
-
         # Header Layout
         self.settings_name = QLabel("Settings")
         main_layout.addWidget(self.settings_name)
@@ -59,14 +69,17 @@ class SettingsPanel(QWidget):
         
         self.local_button = QPushButton("Local")
         processing_button_layout.addWidget(self.local_button)
+        self.local_button.clicked.connect(lambda: self._set_processing(True))
+        
         self.api_button = QPushButton("API")
         processing_button_layout.addWidget(self.api_button)
-
+        self.api_button.clicked.connect(lambda: self._set_processing(False))
+        processing_layout.addLayout(processing_button_layout)
+        
         ocr_label = QLabel("OCR")
         self.api_layout.addWidget(ocr_label, 0, 0)
         self.ocr_dropdown = QComboBox()
         self.api_layout.addWidget(self.ocr_dropdown, 0, 1)
-        processing_layout.addLayout(processing_button_layout)
         
         speech_label = QLabel("Speech-to-Text")
         self.api_layout.addWidget(speech_label, 1, 0)
@@ -130,66 +143,158 @@ class SettingsPanel(QWidget):
         self.monitor_dropdown.setCurrentText(str(self.settings.value("monitor", "Monitor 1")))
         self.default_layout.addWidget(self.monitor_dropdown, 2, 1)
 
-        # ## Coords Layout
-        # self.coords_layout = QHBoxLayout()
-        # capture_layout.addLayout(self.coords_layout)
+        ## Coords Layout
+        self.x_label = QLabel("Default X Coordinate")
+        self.default_layout.addWidget(self.x_label, 3, 0)
 
-        # self.x_coords = QLineEdit()
-        # self.x_coords.setPlaceholderText("X Coordinate")
-        # self.x_coords.setValidator(int_validator)
-        # self.x_coords.setText(str(self.region["left"]))
-        # self.coords_layout.addWidget(self.x_coords)
+        self.x_coords = QSpinBox()
+        self.x_coords.setValue(int(self.region["left"]))
+        self.x_coords.setRange(0, 5000)
+        self.default_layout.addWidget(self.x_coords, 3, 1)
 
-        # self.y_coords = QLineEdit()
-        # self.y_coords.setPlaceholderText("Y Coordinate")
-        # self.y_coords.setValidator(int_validator)
-        # self.y_coords.setText(str(self.region["top"]))
-        # self.coords_layout.addWidget(self.y_coords)
+        self.y_label = QLabel("Default Y Coordinate")
+        self.default_layout.addWidget(self.y_label, 4, 0)
 
-        # self.width_dimension = QLineEdit()
-        # self.width_dimension.setPlaceholderText("Width")
-        # self.width_dimension.setValidator(int_validator)
-        # self.width_dimension.setText(str(self.region["width"]))
-        # self.coords_layout.addWidget(self.width_dimension)
+        self.y_coords = QSpinBox()
+        self.y_coords.setValue(int(self.region["top"]))
+        self.y_coords.setRange(0, 5000)
+        self.default_layout.addWidget(self.y_coords, 4, 1)
 
-        # self.height_dimension = QLineEdit()
-        # self.height_dimension.setPlaceholderText("Height")
-        # self.height_dimension.setValidator(int_validator)
-        # self.height_dimension.setText(str(self.region["height"]))
-        # self.coords_layout.addWidget(self.height_dimension)
+        self.width_label = QLabel("Default Width")
+        self.default_layout.addWidget(self.width_label, 5, 0)
 
-        # self.audio_dropdown = QComboBox()
-        # self.setup_audio()
-        # self.audio_dropdown.setCurrentText(str(self.settings.value("audio")))
-        # capture_layout.addWidget(self.audio_dropdown)
+        self.width_dimension = QSpinBox()
+        self.width_dimension.setValue(int(self.region["width"]))
+        self.width_dimension.setRange(0, 5000)
+        self.default_layout.addWidget(self.width_dimension, 5, 1)
+
+        self.height_label = QLabel("Default Height")
+        self.default_layout.addWidget(self.height_label, 6, 0)
+
+        self.height_dimension = QSpinBox()
+        self.height_dimension.setValue(int(self.region["height"]))
+        self.height_dimension.setRange(0, 5000)
+        self.default_layout.addWidget(self.height_dimension, 6, 1)
+
+        # Audio
+        self.audio_label = QLabel("Default Audio")
+        self.default_layout.addWidget(self.audio_label, 7, 0)
+
+        self.audio_dropdown = QComboBox()
+        setup_audio(self.audio_dropdown)
+        self.audio_dropdown.setCurrentText(str(self.settings.value("audio")))
+        self.default_layout.addWidget(self.audio_dropdown, 7, 1)
         preferences_layout.addLayout(self.default_layout)
         
         # Start & Stop sound effects
+        sound_label = QLabel("Sound Effects")
+        sound_layout.addWidget(sound_label)
+        
         start_sound_label = QLabel("Start Recording Sound Effects")
         start_sound_layout.addWidget(start_sound_label)
         self.start_sound_dropdown = QComboBox()
         start_sound_layout.addWidget(self.start_sound_dropdown)
+        self.start_sound_button = QPushButton("Play")
+        self.start_sound_button.clicked.connect(lambda: self.play_sound(self.start_sound_dropdown))
+        start_sound_layout.addWidget(self.start_sound_button)
+        sound_layout.addLayout(start_sound_layout)
 
         stop_sound_label = QLabel("Stop Recording Sound Effects")
         stop_sound_layout.addWidget(stop_sound_label)
         self.stop_sound_dropdown = QComboBox()
         stop_sound_layout.addWidget(self.stop_sound_dropdown)
+        self.stop_sound_button = QPushButton("Play")
+        self.stop_sound_button.clicked.connect(lambda: self.play_sound(self.stop_sound_dropdown))
+        stop_sound_layout.addWidget(self.stop_sound_button)
+        sound_layout.addLayout(stop_sound_layout)
 
-        # Dropdown that contains all the sessions
-        export_label = QLabel("Export Layout")
+        sound_import_label = QLabel("Import Sound")
+        sound_import_layout.addWidget(sound_import_label)
+        sound_import_button = QPushButton("Import")
+        sound_import_button.clicked.connect(self.import_sound)
+        sound_import_layout.addWidget(sound_import_button)
+        sound_layout.addLayout(sound_import_layout)
+
+        export_label = QLabel("Export Session")
         export_layout.addWidget(export_label)
         self.export_dropdown = QComboBox()
         export_layout.addWidget(self.export_dropdown)
         self.export_button = QPushButton("Export")
+        self.export_button.clicked.connect(lambda: self.export_clicked.emit(self.export_dropdown.currentData()))
         export_layout.addWidget(self.export_button)
+        
+        import_label = QLabel("Import Session")
+        import_layout.addWidget(import_label)
+        self.import_button = QPushButton("Import")
+        self.import_button.clicked.connect(self.import_clicked)
+        import_layout.addWidget(self.import_button)
+        
+        # Dropdown that contains all the sessions
+        self.cancel_button = QPushButton("Cancel")
+        action_layout.addWidget(self.cancel_button)
+        self.save_button = QPushButton("Save")
+        action_layout.addWidget(self.save_button)
+        self.save_button.clicked.connect(self._on_save)
 
         main_layout.addLayout(processing_layout)
         main_layout.addLayout(theme_layout)
         main_layout.addLayout(preferences_layout)
-        main_layout.addLayout(start_sound_layout)
-        main_layout.addLayout(stop_sound_layout)
+        main_layout.addLayout(sound_layout)
         main_layout.addLayout(export_layout)
+        main_layout.addLayout(import_layout)
+        main_layout.addLayout(action_layout)
         self.setLayout(main_layout)
 
-    def processing_visibility(self) -> None:
+        self.setup_sound_effects()
+
+    def _set_processing(self, is_local: bool) -> None:
+        self.local_processing = is_local
         set_layout_visible(self.api_layout, self.local_processing)
+
+    def setup_sound_effects(self) -> None:
+        sound_dir = Path(self.base_dir) / 'sound_effects'
+        self.start_sound_dropdown.addItem("None", None)
+        self.stop_sound_dropdown.addItem("None", None)
+        
+        for wav in sound_dir.glob("*.wav"):
+            self.start_sound_dropdown.addItem(wav.name, str(wav))
+            self.stop_sound_dropdown.addItem(wav.name, str(wav))
+        
+        saved_start = self.settings.value("start_sound", str(Path(self.base_dir) / 'sound_effects' / 'Beep 1 (Default).wav'))
+        saved_stop = self.settings.value("stop_sound", str(Path(self.base_dir) / 'sound_effects' / 'Chirp 1 (Default).wav'))
+    
+        if saved_start:
+            idx = self.start_sound_dropdown.findData(saved_start)
+            if idx >= 0:
+                self.start_sound_dropdown.setCurrentIndex(idx)
+        
+        if saved_stop:
+            idx = self.stop_sound_dropdown.findData(saved_stop)
+            if idx >= 0:
+                self.stop_sound_dropdown.setCurrentIndex(idx)
+    
+    def play_sound(self, dropdown: QComboBox) -> None:
+        path = dropdown.currentData()
+        if path:
+            effect = QSoundEffect()
+            effect.setSource(QUrl.fromLocalFile(path))
+            effect.play()
+            self._preview_sound = effect
+    
+    def _on_save(self) -> None:
+        start = self.start_sound_dropdown.currentData() or ""
+        stop = self.stop_sound_dropdown.currentData() or ""
+        self.sound_effects_changed.emit(start, stop)
+    
+    def import_sound(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "Import Sound", "", "WAV Files (*.wav)")
+        if path:
+            dst = Path(self.base_dir) / 'sound_effects' / Path(path).name
+            shutil.copy2(path, dst)
+            self.start_sound_dropdown.addItem(Path(path).name, str(dst))
+            self.stop_sound_dropdown.addItem(Path(path).name, str(dst))
+    
+    def refresh_sessions(self, sessions: list) -> None:
+        self.export_dropdown.clear()
+        for session in sessions:
+            self.export_dropdown.addItem(session.name, session.id)

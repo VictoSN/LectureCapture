@@ -1,4 +1,6 @@
 import mss
+import sounddevice as sd
+
 from PyQt6.QtWidgets import QComboBox
 
 def setup_monitor(monitor_dropdown: QComboBox) -> None:
@@ -12,3 +14,9 @@ def setup_monitor(monitor_dropdown: QComboBox) -> None:
             monitor_dropdown.addItem(
                 f"Monitor {display_num} | {m['width']}x{m['height']} ({m['left']},{m['top']})", mss_index
             )
+
+def setup_audio(audio_dropdown: QComboBox) -> None:
+    devices = sd.query_devices()
+    for i, device in enumerate(devices):
+        if device["max_input_channels"] > 0 and device["hostapi"] == 0:
+            audio_dropdown.addItem(device["name"], i)

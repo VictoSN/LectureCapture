@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QSplitter, QMessageBox
 )
 from PyQt6.QtGui import QIcon
-from PyQt6.QtCore import Qt, QTimer, QUrl
+from PyQt6.QtCore import Qt, QTimer, QUrl, QSettings
 from PyQt6.QtMultimedia import QSoundEffect
 
 from models.lecture import Session, OCRCapture
@@ -30,6 +30,7 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.storage = Storage()
+        self.settings = QSettings("LectureCapture", "LectureCapture")
         self.current_session = None
         self.is_recording = False
         self.is_settings_open = False
@@ -39,14 +40,19 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1100, 700)
         self.setWindowTitle("LectureCapture")
 
-        # Sound Effects
-        # TODO: Add option in settings panel to change the audio
+        # Default Sound Effects
+        self.DEFAULT_START_SOUND = str(Path(self.storage.base_dir) / 'sound_effects' / 'Beep 1 (Default).wav')
+        self.DEFAULT_STOP_SOUND = str(Path(self.storage.base_dir) / 'sound_effects' / 'Chirp 1 (Default).wav')
+
+        start_path = self.settings.value("start_sound", self.DEFAULT_START_SOUND)
+        stop_path = self.settings.value("stop_sound", self.DEFAULT_STOP_SOUND)
+        
         self.start_audio = QSoundEffect()
-        self.start_audio.setSource(QUrl.fromLocalFile(str(BASE_DIR.parent / 'assets' / 'sound_effects' / 'Beep 1.wav')))
+        self.start_audio.setSource(QUrl.fromLocalFile(start_path))
 
-        self.end_audio = QSoundEffect()
-        self.end_audio.setSource(QUrl.fromLocalFile(str(BASE_DIR.parent / 'assets' / 'sound_effects' / 'Chirp 1.wav')))
-
+        self.stop_audio = QSoundEffect()
+        self.stop_audio.setSource(QUrl.fromLocalFile(stop_path))
+        
         self.filter_name = ""
         self.filter_category = ""
         self.filter_group = ""
@@ -77,6 +83,7 @@ class MainWindow(QMainWindow):
         
         # Init the settings, and hide it
         self.settings_panel = SettingsPanel(self.storage.base_dir)
+        self.settings_panel.sound_effects_changed.connect(self.on_sound_effects_changed)
         splitter.addWidget(self.settings_panel)
         self.settings_panel.setVisible(False)
         
@@ -187,7 +194,7 @@ class MainWindow(QMainWindow):
             self.elapse_s = 0
             
             self.is_recording = False
-            self.end_audio.play()
+            self.stop_audio.play()
             
             # Update labels
             self.transcript_panel.recording_time_label.setText("00:00")
@@ -335,6 +342,13 @@ class MainWindow(QMainWindow):
         # Only show either the transcript or settings panel
         self.transcript_panel.setVisible(not self.is_settings_open)
         self.settings_panel.setVisible(self.is_settings_open)
+
+    def on_sound_effects_changed(self, start: str, stop: str) -> None:
+        self.start_audio.setSource(QUrl.fromLocalFile(start if start else self.DEFAULT_START_SOUND))
+        self.stop_audio.setSource(QUrl.fromLocalFile(stop if stop else self.DEFAULT_STOP_SOUND))
+        
+        self.settings.setValue("start_sound", start)
+        self.settings.setValue("stop_sound", stop)
 
     def closeEvent(self, event) -> None:
         if self.is_recording:
