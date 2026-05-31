@@ -17,7 +17,7 @@ class SettingsPanel(QWidget):
     export_clicked = pyqtSignal(int) # session_id
     import_clicked = pyqtSignal()
     
-    def __init__(self, base_dir) -> None:
+    def __init__(self, sessions, base_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         
@@ -246,6 +246,7 @@ class SettingsPanel(QWidget):
         self.setLayout(main_layout)
 
         self.setup_sound_effects()
+        self.refresh_sessions(sessions)
 
     def _set_processing(self, is_local: bool) -> None:
         self.local_processing = is_local
@@ -294,7 +295,7 @@ class SettingsPanel(QWidget):
             self.start_sound_dropdown.addItem(Path(path).name, str(dst))
             self.stop_sound_dropdown.addItem(Path(path).name, str(dst))
     
-    def refresh_sessions(self, sessions: list) -> None:
+    def refresh_sessions(self, sessions: list[Session]) -> None:
         self.export_dropdown.clear()
         for session in sessions:
             self.export_dropdown.addItem(session.name, session.id)

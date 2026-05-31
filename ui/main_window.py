@@ -1,7 +1,8 @@
 import time
+import zipfile, json
 
 from PyQt6.QtWidgets import (
-    QMainWindow, QSplitter, QMessageBox
+    QMainWindow, QSplitter, QMessageBox, QFileDialog
 )
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt, QTimer, QUrl, QSettings
@@ -82,8 +83,10 @@ class MainWindow(QMainWindow):
         self.transcript_panel.summary_panel.summarize_clicked.connect(self.on_summarize_clicked)
         
         # Init the settings, and hide it
-        self.settings_panel = SettingsPanel(self.storage.base_dir)
+        self.settings_panel = SettingsPanel(sessions, self.storage.base_dir)
         self.settings_panel.sound_effects_changed.connect(self.on_sound_effects_changed)
+        self.settings_panel.export_clicked.connect(self.on_export_clicked)
+        self.settings_panel.import_clicked.connect(self.on_import_clicked)
         splitter.addWidget(self.settings_panel)
         self.settings_panel.setVisible(False)
         
@@ -111,6 +114,7 @@ class MainWindow(QMainWindow):
             new_session = Session(data["session_name"], current_time, current_time, data["session_category"], 0, None, data["group_category"], None, None)
             self.storage.create_session(new_session)
             self.sidebar.refresh(self.storage.get_all_sessions())
+            self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
     
     def on_session_selected(self, session: Session) -> None:
         self.current_session = session
@@ -310,15 +314,18 @@ class MainWindow(QMainWindow):
             self.current_session.group_category = data["group_category"]
             self.storage.update_session(self.current_session)
             self.sidebar.refresh(self.storage.get_all_sessions())
+            self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
     
     def on_deleted_clicked(self) -> None:
         self.storage.delete_session(self.current_session.id)
         self.sidebar.refresh(self.storage.get_all_sessions())
+        self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
         self.transcript_panel.clear_panels()
     
     def on_duplicated_clicked(self) -> None:
         self.current_session = self.storage.duplicate_sessions(self.current_session.id)
         self.sidebar.refresh(self.storage.get_all_sessions())
+        self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
         self.on_session_selected(self.current_session)
     
     def on_text_changed(self, id, text, option: int) -> None:
@@ -335,6 +342,7 @@ class MainWindow(QMainWindow):
 
         self.storage.update_session(self.current_session)
         self.sidebar.refresh(self.storage.get_all_sessions())
+        self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
 
     def on_settings_clicked(self) -> None:
         self.is_settings_open = not self.is_settings_open
@@ -350,6 +358,87 @@ class MainWindow(QMainWindow):
         self.settings.setValue("start_sound", start)
         self.settings.setValue("stop_sound", stop)
 
+    def on_export_clicked(self, session_id: int) -> None:
+        if not session_id:
+            return
+
+        session = self.storage.get_session(session_id)
+        captures = self.storage.get_captures_by_session(session_id)
+        
+        path, _ = QFileDialog.getSaveFileName(self, "Export Session", session.name, "ZIP Files (*.zip)")
+        if not path:
+            return
+        
+        session_data = {
+            "name": session.name,
+            "session_category": session.session_category,
+            "group_category": session.group_category,
+            "date_recorded": session.date_recorded.isoformat(),
+            "date_modified": session.date_modified.isoformat(),
+            "length": session.length,
+            "summary": session.summary,
+            "summary_generated_at": session.summary_generated_at.isoformat() if session.summary_generated_at else None,
+            "captures": [
+                {
+                    "timestamp": c.timestamp,
+                    "image_path": c.image_path,
+                    "extracted_text": c.extracted_text,
+                    "speech_text": c.speech_text
+                }
+                for c in captures
+            ]
+        }
+        
+        captures_dir = Path(self.storage.base_dir) / 'sessions' / str(session_id) / 'captures'
+        
+        with zipfile.ZipFile(path, 'w') as zf:
+            zf.writestr("session.json", json.dumps(session_data, indent=2))
+            for capture in captures:
+                img = captures_dir / capture.image_path
+                if img.exists():
+                    zf.write(img, f"captures/{capture.image_path}")
+    
+    def on_import_clicked(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "Import Session", "", "ZIP Files (*.zip)")
+        if not path:
+            return
+        
+        with zipfile.ZipFile(path, 'r') as zf:
+            session_data = json.loads(zf.read("session.json"))
+            
+            # Create new session
+            new_session = Session(
+                name=session_data["name"],
+                session_category=session_data["session_category"],
+                group_category=session_data.get("group_category"),
+                date_recorded=datetime.fromisoformat(session_data["date_recorded"]),
+                date_modified=datetime.now(),
+                length=session_data["length"],
+                summary=session_data.get("summary"),
+                summary_generated_at=datetime.fromisoformat(session_data["summary_generated_at"]) if session_data.get("summary_generated_at") else None,
+                id=None
+            )
+            new_id = self.storage.create_session(new_session)
+            
+            # Copy images into new session folder
+            captures_dir = Path(self.storage.base_dir) / 'sessions' / str(new_id) / 'captures'
+            for capture_data in session_data["captures"]:
+                zip_img_path = f"captures/{capture_data['image_path']}"
+                if zip_img_path in zf.namelist():
+                    zf.extract(zip_img_path, Path(self.storage.base_dir) / 'sessions' / str(new_id))
+                
+                capture = OCRCapture(
+                    timestamp=capture_data["timestamp"],
+                    image_path=capture_data["image_path"],
+                    extracted_text=capture_data["extracted_text"],
+                    speech_text=capture_data.get("speech_text"),
+                    session_id=new_id,
+                    id=None
+                )
+                self.storage.create_ocr_capture(capture)
+        self.sidebar.refresh(self.storage.get_all_sessions())
+        self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
+        
     def closeEvent(self, event) -> None:
         if self.is_recording:
             reply = QMessageBox.question(self, "Recording in progress",
