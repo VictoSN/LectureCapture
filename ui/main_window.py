@@ -87,6 +87,8 @@ class MainWindow(QMainWindow):
         self.settings_panel.sound_effects_changed.connect(self.on_sound_effects_changed)
         self.settings_panel.export_clicked.connect(self.on_export_clicked)
         self.settings_panel.import_clicked.connect(self.on_import_clicked)
+        self.settings_panel.cancel_clicked.connect(self.on_settings_clicked)
+        
         splitter.addWidget(self.settings_panel)
         self.settings_panel.setVisible(False)
         

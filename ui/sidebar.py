@@ -67,8 +67,9 @@ class Sidebar(QWidget):
         # Keep the list to pass it to on_session_selected method
         self.sessions = sessions
         
-    def refresh(self, sessions: list[Session]) -> None:
+    def refresh(self, sessions: list[Session], selected_id: int = None) -> None:
         self.sessions = sessions # Renew sessions
+        scroll = self.lecture_list.verticalScrollBar().value()
         self.lecture_list.clear()
         
         # List Layout
@@ -79,7 +80,14 @@ class Sidebar(QWidget):
             item.setSizeHint(widget.sizeHint())
             self.lecture_list.addItem(item)
             self.lecture_list.setItemWidget(item, widget)
-                    
+            
+            # Reselect the session
+            if selected_id and session.id == selected_id:
+                self.lecture_list.setCurrentItem(item)
+        
+        # Go back to the scroll location
+        self.lecture_list.verticalScrollBar().setValue(scroll)
+
     def set_recording_locked(self, locked: bool) -> None:
         self.new_session_button.setDisabled(locked)
         self.session_search.setDisabled(locked)
