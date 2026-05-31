@@ -15,17 +15,27 @@ class RecordingDialog(QDialog):
         capture_layout = QVBoxLayout()
         action_layout = QHBoxLayout()
 
-        self.region = None
         self.settings = QSettings("LectureCapture", "LectureCapture")
-
-        self.interval = self.settings.value("interval", 10)
-        self.capture_method = self.settings.value("capture_method", "Mouse Select")
-        self.region = self.settings.value("region", {
-            "left": 0,
-            "top": 0,
-            "width": 800,
-            "height": 800
-        })
+        mode = self.settings.value("preferences_mode", "last")
+        
+        if mode == "empty":
+            self.interval = 0
+            self.capture_method = "Mouse Select"
+            self.region = {"left": 0, "top": 0, "width": 0, "height": 0}
+            saved_monitor = "Monitor 1"
+            saved_audio = ""
+        elif mode == "default":
+            self.interval = self.settings.value("default_interval", 10)
+            self.capture_method = self.settings.value("default_capture_method", "Mouse Select")
+            self.region = self.settings.value("default_region", {"left": 0, "top": 0, "width": 800, "height": 800})
+            saved_monitor = self.settings.value("default_monitor", "Monitor 1")
+            saved_audio = self.settings.value("default_audio", "")
+        else:
+            self.interval = self.settings.value("interval", 10)
+            self.capture_method = self.settings.value("capture_method", "Mouse Select")
+            self.region = self.settings.value("region", {"left": 0, "top": 0, "width": 800, "height": 800})
+            saved_monitor = self.settings.value("monitor", "Monitor 1")
+            saved_audio = self.settings.value("audio", "")
 
         # Input Fields
         # Used QSpinBox for integer validation
@@ -44,7 +54,7 @@ class RecordingDialog(QDialog):
         ## Monitor Dropdown
         self.monitor_dropdown = QComboBox()
         setup_monitor(self.monitor_dropdown)
-        self.monitor_dropdown.setCurrentText(str(self.settings.value("monitor", "Monitor 1")))
+        self.monitor_dropdown.setCurrentText(saved_monitor)
         capture_layout.addWidget(self.monitor_dropdown)
 
         ## Coords Layout
@@ -73,7 +83,7 @@ class RecordingDialog(QDialog):
 
         self.audio_dropdown = QComboBox()
         setup_audio(self.audio_dropdown)
-        self.audio_dropdown.setCurrentText(str(self.settings.value("audio")))
+        self.audio_dropdown.setCurrentText(saved_audio)
         capture_layout.addWidget(self.audio_dropdown)
 
         # Actions Buttons
