@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import QSettings, Qt
 
 from ui.set_layout_visible import set_layout_visible
-from ui.setup_recording import setup_monitor, setup_audio
+from ui.setup_recording import setup_monitor, setup_audio, update_coord_ranges
 
 class RecordingDialog(QDialog):
     def __init__(self) -> None:
@@ -62,25 +62,28 @@ class RecordingDialog(QDialog):
         capture_layout.addLayout(self.coords_layout)
 
         self.x_coords = QSpinBox()
-        self.x_coords.setValue(int(self.region["left"]))
-        self.x_coords.setRange(0, 5000)
         self.coords_layout.addWidget(self.x_coords)
 
         self.y_coords = QSpinBox()
-        self.y_coords.setValue(int(self.region["top"]))
-        self.y_coords.setRange(0, 5000)
         self.coords_layout.addWidget(self.y_coords)
 
         self.width_dimension = QSpinBox()
-        self.width_dimension.setValue(int(self.region["width"]))
-        self.width_dimension.setRange(0, 5000)
         self.coords_layout.addWidget(self.width_dimension)
 
         self.height_dimension = QSpinBox()
-        self.height_dimension.setValue(int(self.region["height"]))
-        self.height_dimension.setRange(0, 5000)
         self.coords_layout.addWidget(self.height_dimension)
 
+        self.monitor_dropdown.currentIndexChanged.connect(
+            lambda: update_coord_ranges(self.monitor_dropdown.currentData(), self.x_coords, self.y_coords, self.width_dimension, self.height_dimension)
+        )
+        update_coord_ranges(self.monitor_dropdown.currentData(), self.x_coords, self.y_coords, self.width_dimension, self.height_dimension)
+
+        # Need to call 'update_coord_ranges' before calling setValue
+        self.x_coords.setValue(int(self.region["left"]))
+        self.y_coords.setValue(int(self.region["top"]))
+        self.width_dimension.setValue(int(self.region["width"]))
+        self.height_dimension.setValue(int(self.region["height"]))
+        
         self.audio_dropdown = QComboBox()
         setup_audio(self.audio_dropdown)
         self.audio_dropdown.setCurrentText(saved_audio)

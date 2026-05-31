@@ -1,7 +1,7 @@
 import mss
 import sounddevice as sd
 
-from PyQt6.QtWidgets import QComboBox
+from PyQt6.QtWidgets import QComboBox, QSpinBox
 
 def setup_monitor(monitor_dropdown: QComboBox) -> None:
     monitor_dropdown.clear()
@@ -20,3 +20,11 @@ def setup_audio(audio_dropdown: QComboBox) -> None:
     for i, device in enumerate(devices):
         if device["max_input_channels"] > 0 and device["hostapi"] == 0:
             audio_dropdown.addItem(device["name"], i)
+
+def update_coord_ranges(monitor_index: int, x: QSpinBox, y: QSpinBox, width: QSpinBox, height: QSpinBox) -> None:
+    with mss.mss() as sct:
+        m = sct.monitors[monitor_index]
+        x.setRange(0, m["width"])
+        y.setRange(0, m["height"])
+        width.setRange(0, m["width"])
+        height.setRange(0, m["height"])

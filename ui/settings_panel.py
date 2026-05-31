@@ -7,8 +7,7 @@ from PyQt6.QtCore import pyqtSignal, QSettings, QUrl
 from PyQt6.QtMultimedia import QSoundEffect
 
 from models.lecture import Session
-from ui.set_layout_visible import set_layout_visible
-from ui.setup_recording import setup_monitor, setup_audio
+from ui.setup_recording import setup_monitor, setup_audio, update_coord_ranges
 
 from pathlib import Path
 
@@ -145,29 +144,30 @@ class SettingsPanel(QWidget):
         self.default_layout.addWidget(self.x_label, 3, 0)
 
         self.x_coords = QSpinBox()
-        self.x_coords.setRange(0, 5000)
         self.default_layout.addWidget(self.x_coords, 3, 1)
 
         self.y_label = QLabel("Default Y Coordinate")
         self.default_layout.addWidget(self.y_label, 4, 0)
 
         self.y_coords = QSpinBox()
-        self.y_coords.setRange(0, 5000)
         self.default_layout.addWidget(self.y_coords, 4, 1)
 
         self.width_label = QLabel("Default Width")
         self.default_layout.addWidget(self.width_label, 5, 0)
 
         self.width_dimension = QSpinBox()
-        self.width_dimension.setRange(0, 5000)
         self.default_layout.addWidget(self.width_dimension, 5, 1)
 
         self.height_label = QLabel("Default Height")
         self.default_layout.addWidget(self.height_label, 6, 0)
 
         self.height_dimension = QSpinBox()
-        self.height_dimension.setRange(0, 5000)
         self.default_layout.addWidget(self.height_dimension, 6, 1)
+
+        self.monitor_dropdown.currentIndexChanged.connect(
+            lambda: update_coord_ranges(self.monitor_dropdown.currentData(), self.x_coords, self.y_coords, self.width_dimension, self.height_dimension)
+        )
+        update_coord_ranges(self.monitor_dropdown.currentData(), self.x_coords, self.y_coords, self.width_dimension, self.height_dimension)
 
         self.default_container = QWidget()
         self.default_container.setLayout(self.default_layout)
