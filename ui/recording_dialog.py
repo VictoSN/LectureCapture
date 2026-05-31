@@ -2,9 +2,8 @@ import mss
 import sounddevice as sd
 
 from PyQt6.QtWidgets import (
-    QPushButton, QLineEdit, QComboBox, QDialog, QVBoxLayout,QHBoxLayout, QSpinBox
+    QPushButton, QComboBox, QDialog, QVBoxLayout,QHBoxLayout, QSpinBox
 )
-from PyQt6.QtGui import QIntValidator
 from PyQt6.QtCore import QSettings, Qt
 
 from ui.set_layout_visible import set_layout_visible
@@ -15,7 +14,6 @@ class RecordingDialog(QDialog):
         main_layout = QVBoxLayout()
         capture_layout = QVBoxLayout()
         action_layout = QHBoxLayout()
-        int_validator = QIntValidator()
 
         self.region = None
         self.settings = QSettings("LectureCapture", "LectureCapture")
@@ -53,28 +51,24 @@ class RecordingDialog(QDialog):
         self.coords_layout = QHBoxLayout()
         capture_layout.addLayout(self.coords_layout)
 
-        self.x_coords = QLineEdit()
-        self.x_coords.setPlaceholderText("X Coordinate")
-        self.x_coords.setValidator(int_validator)
-        self.x_coords.setText(str(self.region["left"]))
+        self.x_coords = QSpinBox()
+        self.x_coords.setValue(int(self.region["left"]))
+        self.x_coords.setRange(0, 5000)
         self.coords_layout.addWidget(self.x_coords)
 
-        self.y_coords = QLineEdit()
-        self.y_coords.setPlaceholderText("Y Coordinate")
-        self.y_coords.setValidator(int_validator)
-        self.y_coords.setText(str(self.region["top"]))
+        self.y_coords = QSpinBox()
+        self.y_coords.setValue(int(self.region["top"]))
+        self.y_coords.setRange(0, 5000)
         self.coords_layout.addWidget(self.y_coords)
 
-        self.width_dimension = QLineEdit()
-        self.width_dimension.setPlaceholderText("Width")
-        self.width_dimension.setValidator(int_validator)
-        self.width_dimension.setText(str(self.region["width"]))
+        self.width_dimension = QSpinBox()
+        self.width_dimension.setValue(int(self.region["width"]))
+        self.width_dimension.setRange(0, 5000)
         self.coords_layout.addWidget(self.width_dimension)
 
-        self.height_dimension = QLineEdit()
-        self.height_dimension.setPlaceholderText("Height")
-        self.height_dimension.setValidator(int_validator)
-        self.height_dimension.setText(str(self.region["height"]))
+        self.height_dimension = QSpinBox()
+        self.height_dimension.setValue(int(self.region["height"]))
+        self.height_dimension.setRange(0, 5000)
         self.coords_layout.addWidget(self.height_dimension)
 
         self.audio_dropdown = QComboBox()
