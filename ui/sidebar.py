@@ -7,11 +7,14 @@ from models.lecture import Session
 from ui.session_card import SessionCard
 
 class Sidebar(QWidget):
+    new_session_clicked = pyqtSignal()
+    settings_clicked = pyqtSignal()
+    
     search_changed = pyqtSignal(str)
     category_filter_changed = pyqtSignal(str)
     group_filter_changed = pyqtSignal(str)
     
-    def __init__(self, sessions: list[Session], on_new_session, on_settings_opened, on_session_selected, group_categories: list[str]) -> None:
+    def __init__(self, sessions: list[Session], on_session_selected, group_categories: list[str]) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         header = QVBoxLayout()
@@ -21,11 +24,11 @@ class Sidebar(QWidget):
         header.addWidget(lecture_label)
 
         self.new_session_button = QPushButton("+ New Session")
-        self.new_session_button.clicked.connect(on_new_session)
+        self.new_session_button.clicked.connect(self.new_session_clicked)
         header.addWidget(self.new_session_button)
 
         self.settings_button = QPushButton("Settings")
-        self.settings_button.clicked.connect(on_settings_opened)
+        self.settings_button.clicked.connect(self.settings_clicked)
         header.addWidget(self.settings_button)
 
         self.session_search = QLineEdit()

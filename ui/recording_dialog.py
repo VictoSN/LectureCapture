@@ -7,6 +7,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QIntValidator
 from PyQt6.QtCore import QSettings, Qt
 
+from ui.set_layout_visible import set_layout_visible
+
 class RecordingDialog(QDialog):
     def __init__(self) -> None:
         super().__init__()
@@ -126,19 +128,6 @@ class RecordingDialog(QDialog):
             "audio_device": self.audio_dropdown.currentData()
         }
         
-    # UI Visibility
-    def set_layout_visible(self, layout, visible) -> None:
-        for i in range(layout.count()):
-            item = layout.itemAt(i)
-
-            if item.widget():
-                if visible:
-                    item.widget().show()
-                else:
-                    item.widget().hide()
-            elif item.layout():
-                self.set_layout_visible(item.layout(), visible)
-
     def setup_monitor(self) -> None:
         self.monitor_dropdown.clear()
 
@@ -165,9 +154,9 @@ class RecordingDialog(QDialog):
     def set_user_option(self) -> None:
         self.capture_method = self.capture_method_dropdown.currentText()
         if self.capture_method == "Mouse Select" or self.capture_method == "Full Window":
-            self.set_layout_visible(self.coords_layout, False)
+            set_layout_visible(self.coords_layout, False)
         elif self.capture_method == "Coordinates":
-            self.set_layout_visible(self.coords_layout, True)
+            set_layout_visible(self.coords_layout, True)
     
     def set_error(self, widget, error: bool) -> None:
         widget.setStyleSheet("border: 2px solid red;" if error else "")

@@ -9,9 +9,10 @@ from ui.speech_panel import SpeechPanel
 from ui.summary_panel import SummaryPanel
 
 class TranscriptPanel(QWidget):
+    properties_clicked = pyqtSignal()
     record_clicked = pyqtSignal()
     
-    def __init__(self, base_dir, on_session_properties) -> None:
+    def __init__(self, base_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         header = QHBoxLayout()
@@ -24,8 +25,9 @@ class TranscriptPanel(QWidget):
         header.addWidget(self.session_name)
 
         self.properties_button = QPushButton("Properties")
-        self.properties_button.clicked.connect(on_session_properties)
+        self.properties_button.clicked.connect(self.properties_clicked)
         header.addWidget(self.properties_button)
+        
         self.ocr_visibility_button = QPushButton("OCR")
         header.addWidget(self.ocr_visibility_button)
         self.speech_visibility_button = QPushButton("S2T")

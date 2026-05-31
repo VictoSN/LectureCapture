@@ -42,10 +42,10 @@ class MainWindow(QMainWindow):
         # Sound Effects
         # TODO: Add option in settings panel to change the audio
         self.start_audio = QSoundEffect()
-        self.start_audio.setSource(QUrl.fromLocalFile(str(BASE_DIR.parent / 'assets' / 'Beep 1.wav')))
+        self.start_audio.setSource(QUrl.fromLocalFile(str(BASE_DIR.parent / 'assets' / 'sound_effects' / 'Beep 1.wav')))
 
         self.end_audio = QSoundEffect()
-        self.end_audio.setSource(QUrl.fromLocalFile(str(BASE_DIR.parent / 'assets' / 'Chirp 1.wav')))
+        self.end_audio.setSource(QUrl.fromLocalFile(str(BASE_DIR.parent / 'assets' / 'sound_effects' / 'Chirp 1.wav')))
 
         self.filter_name = ""
         self.filter_category = ""
@@ -61,14 +61,17 @@ class MainWindow(QMainWindow):
 
         sessions = self.storage.get_all_sessions()
         group_categories = self.storage.get_group_categories() # Get all group categories
-        self.sidebar = Sidebar(sessions, self.on_new_session, self.on_settings_opened, self.on_session_selected, group_categories)
+        self.sidebar = Sidebar(sessions, self.on_session_selected, group_categories)
+        self.sidebar.new_session_clicked.connect(self.on_new_session)
+        self.sidebar.settings_clicked.connect(self.on_settings_clicked)
         splitter.addWidget(self.sidebar)
         
         self.sidebar.search_changed.connect(self.on_search_changed)
         self.sidebar.category_filter_changed.connect(self.on_category_filter_changed)
         self.sidebar.group_filter_changed.connect(self.on_group_filter_changed)
 
-        self.transcript_panel = TranscriptPanel(self.storage.base_dir, self.on_properties_clicked)
+        self.transcript_panel = TranscriptPanel(self.storage.base_dir)
+        self.transcript_panel.properties_clicked.connect(self.on_properties_clicked)
         self.transcript_panel.record_clicked.connect(self.on_record_clicked)
         self.transcript_panel.summary_panel.summarize_clicked.connect(self.on_summarize_clicked)
         
@@ -109,7 +112,7 @@ class MainWindow(QMainWindow):
         
         # Close the settings panel if its opened
         if self.is_settings_open:
-            self.on_settings_opened()
+            self.on_settings_clicked()
         
     def start_recording(self, interval, region, monitor, device) -> None:
         start_time = time.time()
@@ -125,6 +128,9 @@ class MainWindow(QMainWindow):
         self.audio_worker.chunk_ready.connect(self.on_chunk_ready)
         self.audio_worker.start()
 
+        # Que sound effect
+        self.start_audio.play()
+        
     def update_timer(self) -> None:
         if self.is_recording:
             self.elapse_s += 1
@@ -155,7 +161,6 @@ class MainWindow(QMainWindow):
                 data = dialog.get_data()
                 self.timer.start(1000) # Start Timer
                 
-                self.start_audio.play()
                 self.is_recording = True
                 
                 # Update Label
@@ -181,8 +186,8 @@ class MainWindow(QMainWindow):
             self.timer.stop() 
             self.elapse_s = 0
             
-            self.end_audio.play()
             self.is_recording = False
+            self.end_audio.play()
             
             # Update labels
             self.transcript_panel.recording_time_label.setText("00:00")
@@ -324,7 +329,7 @@ class MainWindow(QMainWindow):
         self.storage.update_session(self.current_session)
         self.sidebar.refresh(self.storage.get_all_sessions())
 
-    def on_settings_opened(self) -> None:
+    def on_settings_clicked(self) -> None:
         self.is_settings_open = not self.is_settings_open
         
         # Only show either the transcript or settings panel
