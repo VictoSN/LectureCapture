@@ -2,6 +2,7 @@ import time
 import tempfile, os
 import sounddevice as sd
 import soundfile as sf
+import numpy as np
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
@@ -10,44 +11,157 @@ from faster_whisper import WhisperModel
 class AudioWorker(QThread):    
     chunk_ready = pyqtSignal(float, str)   
     
-    def __init__(self, session_id: int, base_dir: str, interval: int, device: int, start_time: time, offset: int) -> None:
+    def __init__(self, session_id: int, base_dir: str, interval: int, device, start_time: time, offset: int) -> None:
         super().__init__()
         self._running = True
     
         self.session_id = session_id
         self.base_dir = base_dir
         self.interval = interval
-        self.device = device
+        
+        # Handle device which could be int, dict, or None
+        if isinstance(device, dict):
+            self.device_type = device.get("type", "microphone")
+            self.device_id = device.get("device_id")
+        elif isinstance(device, int):
+            self.device_type = "microphone"
+            self.device_id = device
+        else:
+            self.device_type = "microphone"
+            self.device_id = None
+            
         self.start_time = start_time        
         self.offset = offset
 
-    def record(self) -> None:
-        chunk_start = time.time() - self.start_time + self.offset # get start time for each chunk
+    def find_loopback_device(self):
+        """Find a working loopback device on Windows"""
+        devices = sd.query_devices()
         
-        # Start recording
-        audio = sd.rec(int(self.interval * 44100), samplerate=44100, channels=1, device=self.device)
-        sd.wait() # blocks until the recording is done
+        # Look for WASAPI or Stereo Mix devices
+        for i, device in enumerate(devices):
+            if device["max_input_channels"] > 0:
+                name_lower = device["name"].lower()
+                if "wasapi" in name_lower or "stereo mix" in name_lower or "loopback" in name_lower:
+                    print(f"Found loopback device: {device['name']} (index {i})")
+                    return i
         
-        tmp = tempfile.mktemp(suffix=".wav") # Create temp wav file
-        sf.write(tmp, audio, 44100) # Save to temp file
-        
-        # Get speech-to-text using whisper
-        extracted_text = ""
-        segments, info = self.model.transcribe(tmp, beam_size=5, language="en")
-        print("Detected language '%s' with probability %f" % (info.language, info.language_probability))
-        for segment in segments:
-            print(f"[{chunk_start + segment.start:.2f}s -> {chunk_start + segment.end:.2f}s] {segment.text.strip()}\n")
-            extracted_text += f"[{chunk_start + segment.start:.2f}s -> {chunk_start + segment.end:.2f}s] {segment.text.strip()}\n"
-        timestamp = time.time() - self.start_time + self.offset # Time stamp for the transcript
+        # Try default input device as fallback
+        try:
+            default = sd.default.device[0]  # input device
+            if default is not None:
+                print(f"Using default input device as fallback: {default}")
+                return default
+        except:
+            pass
+            
+        return None
 
+    def record_loopback(self) -> None:
+        """Record system audio using loopback"""
+        chunk_start = time.time() - self.start_time + self.offset
+        
+        device_id = self.find_loopback_device()
+        
+        try:
+            # Try stereo first (common for system audio)
+            audio = sd.rec(
+                int(self.interval * 44100), 
+                samplerate=44100, 
+                channels=2,
+                device=device_id,
+                dtype='float32'
+            )
+            sd.wait()
+            
+            # Convert to mono
+            if len(audio.shape) > 1 and audio.shape[1] == 2:
+                audio = np.mean(audio, axis=1)
+                
+        except Exception as e:
+            print(f"Loopback stereo failed: {e}, trying mono...")
+            try:
+                # Fallback to mono
+                audio = sd.rec(
+                    int(self.interval * 44100), 
+                    samplerate=44100, 
+                    channels=1,
+                    device=device_id,
+                    dtype='float32'
+                )
+                sd.wait()
+            except Exception as e2:
+                print(f"Loopback mono also failed: {e2}")
+                # Final fallback - silent audio
+                audio = np.zeros(int(self.interval * 44100))
+        
+        # Save and transcribe
+        tmp = tempfile.mktemp(suffix=".wav")
+        sf.write(tmp, audio, 44100)
+        
+        extracted_text = ""
+        try:
+            segments, info = self.model.transcribe(tmp, beam_size=5, language="en")
+            print("Detected language '%s' with probability %f" % (info.language, info.language_probability))
+            for segment in segments:
+                print(f"[{chunk_start + segment.start:.2f}s -> {chunk_start + segment.end:.2f}s] {segment.text.strip()}\n")
+                extracted_text += f"[{chunk_start + segment.start:.2f}s -> {chunk_start + segment.end:.2f}s] {segment.text.strip()}\n"
+        except Exception as e:
+            print(f"Transcription error: {e}")
+            
+        timestamp = time.time() - self.start_time + self.offset
         self.chunk_ready.emit(timestamp, extracted_text)
-        os.remove(tmp) # Delete temp file
+        os.remove(tmp)
+
+    def record_microphone(self) -> None:
+        """Record from microphone"""
+        chunk_start = time.time() - self.start_time + self.offset
+        
+        try:
+            audio = sd.rec(
+                int(self.interval * 44100), 
+                samplerate=44100, 
+                channels=1, 
+                device=self.device_id
+            )
+            sd.wait()
+        except Exception as e:
+            print(f"Microphone error: {e}, trying default device...")
+            audio = sd.rec(
+                int(self.interval * 44100), 
+                samplerate=44100, 
+                channels=1, 
+                device=None
+            )
+            sd.wait()
+        
+        tmp = tempfile.mktemp(suffix=".wav")
+        sf.write(tmp, audio, 44100)
+        
+        extracted_text = ""
+        try:
+            segments, info = self.model.transcribe(tmp, beam_size=5, language="en")
+            print("Detected language '%s' with probability %f" % (info.language, info.language_probability))
+            for segment in segments:
+                print(f"[{chunk_start + segment.start:.2f}s -> {chunk_start + segment.end:.2f}s] {segment.text.strip()}\n")
+                extracted_text += f"[{chunk_start + segment.start:.2f}s -> {chunk_start + segment.end:.2f}s] {segment.text.strip()}\n"
+        except Exception as e:
+            print(f"Transcription error: {e}")
+            
+        timestamp = time.time() - self.start_time + self.offset
+        self.chunk_ready.emit(timestamp, extracted_text)
+        os.remove(tmp)
 
     def run(self) -> None:
         self.model = WhisperModel("base", device="cpu", compute_type="int8")
         while self._running:
-            self.record()
+            if self.device_type == "loopback":
+                self.record_loopback()
+            else:
+                self.record_microphone()
         
     def stop(self) -> None:
         self._running = False
-        sd.stop()
+        try:
+            sd.stop()
+        except:
+            pass
