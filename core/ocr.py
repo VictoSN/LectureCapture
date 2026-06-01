@@ -33,12 +33,21 @@ class OCRWorker(QThread):
         # Adjust the coordinates with the scaling of the monitor
         if self.region:
             monitor = self.sct.monitors[self.monitor_index]
-            ratio = QApplication.primaryScreen().devicePixelRatio()
+            screens = QApplication.screens()
+            ratio = 1.0
+            
+            # Get ratio per monitor
+            for screen in screens:
+                sg = screen.geometry()
+                if sg.x() == monitor["left"] and sg.y() == monitor["top"]:
+                    ratio = screen.devicePixelRatio()
+                    break
+                
             self.region["left"] = int((self.region["left"] + monitor["left"]) * ratio)
             self.region["top"] = int((self.region["top"] + monitor["top"]) * ratio)
-            self.region["width"] = int(self.region["width"] * ratio)
-            self.region["height"] = int(self.region["height"] * ratio)
-
+            self.region["width"] = min(int(self.region["width"] * ratio), monitor["width"])
+            self.region["height"] = min(int(self.region["height"] * ratio), monitor["height"])
+    
         # Ensure the folders exist to avoid FileNotFoundError
         captures_dir = Path(self.base_dir) / 'sessions' / str(self.session_id) / 'captures'
         captures_dir.mkdir(parents=True, exist_ok=True)

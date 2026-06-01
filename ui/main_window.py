@@ -160,6 +160,14 @@ class MainWindow(QMainWindow):
         self.transcript_panel.record_button.setText("Record")
         self.sidebar.set_recording_locked(False)
         self.transcript_panel.set_properties_locked(False)
+        self.showNormal()
+
+    def _show_overlay(self, data) -> None:
+        self.overlay = CaptureOverlay(
+            lambda x, y, w, h: (self.showNormal(), self.start_recording(data["interval"], {"left": x, "top": y, "width": w, "height": h}, data["monitor"], data["audio_device"])),
+            self.on_record_cancelled,
+            data["monitor"]
+        )
 
     def on_record_clicked(self) -> None:
         if not self.current_session:
@@ -186,12 +194,7 @@ class MainWindow(QMainWindow):
                 # Start the OCR and Audio threads
                 if data["capture_option"] == "Mouse Select":
                     self.showMinimized() # Hide the program
-                    self.overlay = CaptureOverlay(
-                        lambda x, y, w, h: self.start_recording(data["interval"], {"left": x, "top": y, "width": w, "height": h}, data["monitor"], data["audio_device"]),
-                        self.on_record_cancelled, # cancel callback
-                        data["monitor"]
-                    )
-                    QTimer.singleShot(500, self.showNormal) # Show the program back
+                    QTimer.singleShot(300, lambda: self._show_overlay(data))
                 else:
                     self.start_recording(data["interval"], data["region"], data["monitor"], data["audio_device"])
         else:
