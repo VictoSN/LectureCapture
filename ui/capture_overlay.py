@@ -19,12 +19,32 @@ class CaptureOverlay(QWidget):
         if hwnd:
             import win32gui
             left, top, right, bottom = win32gui.GetWindowRect(hwnd)
-            self.setGeometry(left, top, right - left, bottom - top)
-            # For window overlays don't force fullscreen — it conflicts with the
-            # positioned geometry and crashes on some setups.
+            cx, cy = (left + right) // 2, (top + bottom) // 2
+            ratio = 1.0
+
+            for s in QApplication.screens():
+                sg = s.geometry()
+                phys_x = int(sg.x() * s.devicePixelRatio())
+                phys_y = int(sg.y() * s.devicePixelRatio())
+                phys_w = int(sg.width() * s.devicePixelRatio())
+                phys_h = int(sg.height() * s.devicePixelRatio())
+                
+                if (
+                    phys_x <= cx < phys_x + phys_w
+                    and phys_y <= cy < phys_y + phys_h
+                ):
+                    ratio = s.devicePixelRatio()
+                    break
+
+            self.setGeometry(
+                round(left / ratio),
+                round(top / ratio),
+                round((right - left) / ratio),
+                round((bottom - top) / ratio)
+            )
             self.setWindowFlags(
-                Qt.WindowType.FramelessWindowHint |
-                Qt.WindowType.WindowStaysOnTopHint
+                Qt.WindowType.FramelessWindowHint
+                | Qt.WindowType.WindowStaysOnTopHint
             )
         else:
             # Match by physical pixel position: convert Qt logical coords to physical
@@ -47,6 +67,7 @@ class CaptureOverlay(QWidget):
             self.setWindowState(Qt.WindowState.WindowFullScreen)
 
         self.setCursor(Qt.CursorShape.CrossCursor)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.show()
         self.activateWindow()
         
@@ -57,11 +78,11 @@ class CaptureOverlay(QWidget):
 
     def _grab_screen(self) -> tuple[QPixmap, QRect]:
         if self.hwnd:
+            import win32gui
             from core.ocr import OCRWorker
             from PyQt6.QtGui import QImage
+
             pil_img = OCRWorker.get_window_screenshot_static(self.hwnd)
-            
-            # Convert PIL image -> Qt-owned QImage
             pil_img = pil_img.convert("RGBA")
             width, height = pil_img.size
             data = pil_img.tobytes("raw", "RGBA")
@@ -71,28 +92,59 @@ class CaptureOverlay(QWidget):
                 height,
                 width * 4,
                 QImage.Format.Format_RGBA8888
-            ).copy()  # Critical: detach from PIL memory
+            ).copy()
             pixmap = QPixmap.fromImage(qimage)
+            
+            left, top, right, bottom = win32gui.GetWindowRect(self.hwnd)
+            cx, cy = (left + right) // 2, (top + bottom) // 2
+            ratio = 1.0
+
+            for s in QApplication.screens():
+                sg = s.geometry()
+                phys_x = int(sg.x() * s.devicePixelRatio())
+                phys_y = int(sg.y() * s.devicePixelRatio())
+                phys_w = int(sg.width() * s.devicePixelRatio())
+                phys_h = int(sg.height() * s.devicePixelRatio())
+
+                if (
+                    phys_x <= cx < phys_x + phys_w
+                    and phys_y <= cy < phys_y + phys_h
+                ):
+                    ratio = s.devicePixelRatio()
+                    break
+
+            logical_w = round((right - left) / ratio)
+            logical_h = round((bottom - top) / ratio)
+
+            pixmap = pixmap.scaled(
+                logical_w,
+                logical_h,
+                Qt.AspectRatioMode.IgnoreAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+
             window_rect = pixmap.rect()
+
         else:
             m = self.sct.monitors[self.monitor_index]
             img = self.sct.grab(m)
-            
-            pixmap = QPixmap()
-            pixmap.loadFromData(mss.tools.to_png(img.rgb, img.size))
 
-            # Match Qt screen using physical pixel coordinates
+            pixmap = QPixmap()
+            pixmap.loadFromData(
+                mss.tools.to_png(img.rgb, img.size)
+            )
             screens = QApplication.screens()
-            screen = screens[0]  # fallback
+            screen = screens[0]
+
             for s in screens:
                 ratio = s.devicePixelRatio()
                 phys_x = int(s.geometry().x() * ratio)
                 phys_y = int(s.geometry().y() * ratio)
+
                 if phys_x == m["left"] and phys_y == m["top"]:
                     screen = s
                     break
-                
-            # Scale the raw physical-pixel screenshot down to Qt logical size
+
             pixmap = pixmap.scaled(
                 screen.geometry().width(),
                 screen.geometry().height(),
@@ -101,10 +153,11 @@ class CaptureOverlay(QWidget):
             )
             window_rect = pixmap.rect()
         return pixmap, window_rect
+
     
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
-        painter.drawPixmap(0, 0, self.background) # Set screenshot as background
+        painter.drawPixmap(self.rect(), self.background) # Set screenshot as background
         painter.fillRect(self.rect(), QColor(0, 0, 0, 120)) # Make the entire screen dark
 
         if self.start and self.end:
@@ -132,9 +185,14 @@ class CaptureOverlay(QWidget):
         x2, y2 = int(self.end.x()), int(self.end.y())
 
         if self.hwnd:
-            # Coordinates are already relative to the window — pass them directly.
-            # OCRWorker receives them as a crop region within the window screenshot.
-            self.callback(min(x1, x2), min(y1, y2), abs(x1 - x2), abs(y1 - y2))
+            ratio = self.devicePixelRatioF()
+
+            self.callback(
+                int(min(x1, x2) * ratio),
+                int(min(y1, y2) * ratio),
+                int(abs(x1 - x2) * ratio),
+                int(abs(y1 - y2) * ratio)
+            )
         else:
             # For monitor captures: coordinates are relative to the overlay widget
             # which sits at the monitor's logical origin.  Add the monitor's logical
