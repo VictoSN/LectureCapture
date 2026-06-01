@@ -34,7 +34,6 @@ class AudioWorker(QThread):
         self.offset = offset
 
     def find_loopback_device(self):
-        """Find a working loopback device on Windows"""
         devices = sd.query_devices()
         
         # Look for WASAPI or Stereo Mix devices
@@ -42,7 +41,6 @@ class AudioWorker(QThread):
             if device["max_input_channels"] > 0:
                 name_lower = device["name"].lower()
                 if "wasapi" in name_lower or "stereo mix" in name_lower or "loopback" in name_lower:
-                    print(f"Found loopback device: {device['name']} (index {i})")
                     return i
         
         # Try default input device as fallback
@@ -57,7 +55,6 @@ class AudioWorker(QThread):
         return None
 
     def record_loopback(self) -> None:
-        """Record system audio using loopback"""
         chunk_start = time.time() - self.start_time + self.offset
         
         device_id = self.find_loopback_device()
@@ -113,7 +110,6 @@ class AudioWorker(QThread):
         os.remove(tmp)
 
     def record_microphone(self) -> None:
-        """Record from microphone"""
         chunk_start = time.time() - self.start_time + self.offset
         
         try:

@@ -28,7 +28,6 @@ def setup_source(source_dropdown: QComboBox) -> None:
     win32gui.EnumWindows(callback, None)
     
 def setup_audio(audio_dropdown: QComboBox) -> None:
-    """Setup audio devices including loopback options"""
     audio_dropdown.clear()
     devices = sd.query_devices()
     
@@ -40,8 +39,6 @@ def setup_audio(audio_dropdown: QComboBox) -> None:
         if device["max_input_channels"] > 0:
             if device["hostapi"] == 0:  # Primary host API (usually microphone)
                 audio_dropdown.addItem(f"[Mic] {device['name']}", {"type": "microphone", "device_id": i})
-            else:
-                audio_dropdown.addItem(device["name"], {"type": "microphone", "device_id": i})
 
 def update_coord_ranges(monitor_index: int, x: QSpinBox, y: QSpinBox, width: QSpinBox, height: QSpinBox) -> None:
     with mss.mss() as sct:
