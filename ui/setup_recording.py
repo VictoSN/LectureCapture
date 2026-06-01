@@ -1,5 +1,6 @@
 import mss
 import sounddevice as sd
+import win32gui
 
 from PyQt6.QtWidgets import QComboBox, QSpinBox
 
@@ -28,3 +29,12 @@ def update_coord_ranges(monitor_index: int, x: QSpinBox, y: QSpinBox, width: QSp
         y.setRange(0, m["height"])
         width.setRange(0, m["width"])
         height.setRange(0, m["height"])
+
+def setup_window(window_dropdown: QComboBox) -> None:
+    window_dropdown.clear()
+    
+    def callback(hwnd, _):
+        if win32gui.IsWindowVisible(hwnd) and win32gui.GetWindowText(hwnd):
+            window_dropdown.addItem(win32gui.GetWindowText(hwnd), hwnd)
+    
+    win32gui.EnumWindows(callback, None)

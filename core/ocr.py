@@ -15,7 +15,7 @@ from pathlib import Path
 class OCRWorker(QThread):    
     capture_ready = pyqtSignal(OCRCapture)   
     
-    def __init__(self, session_id, base_dir, interval, region: dict | None, monitor_index, start_time, offset) -> None:
+    def __init__(self, session_id, base_dir, interval, region: dict | None, monitor_index, start_time, offset, hwnd=None) -> None:
         super().__init__()
         self._running = True
     
@@ -26,6 +26,7 @@ class OCRWorker(QThread):
         self.monitor_index = monitor_index or 1
         self.start_time = start_time
         self.offset = offset
+        self.hwnd = hwnd
         self.previous_text = ""
     
         self.sct = mss.mss()
@@ -62,42 +63,83 @@ class OCRWorker(QThread):
     
     def ocr(self, img) -> str:
         pil_img = Image.frombytes("RGB", img.size, img.rgb)
+        return self.ocr_pil(pil_img)
 
-        ## 1. Convert to grayscale
-        pil_img = pil_img.convert("L") 
-        ## 2. Upscale
-        pil_img = pil_img.resize((pil_img.width * 2, pil_img.height *2))
-        config = "--psm 6 --oem 3"
-        
-        return pytesseract.image_to_string(pil_img, config=config)
-
-    def screenshot(self) -> None:
-        monitor = self.sct.monitors[self.monitor_index]
-        if not self.region:
-            # 0 = All monitors
-            # 1 = Main Monitor
-            # 2 = Secondary Monitor and etc..
-            img = self.sct.grab(monitor)
+    def screenshot(self) -> None:        
+        if self.hwnd:
+            pil_img = self.get_window_screenshot()
+            if pil_img is None:
+                return
+            extracted_text = self.ocr_pil(pil_img)
+            
+            if self.compare_text(extracted_text):
+                timestamp = time.time() - self.start_time + self.offset
+                now = datetime.now()
+                name = "OCR_" + now.strftime('%y%m%d_%H%M%S.%f')[:-3]
+                full_path = str(Path(self.base_dir) / 'sessions' / str(self.session_id) / 'captures' / f"{name}.png")
+                image_path = f"{name}.png"
+                self.previous_text = extracted_text
+                
+                pil_img.save(full_path)  # PIL save directly
+                
+                new_capture = OCRCapture(timestamp, image_path, extracted_text, None, self.session_id, None)
+                self.capture_ready.emit(new_capture)
         else:
-            img = self.sct.grab(self.region)
-
-        extracted_text = self.ocr(img) # Convert image into text
+            img = self.sct.grab(self.sct.monitors[self.monitor_index]) if not self.region else self.sct.grab(self.region)
+            extracted_text = self.ocr(img)
+            
+            if self.compare_text(extracted_text):
+                timestamp = time.time() - self.start_time + self.offset
+                now = datetime.now()
+                name = "OCR_" + now.strftime('%y%m%d_%H%M%S.%f')[:-3]
+                full_path = str(Path(self.base_dir) / 'sessions' / str(self.session_id) / 'captures' / f"{name}.png")
+                image_path = f"{name}.png"
+                self.previous_text = extracted_text
+                
+                mss.tools.to_png(img.rgb, img.size, output=full_path)
+                
+                new_capture = OCRCapture(timestamp, image_path, extracted_text, None, self.session_id, None)
+                self.capture_ready.emit(new_capture)
+            
+    def ocr_pil(self, pil_img) -> str:
+        pil_img = pil_img.convert("L")
+        pil_img = pil_img.resize((pil_img.width * 2, pil_img.height * 2))
+        config = "--psm 6 --oem 3"
+        return pytesseract.image_to_string(pil_img, config=config)
+    
+    def get_window_screenshot(self):
+        import win32gui
+        import win32ui
+        from ctypes import windll
         
-        # Ensure the capture image has different text
-        if self.compare_text(extracted_text):
-            timestamp = time.time() - self.start_time + self.offset
-            now = datetime.now() # Capture the time for name and date
-            name = "OCR_" + now.strftime('%y%m%d_%H%M%S.%f')[:-3]
-            full_path = str(Path(self.base_dir) / 'sessions' / str(self.session_id) / 'captures' / f"{name}.png")
-            image_path = f"{name}.png"
-            self.previous_text = extracted_text # become reference for comparison
-            
-            # Save to png
-            mss.tools.to_png(img.rgb, img.size, output=full_path)
-            
-            # Store to db and emit signal
-            new_capture = OCRCapture(timestamp, image_path, extracted_text, None, self.session_id, None)
-            self.capture_ready.emit(new_capture)
+        if not self.hwnd or not win32gui.IsWindow(self.hwnd):
+            return None
+        
+        left, top, right, bottom = win32gui.GetWindowRect(self.hwnd)
+        width = right - left
+        height = bottom - top
+        
+        hwnd_dc = win32gui.GetWindowDC(self.hwnd)
+        mfc_dc = win32ui.CreateDCFromHandle(hwnd_dc)
+        save_dc = mfc_dc.CreateCompatibleDC()
+        
+        bitmap = win32ui.CreateBitmap()
+        bitmap.CreateCompatibleBitmap(mfc_dc, width, height)
+        save_dc.SelectObject(bitmap)
+        
+        windll.user32.PrintWindow(self.hwnd, save_dc.GetSafeHdc(), 3)
+        
+        bmp_info = bitmap.GetInfo()
+        bmp_bits = bitmap.GetBitmapBits(True)
+        pil_img = Image.frombuffer("RGB", (bmp_info["bmWidth"], bmp_info["bmHeight"]), bmp_bits, "raw", "BGRX")
+        
+        # Cleanup
+        save_dc.DeleteDC()
+        mfc_dc.DeleteDC()
+        win32gui.ReleaseDC(self.hwnd, hwnd_dc)
+        win32gui.DeleteObject(bitmap.GetHandle())
+        
+        return pil_img
     
     def run(self) -> None:
         while self._running:

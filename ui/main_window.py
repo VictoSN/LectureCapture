@@ -127,12 +127,12 @@ class MainWindow(QMainWindow):
         if self.is_settings_open:
             self.on_settings_clicked()
         
-    def start_recording(self, interval, region, monitor, device) -> None:
+    def start_recording(self, interval, region, monitor, device, hwnd=None) -> None:
         start_time = time.time()
         self.recording_start_time = start_time
         
         # Create ocr worker thread
-        self.ocr_worker = OCRWorker(self.current_session.id, self.storage.base_dir, interval, region, monitor, start_time, self.current_session.length)
+        self.ocr_worker = OCRWorker(self.current_session.id, self.storage.base_dir, interval, region, monitor, start_time, self.current_session.length, hwnd=hwnd)
         self.ocr_worker.capture_ready.connect(self.on_capture_ready)
         self.ocr_worker.start()
         
@@ -164,7 +164,7 @@ class MainWindow(QMainWindow):
 
     def _show_overlay(self, data) -> None:
         self.overlay = CaptureOverlay(
-            lambda x, y, w, h: (self.showNormal(), self.start_recording(data["interval"], {"left": x, "top": y, "width": w, "height": h}, data["monitor"], data["audio_device"])),
+            lambda x, y, w, h: (self.showNormal(), self.start_recording(data["interval"], {"left": x, "top": y, "width": w, "height": h}, data["monitor"], data["audio_device"], data.get("window"))),
             self.on_record_cancelled,
             data["monitor"]
         )
@@ -196,7 +196,7 @@ class MainWindow(QMainWindow):
                     self.showMinimized() # Hide the program
                     QTimer.singleShot(300, lambda: self._show_overlay(data))
                 else:
-                    self.start_recording(data["interval"], data["region"], data["monitor"], data["audio_device"])
+                    self.start_recording(data["interval"], data["region"], data["monitor"], data["audio_device"], hwnd=data.get("window"))
         else:
             # Stop Timer and reset time
             self.timer.stop() 

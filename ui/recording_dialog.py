@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import QSettings, Qt
 
 from ui.set_layout_visible import set_layout_visible
-from ui.setup_recording import setup_monitor, setup_audio, update_coord_ranges
+from ui.setup_recording import setup_monitor, setup_audio, update_coord_ranges, setup_window
 
 class RecordingDialog(QDialog):
     def __init__(self) -> None:
@@ -22,18 +22,21 @@ class RecordingDialog(QDialog):
             self.interval = 0
             self.capture_method = "Mouse Select"
             self.region = {"left": 0, "top": 0, "width": 0, "height": 0}
+            saved_window = ""
             saved_monitor = "Monitor 1"
             saved_audio = ""
         elif mode == "default":
             self.interval = self.settings.value("default_interval", 10)
             self.capture_method = self.settings.value("default_capture_method", "Mouse Select")
             self.region = self.settings.value("default_region", {"left": 0, "top": 0, "width": 800, "height": 800})
+            saved_window = self.settings.value("default_window", "")
             saved_monitor = self.settings.value("default_monitor", "Monitor 1")
             saved_audio = self.settings.value("default_audio", "")
         else:
             self.interval = self.settings.value("interval", 10)
             self.capture_method = self.settings.value("capture_method", "Mouse Select")
             self.region = self.settings.value("region", {"left": 0, "top": 0, "width": 800, "height": 800})
+            saved_window = self.settings.value("window", "")
             saved_monitor = self.settings.value("monitor", "Monitor 1")
             saved_audio = self.settings.value("audio", "")
 
@@ -46,10 +49,16 @@ class RecordingDialog(QDialog):
         
         ## Control Dropdown
         self.capture_method_dropdown = QComboBox()
-        self.capture_method_dropdown.addItems(["Mouse Select", "Coordinates", "Full Window"])
+        self.capture_method_dropdown.addItems(["Mouse Select", "Window Select", "Coordinates", "Full Window"])
         self.capture_method_dropdown.setCurrentText(self.capture_method)
         self.capture_method_dropdown.currentTextChanged.connect(self.set_user_option)
         capture_layout.addWidget(self.capture_method_dropdown)
+
+        # Window Dropdown
+        self.window_dropdown = QComboBox()
+        setup_window(self.window_dropdown)
+        self.window_dropdown.setCurrentText(saved_window)
+        capture_layout.addWidget(self.window_dropdown)
 
         ## Monitor Dropdown
         self.monitor_dropdown = QComboBox()
@@ -112,8 +121,10 @@ class RecordingDialog(QDialog):
         self.settings.setValue("capture_method", self.capture_method)
         self.settings.setValue("monitor", self.monitor_dropdown.currentText())
         self.settings.setValue("audio", self.audio_dropdown.currentText())
-        
-        if self.capture_method == "Coordinates":
+
+        if self.capture_method == "Window Select":
+            self.settings.setValue("window", self.window_dropdown.currentText())
+        elif self.capture_method == "Coordinates":
             # Saved to return
             self.region = {
                 "left": int(self.x_coords.text()),
@@ -131,54 +142,42 @@ class RecordingDialog(QDialog):
             "interval": self.session_interval.value(),
             "region": self.region,
             "capture_option": self.capture_method,
-            "monitor": self.monitor_dropdown.currentData(),
+            "window": self.window_dropdown.currentData() if self.capture_method == "Window Select" else None,
+            "monitor": self.monitor_dropdown.currentData() if self.capture_method != "Window Select" else None,
             "audio_device": self.audio_dropdown.currentData()
         }
                 
     # Hide or Show the user option for screenshots
     def set_user_option(self) -> None:
         self.capture_method = self.capture_method_dropdown.currentText()
-        if self.capture_method == "Mouse Select" or self.capture_method == "Full Window":
-            set_layout_visible(self.coords_layout, False)
-        elif self.capture_method == "Coordinates":
-            set_layout_visible(self.coords_layout, True)
-    
-    def set_error(self, widget, error: bool) -> None:
-        widget.setStyleSheet("border: 2px solid red;" if error else "")
-    
+        is_coords = self.capture_method == "Coordinates"
+        is_window = self.capture_method == "Window Select"
+        
+        # Control the visibility of layouts
+        set_layout_visible(self.coords_layout, is_coords)
+        self.window_dropdown.setVisible(is_window)
+        self.monitor_dropdown.setVisible(not is_window)
+            
     def validate(self) -> bool:
         error = False
-        monitor_info = None
         
-        with mss.mss() as sct:
-            monitor_info = sct.monitors[self.monitor_dropdown.currentData()]
-        
-        # Make sure interval not empty
-        if not self.session_interval.text().strip():
-            error = True
-        self.set_error(self.session_interval, error)            
-
         # Make sure coordinates not empty
         if self.capture_method == "Coordinates":
+            monitor_info = None
+            with mss.mss() as sct:
+                monitor_info = sct.monitors[self.monitor_dropdown.currentData()]
+                
             coords_filled = all([self.x_coords.text(), self.y_coords.text(), self.width_dimension.text(), \
                 self.height_dimension.text()])
             
             if not coords_filled:
                 error = True
-                self.set_error(self.x_coords, not self.x_coords.text())
-                self.set_error(self.y_coords, not self.y_coords.text())
-                self.set_error(self.width_dimension, not self.width_dimension.text())
-                self.set_error(self.height_dimension, not self.height_dimension.text())
             else:
                 # Only check bounds if all fields are filled
                 # Make sure there are no absurd values
                 if int(self.x_coords.text()) + int(self.width_dimension.text()) > monitor_info["width"] or \
                     int(self.y_coords.text()) + int(self.height_dimension.text()) > monitor_info["height"]:
                     error = True
-                    self.set_error(self.x_coords, True)
-                    self.set_error(self.y_coords, True)
-                    self.set_error(self.width_dimension, True)
-                    self.set_error(self.height_dimension, True)                
         
         return not error
     
