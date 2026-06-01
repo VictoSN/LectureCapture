@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import QSettings, Qt
 
 from ui.set_layout_visible import set_layout_visible
-from ui.setup_recording import setup_monitor, setup_audio, update_coord_ranges, setup_window
+from ui.setup_recording import setup_source, setup_audio, update_coord_ranges
 
 class RecordingDialog(QDialog):
     def __init__(self) -> None:
@@ -22,22 +22,19 @@ class RecordingDialog(QDialog):
             self.interval = 0
             self.capture_method = "Mouse Select"
             self.region = {"left": 0, "top": 0, "width": 0, "height": 0}
-            saved_window = ""
-            saved_monitor = "Monitor 1"
+            saved_source = ""
             saved_audio = ""
         elif mode == "default":
             self.interval = self.settings.value("default_interval", 10)
             self.capture_method = self.settings.value("default_capture_method", "Mouse Select")
             self.region = self.settings.value("default_region", {"left": 0, "top": 0, "width": 800, "height": 800})
-            saved_window = self.settings.value("default_window", "")
-            saved_monitor = self.settings.value("default_monitor", "Monitor 1")
+            saved_source = self.settings.value("default_source", "")
             saved_audio = self.settings.value("default_audio", "")
         else:
             self.interval = self.settings.value("interval", 10)
             self.capture_method = self.settings.value("capture_method", "Mouse Select")
             self.region = self.settings.value("region", {"left": 0, "top": 0, "width": 800, "height": 800})
-            saved_window = self.settings.value("window", "")
-            saved_monitor = self.settings.value("monitor", "Monitor 1")
+            saved_source = self.settings.value("source", "")
             saved_audio = self.settings.value("audio", "")
 
         # Input Fields
@@ -49,22 +46,18 @@ class RecordingDialog(QDialog):
         
         ## Control Dropdown
         self.capture_method_dropdown = QComboBox()
-        self.capture_method_dropdown.addItems(["Mouse Select", "Window Select", "Coordinates", "Full Window"])
+        self.capture_method_dropdown.addItems(["Mouse Select", "Coordinates", "Full Window"])
         self.capture_method_dropdown.setCurrentText(self.capture_method)
         self.capture_method_dropdown.currentTextChanged.connect(self.set_user_option)
         capture_layout.addWidget(self.capture_method_dropdown)
 
-        # Window Dropdown
-        self.window_dropdown = QComboBox()
-        setup_window(self.window_dropdown)
-        self.window_dropdown.setCurrentText(saved_window)
-        capture_layout.addWidget(self.window_dropdown)
-
-        ## Monitor Dropdown
-        self.monitor_dropdown = QComboBox()
-        setup_monitor(self.monitor_dropdown)
-        self.monitor_dropdown.setCurrentText(saved_monitor)
-        capture_layout.addWidget(self.monitor_dropdown)
+        ## Source Dropdown
+        self.source_dropdown = QComboBox()
+        setup_source(self.source_dropdown)
+        idx = self.source_dropdown.findText(saved_source)
+        if idx >= 0:
+            self.source_dropdown.setCurrentIndex(idx)
+        capture_layout.addWidget(self.source_dropdown)
 
         ## Coords Layout
         self.coords_layout = QHBoxLayout()
@@ -82,10 +75,8 @@ class RecordingDialog(QDialog):
         self.height_dimension = QSpinBox()
         self.coords_layout.addWidget(self.height_dimension)
 
-        self.monitor_dropdown.currentIndexChanged.connect(
-            lambda: update_coord_ranges(self.monitor_dropdown.currentData(), self.x_coords, self.y_coords, self.width_dimension, self.height_dimension)
-        )
-        update_coord_ranges(self.monitor_dropdown.currentData(), self.x_coords, self.y_coords, self.width_dimension, self.height_dimension)
+        self.source_dropdown.currentIndexChanged.connect(self._on_source_changed)
+        self._on_source_changed()
 
         # Need to call 'update_coord_ranges' before calling setValue
         self.x_coords.setValue(int(self.region["left"]))
@@ -115,16 +106,30 @@ class RecordingDialog(QDialog):
         
         self.set_user_option()
 
+    def _on_source_changed(self) -> None:
+        source = self.source_dropdown.currentData()
+        if not source:
+            return
+        if source["type"] == "monitor":
+            update_coord_ranges(source["index"], self.x_coords, self.y_coords, self.width_dimension, self.height_dimension)
+        else:
+            import win32gui
+            left, top, right, bottom = win32gui.GetClientRect(source["hwnd"])
+            w, h = right, bottom
+            self.x_coords.setRange(0, w)
+            self.y_coords.setRange(0, h)
+            self.width_dimension.setRange(0, w)
+            self.height_dimension.setRange(0, h)
+
     def get_data(self) -> dict[str, object]:
         # Save preferences
+        source = self.source_dropdown.currentData()
         self.settings.setValue("interval", self.session_interval.value())
         self.settings.setValue("capture_method", self.capture_method)
-        self.settings.setValue("monitor", self.monitor_dropdown.currentText())
+        self.settings.setValue("source", self.source_dropdown.currentText())
         self.settings.setValue("audio", self.audio_dropdown.currentText())
 
-        if self.capture_method == "Window Select":
-            self.settings.setValue("window", self.window_dropdown.currentText())
-        elif self.capture_method == "Coordinates":
+        if self.capture_method == "Coordinates":
             # Saved to return
             self.region = {
                 "left": int(self.x_coords.text()),
@@ -132,53 +137,53 @@ class RecordingDialog(QDialog):
                 "width": int(self.width_dimension.text()),
                 "height": int(self.height_dimension.text())
             }
-
             # Saved for preferences
             self.settings.setValue("region", self.region)
         elif self.capture_method == "Full Window":
             self.region = None
-        
+
         return {
             "interval": self.session_interval.value(),
             "region": self.region,
             "capture_option": self.capture_method,
-            "window": self.window_dropdown.currentData() if self.capture_method == "Window Select" else None,
-            "monitor": self.monitor_dropdown.currentData() if self.capture_method != "Window Select" else None,
+            "hwnd": source["hwnd"] if source["type"] == "window" else None,
+            "monitor": source["index"] if source["type"] == "monitor" else None,
             "audio_device": self.audio_dropdown.currentData()
         }
-                
+        
     # Hide or Show the user option for screenshots
     def set_user_option(self) -> None:
         self.capture_method = self.capture_method_dropdown.currentText()
         is_coords = self.capture_method == "Coordinates"
-        is_window = self.capture_method == "Window Select"
-        
-        # Control the visibility of layouts
         set_layout_visible(self.coords_layout, is_coords)
-        self.window_dropdown.setVisible(is_window)
-        self.monitor_dropdown.setVisible(not is_window)
-            
+        
     def validate(self) -> bool:
         error = False
         
         # Make sure coordinates not empty
         if self.capture_method == "Coordinates":
-            monitor_info = None
-            with mss.mss() as sct:
-                monitor_info = sct.monitors[self.monitor_dropdown.currentData()]
-                
-            coords_filled = all([self.x_coords.text(), self.y_coords.text(), self.width_dimension.text(), \
-                self.height_dimension.text()])
+            source = self.source_dropdown.currentData()
+            coords_filled = all([self.x_coords.text(), self.y_coords.text(), self.width_dimension.text(), self.height_dimension.text()])
             
             if not coords_filled:
                 error = True
             else:
                 # Only check bounds if all fields are filled
                 # Make sure there are no absurd values
-                if int(self.x_coords.text()) + int(self.width_dimension.text()) > monitor_info["width"] or \
-                    int(self.y_coords.text()) + int(self.height_dimension.text()) > monitor_info["height"]:
-                    error = True
-        
+                if source["type"] == "monitor":
+                    with mss.mss() as sct:
+                        monitor_info = sct.monitors[source["index"]]
+                    if int(self.x_coords.text()) + int(self.width_dimension.text()) > monitor_info["width"] or \
+                        int(self.y_coords.text()) + int(self.height_dimension.text()) > monitor_info["height"]:
+                        error = True
+                else:
+                    import win32gui
+                    left, top, right, bottom = win32gui.GetWindowRect(source["hwnd"])
+                    w, h = right - left, bottom - top
+                    if int(self.x_coords.text()) + int(self.width_dimension.text()) > w or \
+                        int(self.y_coords.text()) + int(self.height_dimension.text()) > h:
+                        error = True
+
         return not error
     
     def keyPressEvent(self, event) -> None:

@@ -4,18 +4,29 @@ import win32gui
 
 from PyQt6.QtWidgets import QComboBox, QSpinBox
 
-def setup_monitor(monitor_dropdown: QComboBox) -> None:
-    monitor_dropdown.clear()
+def setup_source(source_dropdown: QComboBox) -> None:
+    source_dropdown.clear()
 
+    # Get monitors first
     with mss.mss() as sct:
-        monitors_with_index = list(enumerate(sct.monitors[1:], 1)) # [(1, {...}), (2, {...})]
+        # Pair each monitor with its true mss index (1-based, skipping monitors[0] which is the virtual combined screen)
+        monitors_with_index = [(i, sct.monitors[i]) for i in range(1, len(sct.monitors))]
         monitors_with_index.sort(key=lambda x: not x[1].get('is_primary', False)) # primary first
 
         for display_num, (mss_index, m) in enumerate(monitors_with_index, 1):
-            monitor_dropdown.addItem(
-                f"Monitor {display_num} | {m['width']}x{m['height']} ({m['left']},{m['top']})", mss_index
+            source_dropdown.addItem(
+                f"Monitor {display_num} | {m['width']}x{m['height']}", {"type": "monitor", "index": mss_index}
             )
 
+    # Get windows
+    def callback(hwnd, _):
+        if win32gui.IsWindowVisible(hwnd) and win32gui.GetWindowText(hwnd):
+            source_dropdown.addItem(
+                F"[Window] {win32gui.GetWindowText(hwnd)}", {"type": "window", "hwnd": hwnd}
+            )
+    
+    win32gui.EnumWindows(callback, None)
+    
 def setup_audio(audio_dropdown: QComboBox) -> None:
     devices = sd.query_devices()
     for i, device in enumerate(devices):
@@ -29,12 +40,3 @@ def update_coord_ranges(monitor_index: int, x: QSpinBox, y: QSpinBox, width: QSp
         y.setRange(0, m["height"])
         width.setRange(0, m["width"])
         height.setRange(0, m["height"])
-
-def setup_window(window_dropdown: QComboBox) -> None:
-    window_dropdown.clear()
-    
-    def callback(hwnd, _):
-        if win32gui.IsWindowVisible(hwnd) and win32gui.GetWindowText(hwnd):
-            window_dropdown.addItem(win32gui.GetWindowText(hwnd), hwnd)
-    
-    win32gui.EnumWindows(callback, None)

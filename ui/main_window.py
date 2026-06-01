@@ -163,11 +163,18 @@ class MainWindow(QMainWindow):
         self.showNormal()
 
     def _show_overlay(self, data) -> None:
-        self.overlay = CaptureOverlay(
-            lambda x, y, w, h: (self.showNormal(), self.start_recording(data["interval"], {"left": x, "top": y, "width": w, "height": h}, data["monitor"], data["audio_device"], data.get("window"))),
-            self.on_record_cancelled,
-            data["monitor"]
-        )
+        if data.get("hwnd"):
+            self.overlay = CaptureOverlay(
+                lambda x, y, w, h: (self.showNormal(), self.start_recording(data["interval"], {"left": x, "top": y, "width": w, "height": h}, data["monitor"], data["audio_device"], hwnd=data["hwnd"])),
+                self.on_record_cancelled,
+                hwnd=data["hwnd"]
+            )
+        else:
+            self.overlay = CaptureOverlay(
+                lambda x, y, w, h: (self.showNormal(), self.start_recording(data["interval"], {"left": x, "top": y, "width": w, "height": h}, data["monitor"], data["audio_device"])),
+                self.on_record_cancelled,
+                monitor_index=data["monitor"]
+            )
 
     def on_record_clicked(self) -> None:
         if not self.current_session:
@@ -196,7 +203,7 @@ class MainWindow(QMainWindow):
                     self.showMinimized() # Hide the program
                     QTimer.singleShot(300, lambda: self._show_overlay(data))
                 else:
-                    self.start_recording(data["interval"], data["region"], data["monitor"], data["audio_device"], hwnd=data.get("window"))
+                    self.start_recording(data["interval"], data["region"], data["monitor"], data["audio_device"], hwnd=data.get("hwnd"))
         else:
             # Stop Timer and reset time
             self.timer.stop() 

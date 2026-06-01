@@ -7,7 +7,7 @@ from PyQt6.QtCore import pyqtSignal, QSettings, QUrl
 from PyQt6.QtMultimedia import QSoundEffect
 
 from models.lecture import Session
-from ui.setup_recording import setup_monitor, setup_audio, update_coord_ranges, setup_window
+from ui.setup_recording import setup_source, setup_audio, update_coord_ranges
 
 from pathlib import Path
 
@@ -128,55 +128,45 @@ class SettingsPanel(QWidget):
         self.default_layout.addWidget(self.capture_method_label, 1, 0)
         
         self.capture_method_dropdown = QComboBox()
-        self.capture_method_dropdown.addItems(["Mouse Select", "Window Select", "Coordinates", "Full Window"])
+        self.capture_method_dropdown.addItems(["Mouse Select", "Coordinates", "Full Window"])
         self.capture_method_dropdown.currentTextChanged.connect(self.update_ui)
         self.default_layout.addWidget(self.capture_method_dropdown, 1, 1)
 
-        # Window Dropdown
-        self.window_label = QLabel("Default Window")
-        self.default_layout.addWidget(self.window_label, 2, 0)
+        ## Source Dropdown
+        self.source_label = QLabel("Default Source")
+        self.default_layout.addWidget(self.source_label, 2, 0)
 
-        self.window_dropdown = QComboBox()
-        setup_window(self.window_dropdown)
-        self.default_layout.addWidget(self.window_dropdown, 2, 1)
-
-        ## Monitor Dropdown
-        self.monitor_label = QLabel("Default Monitor")
-        self.default_layout.addWidget(self.monitor_label, 3, 0)
-
-        self.monitor_dropdown = QComboBox()
-        setup_monitor(self.monitor_dropdown)
-        self.default_layout.addWidget(self.monitor_dropdown, 3, 1)
+        self.source_dropdown = QComboBox()
+        setup_source(self.source_dropdown)
+        self.default_layout.addWidget(self.source_dropdown, 2, 1)
 
         ## Coords Layout
         self.x_label = QLabel("Default X Coordinate")
-        self.default_layout.addWidget(self.x_label, 4, 0)
+        self.default_layout.addWidget(self.x_label, 3, 0)
 
         self.x_coords = QSpinBox()
-        self.default_layout.addWidget(self.x_coords, 4, 1)
+        self.default_layout.addWidget(self.x_coords, 3, 1)
 
         self.y_label = QLabel("Default Y Coordinate")
-        self.default_layout.addWidget(self.y_label, 5, 0)
+        self.default_layout.addWidget(self.y_label, 4, 0)
 
         self.y_coords = QSpinBox()
-        self.default_layout.addWidget(self.y_coords, 5, 1)
+        self.default_layout.addWidget(self.y_coords, 4, 1)
 
         self.width_label = QLabel("Default Width")
-        self.default_layout.addWidget(self.width_label, 6, 0)
+        self.default_layout.addWidget(self.width_label, 5, 0)
 
         self.width_dimension = QSpinBox()
-        self.default_layout.addWidget(self.width_dimension, 6, 1)
+        self.default_layout.addWidget(self.width_dimension, 5, 1)
 
         self.height_label = QLabel("Default Height")
-        self.default_layout.addWidget(self.height_label, 7, 0)
+        self.default_layout.addWidget(self.height_label, 6, 0)
 
         self.height_dimension = QSpinBox()
-        self.default_layout.addWidget(self.height_dimension, 7, 1)
+        self.default_layout.addWidget(self.height_dimension, 6, 1)
 
-        self.monitor_dropdown.currentIndexChanged.connect(
-            lambda: update_coord_ranges(self.monitor_dropdown.currentData(), self.x_coords, self.y_coords, self.width_dimension, self.height_dimension)
-        )
-        update_coord_ranges(self.monitor_dropdown.currentData(), self.x_coords, self.y_coords, self.width_dimension, self.height_dimension)
+        self.source_dropdown.currentIndexChanged.connect(self._on_source_changed)
+        self._on_source_changed()
 
         self.default_container = QWidget()
         self.default_container.setLayout(self.default_layout)
@@ -184,11 +174,11 @@ class SettingsPanel(QWidget):
 
         # Audio
         self.audio_label = QLabel("Default Audio")
-        self.default_layout.addWidget(self.audio_label, 8, 0)
+        self.default_layout.addWidget(self.audio_label, 7, 0)
 
         self.audio_dropdown = QComboBox()
         setup_audio(self.audio_dropdown)
-        self.default_layout.addWidget(self.audio_dropdown, 8, 1)
+        self.default_layout.addWidget(self.audio_dropdown, 7, 1)
         
         # Start & Stop sound effects
         sound_label = QLabel("Sound Effects")
@@ -261,17 +251,14 @@ class SettingsPanel(QWidget):
         self.update_ui()
 
     def update_ui(self) -> None:
+        # Processing Visibility
         self.api_container.setVisible(self.proc_mode == "api")
         self.default_container.setVisible(self.pref_mode == "default")
 
+        # Coordinates Visibility
         method = self.capture_method_dropdown.currentText()
-        is_window = method == "Window Select"
         is_coords = method == "Coordinates"
 
-        self.window_label.setVisible(is_window)
-        self.window_dropdown.setVisible(is_window)
-        self.monitor_label.setVisible(not is_window)
-        self.monitor_dropdown.setVisible(not is_window)
         self.x_label.setVisible(is_coords)
         self.x_coords.setVisible(is_coords)
         self.y_label.setVisible(is_coords)
@@ -293,6 +280,21 @@ class SettingsPanel(QWidget):
         self.settings.sync()
         self.update_ui()
 
+    def _on_source_changed(self) -> None:
+        source = self.source_dropdown.currentData()
+        if not source:
+            return
+        if source["type"] == "monitor":
+            update_coord_ranges(source["index"], self.x_coords, self.y_coords, self.width_dimension, self.height_dimension)
+        else:
+            import win32gui
+            left, top, right, bottom = win32gui.GetClientRect(source["hwnd"])
+            w, h = right, bottom
+            self.x_coords.setRange(0, w)
+            self.y_coords.setRange(0, h)
+            self.width_dimension.setRange(0, w)
+            self.height_dimension.setRange(0, h)
+    
     def setup_sound_effects(self) -> None:
         sound_dir = Path(self.base_dir) / 'sound_effects'
         self.start_sound_dropdown.addItem("None", None)
@@ -327,8 +329,7 @@ class SettingsPanel(QWidget):
         # Save Recording Preferences        
         self.settings.setValue("default_interval", self.interval_input.value())
         self.settings.setValue("default_capture_method", self.capture_method_dropdown.currentText())
-        self.settings.setValue("default_window", self.window_dropdown.currentText())
-        self.settings.setValue("default_monitor", self.monitor_dropdown.currentText())
+        self.settings.setValue("default_source", self.source_dropdown.currentText())
         self.settings.setValue("default_region", {
             "left": self.x_coords.value(),
             "top": self.y_coords.value(),
@@ -363,8 +364,9 @@ class SettingsPanel(QWidget):
     
         self.interval_input.setValue(int(self.settings.value("default_interval", 10)))
         self.capture_method_dropdown.setCurrentText(self.settings.value("default_capture_method", "Mouse Select"))
-        self.window_dropdown.setCurrentText(self.settings.value("default_window", ""))
-        self.monitor_dropdown.setCurrentText(self.settings.value("default_monitor", "Monitor 1"))
+        idx = self.source_dropdown.findText(self.settings.value("default_source", ""))
+        if idx >= 0:
+            self.source_dropdown.setCurrentIndex(idx)
         self.x_coords.setValue(int(region["left"]))
         self.y_coords.setValue(int(region["top"]))
         self.width_dimension.setValue(int(region["width"]))

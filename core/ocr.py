@@ -1,6 +1,7 @@
 import pytesseract
 import mss, mss.tools
 import time
+import win32gui
 
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QThread, pyqtSignal
@@ -30,25 +31,49 @@ class OCRWorker(QThread):
         self.previous_text = ""
     
         self.sct = mss.mss()
-    
-        # Adjust the coordinates with the scaling of the monitor
-        if self.region:
+
+        if not self.hwnd and self.region:
+            # 'region' arrives as absolute logical screen coordinates from the overlay.
+            # Convert to physical pixels and make them relative to the monitor so that
+            # mss.grab() (which always uses physical pixel coords relative to each
+            # monitor) gets the right rectangle.
             monitor = self.sct.monitors[self.monitor_index]
             screens = QApplication.screens()
             ratio = 1.0
-            
-            # Get ratio per monitor
+
             for screen in screens:
                 sg = screen.geometry()
-                if sg.x() == monitor["left"] and sg.y() == monitor["top"]:
+                phys_x = int(sg.x() * screen.devicePixelRatio())
+                phys_y = int(sg.y() * screen.devicePixelRatio())
+                if phys_x == monitor["left"] and phys_y == monitor["top"]:
                     ratio = screen.devicePixelRatio()
                     break
-                
-            self.region["left"] = int((self.region["left"] + monitor["left"]) * ratio)
-            self.region["top"] = int((self.region["top"] + monitor["top"]) * ratio)
-            self.region["width"] = min(int(self.region["width"] * ratio), monitor["width"])
-            self.region["height"] = min(int(self.region["height"] * ratio), monitor["height"])
-    
+
+            # Subtract the monitor's logical origin first, then scale to physical pixels.
+            monitor_logical_left = monitor["left"] // ratio  # logical origin of this monitor
+            monitor_logical_top  = monitor["top"]  // ratio
+
+            rel_left = self.region["left"] - monitor_logical_left
+            rel_top  = self.region["top"]  - monitor_logical_top
+
+            self.region = {
+                "left":   monitor["left"] + int(rel_left * ratio),
+                "top":    monitor["top"]  + int(rel_top  * ratio),
+                "width":  min(int(self.region["width"]  * ratio), monitor["width"]),
+                "height": min(int(self.region["height"] * ratio), monitor["height"]),
+            }
+
+        # For hwnd captures, store the crop box (logical pixels within the window).
+        # When region is None the full window is captured.
+        self.crop_box = None
+        if self.hwnd and self.region:
+            self.crop_box = (
+                self.region["left"],
+                self.region["top"],
+                self.region["left"] + self.region["width"],
+                self.region["top"]  + self.region["height"],
+            )
+
         # Ensure the folders exist to avoid FileNotFoundError
         captures_dir = Path(self.base_dir) / 'sessions' / str(self.session_id) / 'captures'
         captures_dir.mkdir(parents=True, exist_ok=True)
@@ -70,6 +95,11 @@ class OCRWorker(QThread):
             pil_img = self.get_window_screenshot()
             if pil_img is None:
                 return
+
+            # Crop to the user-selected region if one was provided
+            if self.crop_box:
+                pil_img = pil_img.crop(self.crop_box)
+
             extracted_text = self.ocr_pil(pil_img)
             
             if self.compare_text(extracted_text):
@@ -108,37 +138,34 @@ class OCRWorker(QThread):
         return pytesseract.image_to_string(pil_img, config=config)
     
     def get_window_screenshot(self):
-        import win32gui
-        import win32ui
-        from ctypes import windll
-        
         if not self.hwnd or not win32gui.IsWindow(self.hwnd):
             return None
-        
-        left, top, right, bottom = win32gui.GetWindowRect(self.hwnd)
-        width = right - left
-        height = bottom - top
-        
-        hwnd_dc = win32gui.GetWindowDC(self.hwnd)
+        return OCRWorker.get_window_screenshot_static(self.hwnd)
+    
+    @staticmethod
+    def get_window_screenshot_static(hwnd) -> "Image":
+        import win32gui, win32ui
+        from ctypes import windll
+        from PIL import Image
+
+        left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+        width, height = right - left, bottom - top
+
+        hwnd_dc = win32gui.GetWindowDC(hwnd)
         mfc_dc = win32ui.CreateDCFromHandle(hwnd_dc)
         save_dc = mfc_dc.CreateCompatibleDC()
-        
         bitmap = win32ui.CreateBitmap()
         bitmap.CreateCompatibleBitmap(mfc_dc, width, height)
         save_dc.SelectObject(bitmap)
-        
-        windll.user32.PrintWindow(self.hwnd, save_dc.GetSafeHdc(), 3)
-        
+        windll.user32.PrintWindow(hwnd, save_dc.GetSafeHdc(), 3)
         bmp_info = bitmap.GetInfo()
         bmp_bits = bitmap.GetBitmapBits(True)
         pil_img = Image.frombuffer("RGB", (bmp_info["bmWidth"], bmp_info["bmHeight"]), bmp_bits, "raw", "BGRX")
-        
-        # Cleanup
+
         save_dc.DeleteDC()
         mfc_dc.DeleteDC()
-        win32gui.ReleaseDC(self.hwnd, hwnd_dc)
+        win32gui.ReleaseDC(hwnd, hwnd_dc)
         win32gui.DeleteObject(bitmap.GetHandle())
-        
         return pil_img
     
     def run(self) -> None:
