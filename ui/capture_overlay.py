@@ -1,7 +1,9 @@
+import math
+import mss, mss.tools
+
 from PyQt6.QtWidgets import QWidget, QApplication
 from PyQt6.QtCore import Qt, QRect
 from PyQt6.QtGui import QPainter, QColor, QPixmap
-import mss, mss.tools
 
 class CaptureOverlay(QWidget):
     def __init__(self, callback, cancel_callback, monitor_index=None, hwnd=None) -> None:
@@ -37,10 +39,10 @@ class CaptureOverlay(QWidget):
                     break
 
             self.setGeometry(
-                round(left / ratio),
-                round(top / ratio),
-                round((right - left) / ratio),
-                round((bottom - top) / ratio)
+                int(left / ratio),
+                int(top / ratio),
+                math.ceil((right - left) / ratio),
+                math.ceil((bottom - top) / ratio)
             )
             self.setWindowFlags(
                 Qt.WindowType.FramelessWindowHint
@@ -113,8 +115,8 @@ class CaptureOverlay(QWidget):
                     ratio = s.devicePixelRatio()
                     break
 
-            logical_w = round((right - left) / ratio)
-            logical_h = round((bottom - top) / ratio)
+            logical_w = math.ceil((right - left) / ratio)
+            logical_h = math.ceil((bottom - top) / ratio)
 
             pixmap = pixmap.scaled(
                 logical_w,
@@ -161,7 +163,7 @@ class CaptureOverlay(QWidget):
         painter.fillRect(self.rect(), QColor(0, 0, 0, 120)) # Make the entire screen dark
 
         if self.start and self.end:
-            rect = QRect(self.start.toPoint(), self.end.toPoint())
+            rect = QRect(self.start.toPoint(), self.end.toPoint()).normalized()
             # Cut out the selected area
             painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
             painter.fillRect(rect, QColor(0, 0, 0, 0))
