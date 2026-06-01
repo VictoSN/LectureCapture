@@ -58,14 +58,26 @@ class CaptureOverlay(QWidget):
     def _grab_screen(self) -> tuple[QPixmap, QRect]:
         if self.hwnd:
             from core.ocr import OCRWorker
-            from PIL.ImageQt import ImageQt
+            from PyQt6.QtGui import QImage
             pil_img = OCRWorker.get_window_screenshot_static(self.hwnd)
-            pixmap = QPixmap.fromImage(ImageQt(pil_img))
+            
+            # Convert PIL image -> Qt-owned QImage
+            pil_img = pil_img.convert("RGBA")
+            width, height = pil_img.size
+            data = pil_img.tobytes("raw", "RGBA")
+            qimage = QImage(
+                data,
+                width,
+                height,
+                width * 4,
+                QImage.Format.Format_RGBA8888
+            ).copy()  # Critical: detach from PIL memory
+            pixmap = QPixmap.fromImage(qimage)
             window_rect = pixmap.rect()
         else:
             m = self.sct.monitors[self.monitor_index]
             img = self.sct.grab(m)
-
+            
             pixmap = QPixmap()
             pixmap.loadFromData(mss.tools.to_png(img.rgb, img.size))
 
@@ -79,7 +91,7 @@ class CaptureOverlay(QWidget):
                 if phys_x == m["left"] and phys_y == m["top"]:
                     screen = s
                     break
-
+                
             # Scale the raw physical-pixel screenshot down to Qt logical size
             pixmap = pixmap.scaled(
                 screen.geometry().width(),
