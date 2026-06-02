@@ -1,15 +1,17 @@
 from PyQt6.QtWidgets import (
-    QPushButton, QLineEdit, QComboBox, QDialog, QVBoxLayout,QHBoxLayout, QLabel, QMessageBox
+    QPushButton, QLineEdit, QComboBox, QWidget, QVBoxLayout,QHBoxLayout, QLabel, QMessageBox
 )
 from PyQt6.QtCore import pyqtSignal, Qt
 
 from models.lecture import Session
 from ui.format_time import FormatDetailedTime
 
-class PropertiesDialog(QDialog):
+class PropertiesPanel(QWidget):
     delete_clicked = pyqtSignal()
     duplicate_clicked = pyqtSignal()
-    
+    saved_clicked = pyqtSignal(str, str, str)
+    cancel_clicked = pyqtSignal()
+
     def __init__(self, session: Session) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
@@ -42,42 +44,43 @@ class PropertiesDialog(QDialog):
 
         # Actions Buttons
         self.delete_button = QPushButton("Delete")
+        self.delete_button.clicked.connect(self.deleteEvent)
         button_layout.addWidget(self.delete_button)
         
         self.duplicate_button = QPushButton("Duplicate")
+        self.duplicate_button.clicked.connect(self.duplicate_clicked)
         button_layout.addWidget(self.duplicate_button)
+        
         self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.cancel_clicked)
         button_layout.addWidget(self.cancel_button)
+        
         self.save_button = QPushButton("Save")
+        self.save_button.clicked.connect(
+            lambda: self.saved_clicked.emit(
+                self.session_name.text(), 
+                self.session_category.currentText(), 
+                self.group_category.text() if self.group_category.text().strip() else ""
+            )
+        )
         button_layout.addWidget(self.save_button)
-
-        self.delete_button.clicked.connect(self.deleteEvent)
-        self.duplicate_button.clicked.connect(lambda: (self.duplicate_clicked.emit(), self.reject()))
-        self.cancel_button.clicked.connect(self.reject)
-        self.save_button.clicked.connect(self.accept)
 
         main_layout.addLayout(button_layout)
         self.setLayout(main_layout)
-        
-    def get_data(self) -> dict[str, str | None]:
-        # accept() will automatically call the method
-        return {
-            "name": self.session_name.text(),
-            "session_category": self.session_category.currentText(),
-            "group_category": self.group_category.text() if self.group_category.text().strip() else None
-        }
-    
+
     def deleteEvent(self) -> None:
-        reply = QMessageBox.question(self, "Delete Session",
-                            "Delete the current session?")
+        reply = QMessageBox.question(
+            self, 
+            "Delete Session", 
+            "Delete the current session?"
+        )
         if reply == QMessageBox.StandardButton.No:
             return
         else:
             self.delete_clicked.emit()
-            self.reject()
 
     def keyPressEvent(self, event) -> None:
         if event.key() == Qt.Key.Key_Escape:
-            self.reject()
+            self.cancel_clicked.emit()
         else:
             super().keyPressEvent(event)

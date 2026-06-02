@@ -98,7 +98,6 @@ class AudioWorker(QThread):
         extracted_text = ""
         try:
             segments, info = self.model.transcribe(tmp, beam_size=5, language="en")
-            print("Detected language '%s' with probability %f" % (info.language, info.language_probability))
             for segment in segments:
                 print(f"[{chunk_start + segment.start:.2f}s -> {chunk_start + segment.end:.2f}s] {segment.text.strip()}\n")
                 extracted_text += f"[{chunk_start + segment.start:.2f}s -> {chunk_start + segment.end:.2f}s] {segment.text.strip()}\n"
@@ -136,7 +135,6 @@ class AudioWorker(QThread):
         extracted_text = ""
         try:
             segments, info = self.model.transcribe(tmp, beam_size=5, language="en")
-            print("Detected language '%s' with probability %f" % (info.language, info.language_probability))
             for segment in segments:
                 print(f"[{chunk_start + segment.start:.2f}s -> {chunk_start + segment.end:.2f}s] {segment.text.strip()}\n")
                 extracted_text += f"[{chunk_start + segment.start:.2f}s -> {chunk_start + segment.end:.2f}s] {segment.text.strip()}\n"

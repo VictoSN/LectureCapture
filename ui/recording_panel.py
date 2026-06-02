@@ -1,62 +1,41 @@
 import mss
 
 from PyQt6.QtWidgets import (
-    QPushButton, QComboBox, QDialog, QVBoxLayout,QHBoxLayout, QSpinBox
+    QPushButton, QComboBox, QWidget, QVBoxLayout,QHBoxLayout, QSpinBox
 )
-from PyQt6.QtCore import QSettings, Qt
+from PyQt6.QtCore import QSettings, Qt, pyqtSignal
 
 from ui.set_layout_visible import set_layout_visible
 from ui.setup_recording import setup_source, setup_audio, update_coord_ranges
 
-class RecordingDialog(QDialog):
+class RecordingPanel(QWidget):
+    record_clicked = pyqtSignal(dict)
+    cancel_clicked = pyqtSignal()
+    
     def __init__(self) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         capture_layout = QVBoxLayout()
         action_layout = QHBoxLayout()
-
-        self.settings = QSettings("LectureCapture", "LectureCapture")
-        mode = self.settings.value("preferences_mode", "last")
         
-        if mode == "empty":
-            self.interval = 0
-            self.capture_method = "Mouse Select"
-            self.region = {"left": 0, "top": 0, "width": 0, "height": 0}
-            saved_source = ""
-            saved_audio = ""
-        elif mode == "default":
-            self.interval = self.settings.value("default_interval", 10)
-            self.capture_method = self.settings.value("default_capture_method", "Mouse Select")
-            self.region = self.settings.value("default_region", {"left": 0, "top": 0, "width": 800, "height": 800})
-            saved_source = self.settings.value("default_source", "")
-            saved_audio = self.settings.value("default_audio", "")
-        else:
-            self.interval = self.settings.value("interval", 10)
-            self.capture_method = self.settings.value("capture_method", "Mouse Select")
-            self.region = self.settings.value("region", {"left": 0, "top": 0, "width": 800, "height": 800})
-            saved_source = self.settings.value("source", "")
-            saved_audio = self.settings.value("audio", "")
+        self.settings = QSettings("LectureCapture", "LectureCapture")
+        self.reload_state()
 
         # Input Fields
         # Used QSpinBox for integer validation
         self.session_interval = QSpinBox()
         self.session_interval.setRange(1, 30)
-        self.session_interval.setValue(int(self.interval))
         main_layout.addWidget(self.session_interval)
         
         ## Control Dropdown
         self.capture_method_dropdown = QComboBox()
         self.capture_method_dropdown.addItems(["Mouse Select", "Coordinates", "Full Window"])
-        self.capture_method_dropdown.setCurrentText(self.capture_method)
         self.capture_method_dropdown.currentTextChanged.connect(self.set_user_option)
         capture_layout.addWidget(self.capture_method_dropdown)
 
         ## Source Dropdown
         self.source_dropdown = QComboBox()
         setup_source(self.source_dropdown)
-        idx = self.source_dropdown.findText(saved_source)
-        if idx >= 0:
-            self.source_dropdown.setCurrentIndex(idx)
         capture_layout.addWidget(self.source_dropdown)
 
         ## Coords Layout
@@ -78,33 +57,41 @@ class RecordingDialog(QDialog):
         self.source_dropdown.currentIndexChanged.connect(self._on_source_changed)
         self._on_source_changed()
 
-        # Need to call 'update_coord_ranges' before calling setValue
-        self.x_coords.setValue(int(self.region["left"]))
-        self.y_coords.setValue(int(self.region["top"]))
-        self.width_dimension.setValue(int(self.region["width"]))
-        self.height_dimension.setValue(int(self.region["height"]))
-        
         self.audio_dropdown = QComboBox()
         setup_audio(self.audio_dropdown)
-        self.audio_dropdown.setCurrentText(saved_audio)
         capture_layout.addWidget(self.audio_dropdown)
+
+        # Need to call 'update_coord_ranges' before calling setValue
+        self.load_preferences()
 
         # Actions Buttons
         cancel_button = QPushButton("Cancel")
+        cancel_button.clicked.connect(self.on_cancel)
         action_layout.addWidget(cancel_button)
+        
         start_button = QPushButton("Start Recording")
-        action_layout.addWidget(start_button)
-
         start_button.clicked.connect(
-            lambda: self.accept() if self.validate() else None
+            lambda: self.on_record() if self.validate() else None
         )
-        cancel_button.clicked.connect(lambda: self.reject())
+        action_layout.addWidget(start_button)
 
         main_layout.addLayout(capture_layout)
         main_layout.addLayout(action_layout)
         self.setLayout(main_layout)
         
         self.set_user_option()
+
+    def load_preferences(self) -> None:
+        self.session_interval.setValue(int(self.interval))
+        self.capture_method_dropdown.setCurrentText(self.capture_method)
+
+        idx = self.source_dropdown.findText(self.saved_source)
+        self.source_dropdown.setCurrentIndex(idx if idx >= 0 else 0)
+
+        self.x_coords.setValue(int(self.region["left"]))
+        self.y_coords.setValue(int(self.region["top"]))
+        self.width_dimension.setValue(int(self.region["width"]))
+        self.height_dimension.setValue(int(self.region["height"]))
 
     def _on_source_changed(self) -> None:
         source = self.source_dropdown.currentData()
@@ -121,7 +108,7 @@ class RecordingDialog(QDialog):
             self.width_dimension.setRange(0, w)
             self.height_dimension.setRange(0, h)
 
-    def get_data(self) -> dict[str, object]:
+    def on_record(self) -> None:
         # Save preferences
         source = self.source_dropdown.currentData()
         self.settings.setValue("interval", self.session_interval.value())
@@ -142,14 +129,14 @@ class RecordingDialog(QDialog):
         elif self.capture_method == "Full Window":
             self.region = None
 
-        return {
+        self.record_clicked.emit({
             "interval": self.session_interval.value(),
             "region": self.region,
             "capture_option": self.capture_method,
             "hwnd": source["hwnd"] if source["type"] == "window" else None,
             "monitor": source["index"] if source["type"] == "monitor" else None,
             "audio_device": self.audio_dropdown.currentData()
-        }
+        })
         
     # Hide or Show the user option for screenshots
     def set_user_option(self) -> None:
@@ -183,11 +170,37 @@ class RecordingDialog(QDialog):
                     if int(self.x_coords.text()) + int(self.width_dimension.text()) > w or \
                         int(self.y_coords.text()) + int(self.height_dimension.text()) > h:
                         error = True
-
         return not error
     
+    def reload_state(self):
+        mode = self.settings.value("preferences_mode", "last")
+
+        if mode == "empty":
+            self.interval = 0
+            self.capture_method = "Mouse Select"
+            self.region = {"left": 0, "top": 0, "width": 0, "height": 0}
+            self.saved_source = ""
+            self.saved_audio = ""
+        elif mode == "default":
+            self.interval = self.settings.value("default_interval", 10)
+            self.capture_method = self.settings.value("default_capture_method", "Mouse Select")
+            self.region = self.settings.value("default_region", {"left": 0, "top": 0, "width": 800, "height": 800})
+            self.saved_source = self.settings.value("default_source", "")
+            self.saved_audio = self.settings.value("default_audio", "")
+        else:
+            self.interval = self.settings.value("interval", 10)
+            self.capture_method = self.settings.value("capture_method", "Mouse Select")
+            self.region = self.settings.value("region", {"left": 0, "top": 0, "width": 800, "height": 800})
+            self.saved_source = self.settings.value("source", "")
+            self.saved_audio = self.settings.value("audio", "")
+            
+    def on_cancel(self) -> None:
+        self.reload_state()
+        self.load_preferences()
+        self.cancel_clicked.emit()
+            
     def keyPressEvent(self, event) -> None:
         if event.key() == Qt.Key.Key_Escape:
-            self.reject()
+            self.on_cancel()
         else:
             super().keyPressEvent(event)

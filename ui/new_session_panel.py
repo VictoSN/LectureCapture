@@ -1,10 +1,12 @@
 from PyQt6.QtWidgets import (
-    QPushButton, QLineEdit, QComboBox, QDialog, QVBoxLayout,QHBoxLayout
+    QPushButton, QLineEdit, QComboBox, QWidget, QVBoxLayout,QHBoxLayout
 )
+from PyQt6.QtCore import Qt, pyqtSignal
 
-from PyQt6.QtCore import Qt
-
-class NewSessionDialog(QDialog):
+class NewSessionPanel(QWidget):
+    create_clicked = pyqtSignal(str, str, str)
+    cancel_clicked = pyqtSignal()
+    
     def __init__(self) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
@@ -25,28 +27,24 @@ class NewSessionDialog(QDialog):
 
         # Actions Buttons
         self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.cancel_clicked)
         button_layout.addWidget(self.cancel_button)
+        
         self.create_button = QPushButton("Create")
-        button_layout.addWidget(self.create_button)
-
         self.create_button.clicked.connect(
-            lambda: self.accept() if self.session_name.text().strip() else None
+            lambda: self.create_clicked.emit(
+                self.session_name.text(), 
+                self.session_category.currentText(), 
+                self.group_category.text() if self.group_category.text().strip() else ""
+            ) if self.session_name.text().strip() else None
         )
-        self.cancel_button.clicked.connect(lambda: self.reject())
+        button_layout.addWidget(self.create_button)
 
         main_layout.addLayout(button_layout)
         self.setLayout(main_layout)
-        
-    def get_data(self) -> dict[str, str | None]:
-        # accept() will automatically call the method
-        return {
-            "session_name": self.session_name.text(),
-            "session_category": self.session_category.currentText(),
-            "group_category": self.group_category.text() if self.group_category.text().strip() else None
-        }
-
+                
     def keyPressEvent(self, event) -> None:
         if event.key() == Qt.Key.Key_Escape:
-            self.reject()
+            self.cancel_clicked.emit()
         else:
             super().keyPressEvent(event)

@@ -18,10 +18,10 @@ from core.audio import AudioWorker
 from core.summarizer import summarize
 from ui.capture_overlay import CaptureOverlay
 from ui.sidebar import Sidebar
-from ui.new_session_dialog import NewSessionDialog
+from ui.new_session_panel import NewSessionPanel
 from ui.transcript_panel import TranscriptPanel
-from ui.properties_dialog import PropertiesDialog
-from ui.recording_dialog import RecordingDialog
+from ui.properties_panel import PropertiesPanel
+from ui.recording_panel import RecordingPanel
 from ui.settings_panel import SettingsPanel
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -35,6 +35,8 @@ class MainWindow(QMainWindow):
         self.current_session = None
         self.is_recording = False
         self.is_settings_open = False
+        self.is_new_session_open = False
+        self.is_properties_open = False
 
         # Window details
         self.setWindowIcon(QIcon(str(ICON_PATH)))
@@ -59,8 +61,8 @@ class MainWindow(QMainWindow):
         self.filter_group = ""
 
         # Splitter Layout
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        self.setCentralWidget(splitter)
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.setCentralWidget(self.splitter)
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_timer)
@@ -69,18 +71,23 @@ class MainWindow(QMainWindow):
         sessions = self.storage.get_all_sessions()
         group_categories = self.storage.get_group_categories() # Get all group categories
         self.sidebar = Sidebar(sessions, self.on_session_selected, group_categories)
-        self.sidebar.new_session_clicked.connect(self.on_new_session)
+        self.sidebar.new_session_clicked.connect(self.on_new_session_clicked)
         self.sidebar.settings_clicked.connect(self.on_settings_clicked)
-        splitter.addWidget(self.sidebar)
+        self.splitter.addWidget(self.sidebar)
         
         self.sidebar.search_changed.connect(self.on_search_changed)
         self.sidebar.category_filter_changed.connect(self.on_category_filter_changed)
         self.sidebar.group_filter_changed.connect(self.on_group_filter_changed)
 
-        self.transcript_panel = TranscriptPanel(self.storage.base_dir)
-        self.transcript_panel.properties_clicked.connect(self.on_properties_clicked)
-        self.transcript_panel.record_clicked.connect(self.on_record_clicked)
-        self.transcript_panel.summary_panel.summarize_clicked.connect(self.on_summarize_clicked)
+        # New Session Panel
+        self.new_session_panel = NewSessionPanel()
+        self.new_session_panel.create_clicked.connect(
+            lambda session_name, session_category, group_category: self.on_new_session_create(session_name, session_category, group_category)
+        )
+        self.new_session_panel.cancel_clicked.connect(self.on_new_session_cancelled)
+        
+        self.splitter.addWidget(self.new_session_panel)
+        self.new_session_panel.setVisible(False)
         
         # Init the settings, and hide it
         self.settings_panel = SettingsPanel(sessions, self.storage.base_dir)
@@ -89,50 +96,103 @@ class MainWindow(QMainWindow):
         self.settings_panel.import_clicked.connect(self.on_import_clicked)
         self.settings_panel.cancel_clicked.connect(self.on_settings_clicked)
         
-        splitter.addWidget(self.settings_panel)
+        self.splitter.addWidget(self.settings_panel)
         self.settings_panel.setVisible(False)
+        
+        # Transcript Panel
+        self.transcript_panel = TranscriptPanel(self.storage.base_dir)
+        self.transcript_panel.properties_clicked.connect(self.on_properties_clicked)
+        self.transcript_panel.record_clicked.connect(self.on_record_clicked)
+        self.transcript_panel.summary_panel.summarize_clicked.connect(self.on_summarize_clicked)
         
         # When any content is changed
         self.transcript_panel.ocr_panel.ocr_text_changed.connect(lambda cid, text: self.on_text_changed(cid, text, 1))
         self.transcript_panel.speech_panel.speech_text_changed.connect(lambda cid, text: self.on_text_changed(cid, text, 2))
         self.transcript_panel.summary_panel.summary_text_changed.connect(lambda text: self.on_text_changed(self.current_session.id, text, 3))
-        splitter.addWidget(self.transcript_panel)
-
+        self.splitter.addWidget(self.transcript_panel)
+        
+        # Properties Panel (created once with a placeholder session)
+        self.properties_panel = None 
+        
+        # Recording Panel
+        self.recording_panel = RecordingPanel()
+        self.recording_panel.cancel_clicked.connect(self.on_record_cancelled)
+        self.recording_panel.record_clicked.connect(lambda data: self.on_recording_confirmed(data))
+        
+        self.splitter.addWidget(self.recording_panel)  # add this
+        self.recording_panel.setVisible(False)         
+        
         # Wait until the other widgets are added
-        splitter.setSizes([100, 400, 400]) # 1 : 4 ratio
+        self.splitter.setSizes([100, 400, 400, 400, 400, 400]) # 1 : 4 ratio
         self.transcript_panel.set_session_locked(True) # Locked buttons initially
 
-    def on_new_session(self) -> None:
-        dialog = NewSessionDialog()
+    def reset_new_session_form(self):
+        self.new_session_panel.session_name.clear()
+        self.new_session_panel.session_category.setCurrentIndex(0)
+        self.new_session_panel.group_category.clear()
+
+    def on_new_session_clicked(self) -> None:
+        if self.is_new_session_open:
+            self.reset_new_session_form()
         
-        # Exec blocks until dialog is closed (accepted/cancelled)
-        if dialog.exec():
-            # Used data to build a new session
-            data = dialog.get_data() 
-            current_time = datetime.now()
-            print(data)
-            
-            # Create new session using gathered data
-            new_session = Session(data["session_name"], current_time, current_time, data["session_category"], 0, None, data["group_category"], None, None)
-            self.storage.create_session(new_session)
-            self.sidebar.refresh(self.storage.get_all_sessions())
-            self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
+        self.is_new_session_open = not self.is_new_session_open
+        self.is_properties_open = False # Close Properties when opening new session
+        self.show_panel("new_session" if self.is_new_session_open else "transcript")
+        
+    def on_new_session_create(self, session_name, session_category, group_category) -> None:
+        # Used data to build a new session
+        current_time = datetime.now()
+        
+        # Create new session using gathered data
+        new_session = Session(session_name, current_time, current_time, session_category, 0, None, group_category, None, None)
+        self.storage.create_session(new_session)
+        self.sidebar.refresh(self.storage.get_all_sessions())
+        self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
+    
+    def on_new_session_cancelled(self) -> None:
+        self.is_new_session_open = False
+        self.show_panel("transcript")
+        self.reset_new_session_form()
+    
+    def rebuild_properties_panel(self) -> None:
+        if self.properties_panel:
+            self.splitter.widget(self.splitter.indexOf(self.properties_panel)).setParent(None)
+        self.properties_panel = PropertiesPanel(self.current_session)
+        self.properties_panel.delete_clicked.connect(self.on_properties_deleted)
+        self.properties_panel.duplicate_clicked.connect(self.on_properties_duplicated)
+        self.properties_panel.saved_clicked.connect(
+            lambda n, c, g: self.on_properties_saved(n, c, g)
+        )
+        self.properties_panel.cancel_clicked.connect(self.on_properties_cancelled)
+        self.splitter.addWidget(self.properties_panel)
     
     def on_session_selected(self, session: Session) -> None:
         self.current_session = session
         captures = self.storage.get_captures_by_session(session.id)
         self.transcript_panel.load_session(session, captures)
         
+        # Close new session panel if its opened
+        if self.is_new_session_open:
+            self.is_new_session_open = False
+                
         # Close the settings panel if its opened
         if self.is_settings_open:
-            self.on_settings_clicked()
+            self.is_settings_open = False
+                
+        if self.is_properties_open:
+            self.rebuild_properties_panel()
+            self.show_panel("properties")
+        else:
+            self.show_panel("transcript")
         
     def start_recording(self, interval, region, monitor, device, hwnd=None) -> None:
         start_time = time.time()
         self.recording_start_time = start_time
         
         # Create ocr worker thread
-        self.ocr_worker = OCRWorker(self.current_session.id, self.storage.base_dir, interval, region, monitor, start_time, self.current_session.length, hwnd=hwnd)
+        self.ocr_worker = OCRWorker(
+            self.current_session.id, self.storage.base_dir, interval, region, monitor, start_time, self.current_session.length, hwnd=hwnd
+        )
         self.ocr_worker.capture_ready.connect(self.on_capture_ready)
         self.ocr_worker.start()
         
@@ -152,7 +212,7 @@ class MainWindow(QMainWindow):
             seconds = self.elapse_s % 60
             self.transcript_panel.recording_time_label.setText(f"{minutes:02}:{seconds:02}")
 
-    def on_record_cancelled(self) -> None:
+    def on_record_aborted(self) -> None:
         self.is_recording = False
         self.timer.stop()
         self.elapse_s = 0
@@ -162,17 +222,27 @@ class MainWindow(QMainWindow):
         self.transcript_panel.set_properties_locked(False)
         self.showNormal()
 
-    def _show_overlay(self, data) -> None:
+    def show_overlay(self, data) -> None:
         if data.get("hwnd"):
             self.overlay = CaptureOverlay(
-                lambda x, y, w, h: (self.showNormal(), self.start_recording(data["interval"], {"left": x, "top": y, "width": w, "height": h}, data["monitor"], data["audio_device"], hwnd=data["hwnd"])),
-                self.on_record_cancelled,
+                lambda x, y, w, h: (
+                    self.showNormal(), 
+                    self.start_recording(
+                        data["interval"], {"left": x, "top": y, "width": w, "height": h}, data["monitor"], data["audio_device"], hwnd=data["hwnd"]
+                    )
+                ),
+                self.on_record_aborted,
                 hwnd=data["hwnd"]
             )
         else:
             self.overlay = CaptureOverlay(
-                lambda x, y, w, h: (self.showNormal(), self.start_recording(data["interval"], {"left": x, "top": y, "width": w, "height": h}, data["monitor"], data["audio_device"])),
-                self.on_record_cancelled,
+                lambda x, y, w, h: (
+                    self.showNormal(), 
+                    self.start_recording(
+                        data["interval"], {"left": x, "top": y, "width": w, "height": h}, data["monitor"], data["audio_device"]
+                    )
+                ),
+                self.on_record_aborted,
                 monitor_index=data["monitor"]
             )
 
@@ -180,61 +250,71 @@ class MainWindow(QMainWindow):
         if not self.current_session:
             print('Need to select session first')
             return
-        
-        if not self.is_recording:            
-            # Get data from dialog
-            dialog = RecordingDialog()
+        if not self.is_recording:
+            self.show_panel("recording")
             
-            if dialog.exec():
-                data = dialog.get_data()
-                self.timer.start(1000) # Start Timer
-                
-                self.is_recording = True
-                
-                # Update Label
-                self.transcript_panel.record_button.setText("Stop Recording")
-                
-                # Lock inputs
-                self.sidebar.set_recording_locked(True)
-                self.transcript_panel.set_properties_locked(True)
-
-                # Start the OCR and Audio threads
-                if data["capture_option"] == "Mouse Select":
-                    self.showMinimized() # Hide the program
-                    QTimer.singleShot(300, lambda: self._show_overlay(data))
-                else:
-                    self.start_recording(data["interval"], data["region"], data["monitor"], data["audio_device"], hwnd=data.get("hwnd"))
+            # Reset the values
+            self.recording_panel.reload_state()
+            self.recording_panel.load_preferences()
+            self.is_properties_open = False # Close Properties when opening recording
         else:
-            # Stop Timer and reset time
-            self.timer.stop() 
-            self.elapse_s = 0
-            
-            self.is_recording = False
-            self.stop_audio.play()
-            
-            # Update labels
-            self.transcript_panel.recording_time_label.setText("00:00")
-            self.transcript_panel.record_button.setText("Record")
-            
-            # Unlock inputs
-            self.sidebar.set_recording_locked(False)
-            self.transcript_panel.set_properties_locked(False)
-            
-            # Stop the threads
-            self.ocr_worker.stop()
-            self.audio_worker.stop()
-            self.ocr_worker.wait()
-            self.audio_worker.wait()
-            
-            # save total length
-            self.current_session.length += int(time.time() - self.recording_start_time)
-            self.storage.update_session(self.current_session)
-            
-            # Assuming that recording will always give content, enable the summarize
-            has_content = self.transcript_panel.ocr_panel.has_content() or self.transcript_panel.speech_panel.has_content()
-            self.transcript_panel.summary_panel.summary_button.setDisabled(not has_content)
-            self.transcript_panel.summary_panel.summary.setReadOnly(not has_content)
-            
+            self.stop_recording()
+
+    def on_recording_confirmed(self, data) -> None:
+        if not self.recording_panel.validate():
+            return
+        
+        self.timer.start(1000) # Start Timer
+        
+        self.is_recording = True
+        self.transcript_panel.record_button.setText("Stop Recording") # Update Label
+        self.sidebar.set_recording_locked(True)
+        self.transcript_panel.set_properties_locked(True)
+        
+        # Start the OCR and Audio threads
+        if data["capture_option"] == "Mouse Select":
+            self.showMinimized()
+            QTimer.singleShot(300, lambda: self.show_overlay(data))
+        else:
+            self.show_panel("transcript")
+            self.start_recording(data["interval"], data["region"], data["monitor"], data["audio_device"], hwnd=data.get("hwnd"))
+
+    def stop_recording(self) -> None:
+        self.show_panel("transcript")
+        
+        # Stop Timer and reset time
+        self.timer.stop() 
+        self.elapse_s = 0
+        
+        self.is_recording = False
+        self.stop_audio.play()
+        
+        # Update labels
+        self.transcript_panel.recording_time_label.setText("00:00")
+        self.transcript_panel.record_button.setText("Record")
+        
+        # Unlock inputs
+        self.sidebar.set_recording_locked(False)
+        self.transcript_panel.set_properties_locked(False)
+        
+        # Stop the threads
+        self.ocr_worker.stop()
+        self.audio_worker.stop()
+        self.ocr_worker.wait()
+        self.audio_worker.wait()
+        
+        # save total length
+        self.current_session.length += int(time.time() - self.recording_start_time)
+        self.storage.update_session(self.current_session)
+        
+        # Assuming that recording will always give content, enable the summarize
+        has_content = self.transcript_panel.ocr_panel.has_content() or self.transcript_panel.speech_panel.has_content()
+        self.transcript_panel.summary_panel.summary_button.setDisabled(not has_content)
+        self.transcript_panel.summary_panel.summary.setReadOnly(not has_content)
+        
+    def on_record_cancelled(self) -> None:
+        self.show_panel("transcript")
+    
     def on_capture_ready(self, capture: OCRCapture) -> None:
         self.storage.create_ocr_capture(capture)
         self.transcript_panel.ocr_panel.add_capture(capture)
@@ -311,30 +391,34 @@ class MainWindow(QMainWindow):
         self.sidebar.refresh(sessions)
         
     def on_properties_clicked(self) -> None:
-        dialog = PropertiesDialog(self.current_session)
-        dialog.delete_clicked.connect(self.on_deleted_clicked)
-        dialog.duplicate_clicked.connect(self.on_duplicated_clicked)
-        
-        # Exec blocks until dialog is closed (accepted/cancelled)
-        if dialog.exec():
-            # Used data to update session info
-            data = dialog.get_data() 
-            print(data)
-            self.current_session.name = data["name"]
-            self.current_session.date_modified = datetime.now()
-            self.current_session.session_category = data["session_category"]
-            self.current_session.group_category = data["group_category"]
-            self.storage.update_session(self.current_session)
-            self.sidebar.refresh(self.storage.get_all_sessions())
-            self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
+        self.is_properties_open = not self.is_properties_open
+        if self.is_properties_open:
+            self.rebuild_properties_panel()
+        self.show_panel("properties" if self.is_properties_open else "transcript")
     
-    def on_deleted_clicked(self) -> None:
+    def on_properties_cancelled(self) -> None:
+        self.is_properties_open = False
+        self.show_panel("transcript")
+
+    def on_properties_saved(self, session_name, session_category, group_category) -> None:        
+        # Used data to update session info
+        self.current_session.name = session_name
+        self.current_session.date_modified = datetime.now()
+        self.current_session.session_category = session_category
+        self.current_session.group_category = group_category
+        self.storage.update_session(self.current_session)
+        self.sidebar.refresh(self.storage.get_all_sessions())
+        self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
+    
+    def on_properties_deleted(self) -> None:
+        self.is_properties_open = not self.is_properties_open
+        self.properties_panel.setVisible(self.is_properties_open)
         self.storage.delete_session(self.current_session.id)
         self.sidebar.refresh(self.storage.get_all_sessions())
         self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
         self.transcript_panel.clear_panels()
     
-    def on_duplicated_clicked(self) -> None:
+    def on_properties_duplicated(self) -> None:
         self.current_session = self.storage.duplicate_sessions(self.current_session.id)
         self.sidebar.refresh(self.storage.get_all_sessions())
         self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
@@ -357,12 +441,13 @@ class MainWindow(QMainWindow):
         self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
 
     def on_settings_clicked(self) -> None:
-        self.is_settings_open = not self.is_settings_open
+        if self.is_settings_open:
+            self.settings_panel.load_settings()
         
-        # Only show either the transcript or settings panel
-        self.transcript_panel.setVisible(not self.is_settings_open)
-        self.settings_panel.setVisible(self.is_settings_open)
-
+        self.is_settings_open = not self.is_settings_open
+        self.is_properties_open = False # Close Properties when opening settings
+        self.show_panel("settings" if self.is_settings_open else "transcript")
+    
     def on_sound_effects_changed(self, start: str, stop: str) -> None:
         self.start_audio.setSource(QUrl.fromLocalFile(start if start else self.DEFAULT_START_SOUND))
         self.stop_audio.setSource(QUrl.fromLocalFile(stop if stop else self.DEFAULT_STOP_SOUND))
@@ -450,11 +535,25 @@ class MainWindow(QMainWindow):
                 self.storage.create_ocr_capture(capture)
         self.sidebar.refresh(self.storage.get_all_sessions())
         self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
-        
+
+    def show_panel(self, panel: str) -> None:
+        # "transcript", "settings", "new_session", "recording", "properties"
+        self.transcript_panel.setVisible(panel == "transcript")
+        self.settings_panel.setVisible(panel == "settings")
+        self.new_session_panel.setVisible(panel == "new_session")
+        self.recording_panel.setVisible(panel == "recording")
+        if self.properties_panel:
+            # Properties shows alongside transcript
+            self.properties_panel.setVisible(panel == "properties")
+            self.transcript_panel.setVisible(panel in ("transcript", "properties"))
+
     def closeEvent(self, event) -> None:
         if self.is_recording:
-            reply = QMessageBox.question(self, "Recording in progress",
-                                "Stop recording and close?")
+            reply = QMessageBox.question(
+                self, 
+                "Recording in progress",
+                "Stop recording and close?"
+            )
             if reply == QMessageBox.StandardButton.Yes:
                 # Stop the threads
                 self.ocr_worker.stop()
