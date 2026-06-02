@@ -2,6 +2,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QLineEdit, QComboBox, QWidget, QVBoxLayout,QHBoxLayout, QLabel, QMessageBox
 )
 from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtGui import QShortcut, QKeySequence
 
 from models.lecture import Session
 from ui.format_time import FormatDetailedTime
@@ -56,18 +57,24 @@ class PropertiesPanel(QWidget):
         button_layout.addWidget(self.cancel_button)
         
         self.save_button = QPushButton("Save")
-        self.save_button.clicked.connect(
-            lambda: self.saved_clicked.emit(
-                self.session_name.text(), 
-                self.session_category.currentText(), 
-                self.group_category.text() if self.group_category.text().strip() else ""
-            )
-        )
+        self.save_button.clicked.connect(self._on_save)
         button_layout.addWidget(self.save_button)
 
         main_layout.addLayout(button_layout)
         self.setLayout(main_layout)
 
+        # Shortcuts
+        QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self.cancel_clicked.emit)
+        QShortcut(QKeySequence(Qt.Key.Key_Return), self, activated=self._on_save)
+        
+        self.delete_shortcut = QShortcut(QKeySequence("Ctrl+1"), self)
+        self.delete_shortcut.activated.connect(self.deleteEvent)
+        self.delete_shortcut.setEnabled(True)
+        
+        self.duplicate_shortcut = QShortcut(QKeySequence("Ctrl+2"), self)
+        self.duplicate_shortcut.activated.connect(self.duplicate_clicked)
+        self.duplicate_shortcut.setEnabled(True)
+        
     def deleteEvent(self) -> None:
         reply = QMessageBox.question(
             self, 
@@ -78,9 +85,10 @@ class PropertiesPanel(QWidget):
             return
         else:
             self.delete_clicked.emit()
-
-    def keyPressEvent(self, event) -> None:
-        if event.key() == Qt.Key.Key_Escape:
-            self.cancel_clicked.emit()
-        else:
-            super().keyPressEvent(event)
+    
+    def _on_save(self) -> None:
+        self.saved_clicked.emit(
+            self.session_name.text(), 
+            self.session_category.currentText(), 
+            self.group_category.text() if self.group_category.text().strip() else ""
+        )

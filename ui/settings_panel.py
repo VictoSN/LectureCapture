@@ -3,8 +3,9 @@ import shutil
 from PyQt6.QtWidgets import (
     QWidget, QLabel, QPushButton, QComboBox, QVBoxLayout, QHBoxLayout, QGridLayout, QSpinBox, QFileDialog, QLineEdit
 )
-from PyQt6.QtCore import pyqtSignal, QSettings, QUrl
+from PyQt6.QtCore import pyqtSignal, QSettings, QUrl, Qt
 from PyQt6.QtMultimedia import QSoundEffect
+from PyQt6.QtGui import QShortcut, QKeySequence
 
 from models.lecture import Session
 from ui.setup_recording import setup_source, setup_audio, update_coord_ranges
@@ -47,8 +48,6 @@ class SettingsPanel(QWidget):
 
         self.settings = QSettings("LectureCapture", "LectureCapture")
         self.base_dir = base_dir
-        self.proc_mode = str(self.settings.value("processing_mode", "local")) # local, api
-        self.pref_mode = str(self.settings.value("preferences_mode", "last")) # last, default, empty
 
         # Header Layout
         self.settings_name = QLabel("Settings")
@@ -250,6 +249,9 @@ class SettingsPanel(QWidget):
         self.refresh_sessions(sessions)
         self.update_ui()
 
+        QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self._on_cancel)
+        QShortcut(QKeySequence(Qt.Key.Key_Return), self, activated=self._on_save)
+
     def update_ui(self) -> None:
         # Processing Visibility
         self.api_container.setVisible(self.proc_mode == "api")
@@ -276,8 +278,6 @@ class SettingsPanel(QWidget):
         
     def set_pref_mode(self, mode):
         self.pref_mode = mode
-        self.settings.setValue("preferences_mode", mode)
-        self.settings.sync()
         self.update_ui()
 
     def _on_source_changed(self) -> None:
@@ -326,6 +326,8 @@ class SettingsPanel(QWidget):
             self._preview_sound = effect
     
     def _on_save(self) -> None:
+        self.settings.setValue("preferences_mode", self.pref_mode)
+
         # Save Recording Preferences        
         self.settings.setValue("default_interval", self.interval_input.value())
         self.settings.setValue("default_capture_method", self.capture_method_dropdown.currentText())
@@ -337,6 +339,9 @@ class SettingsPanel(QWidget):
             "height": self.height_dimension.value()
         })
         self.settings.setValue("default_audio", self.audio_dropdown.currentText())
+        
+        # Ensure that its saved
+        self.settings.sync()
         
         # Save Sound Effects
         start = self.start_sound_dropdown.currentData() or ""
@@ -360,6 +365,9 @@ class SettingsPanel(QWidget):
             self.export_dropdown.addItem(session.name, session.id)
     
     def load_settings(self) -> None:
+        self.proc_mode = str(self.settings.value("processing_mode", "local")) # local, api
+        self.pref_mode = str(self.settings.value("preferences_mode", "last")) # last, default, empty
+        
         region = self.settings.value("default_region", {"left": 0, "top": 0, "width": 800, "height": 800})
     
         self.interval_input.setValue(int(self.settings.value("default_interval", 10)))
@@ -386,4 +394,5 @@ class SettingsPanel(QWidget):
 
     def _on_cancel(self) -> None:
         self.load_settings()
+        self.update_ui()
         self.cancel_clicked.emit()

@@ -2,6 +2,7 @@ from PyQt6.QtWidgets import (
     QWidget, QLabel, QPushButton, QSplitter, QVBoxLayout, QHBoxLayout
 )
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QShortcut, QKeySequence
 
 from models.lecture import Session, OCRCapture
 from ui.ocr_panel import OCRPanel
@@ -29,10 +30,15 @@ class TranscriptPanel(QWidget):
         header.addWidget(self.properties_button)
         
         self.ocr_visibility_button = QPushButton("OCR")
+        self.ocr_visibility_button.clicked.connect(lambda: self._panel_visibility(self.summary_panel))
         header.addWidget(self.ocr_visibility_button)
+        
         self.speech_visibility_button = QPushButton("S2T")
+        self.speech_visibility_button.clicked.connect(lambda: self._panel_visibility(self.speech_panel))
         header.addWidget(self.speech_visibility_button)
+        
         self.summary_visibility_button = QPushButton("AI")
+        self.summary_visibility_button.clicked.connect(lambda: self._panel_visibility(self.summary_panel))
         header.addWidget(self.summary_visibility_button)
         
         self.record_button = QPushButton("Record")
@@ -44,17 +50,6 @@ class TranscriptPanel(QWidget):
         self.ocr_panel = OCRPanel(base_dir)
         self.speech_panel = SpeechPanel(base_dir)
         self.summary_panel = SummaryPanel()
-
-        # Button Visibility Function
-        self.ocr_visibility_button.clicked.connect(
-            lambda: self.ocr_panel.setVisible(not self.ocr_panel.isVisible())
-        )
-        self.speech_visibility_button.clicked.connect(
-            lambda: self.speech_panel.setVisible(not self.speech_panel.isVisible())
-        )
-        self.summary_visibility_button.clicked.connect(
-            lambda: self.summary_panel.setVisible(not self.summary_panel.isVisible())
-        )
 
         self.splitter.addWidget(self.ocr_panel)
         self.splitter.addWidget(self.speech_panel)
@@ -71,7 +66,6 @@ class TranscriptPanel(QWidget):
         self.summarize_engine_label = QLabel("sumy") 
         footer.addWidget(self.summarize_engine_label)
 
-
         # TODO: Put this into Styles
         footer.setContentsMargins(0, 0, 0, 0)
         footer.setSpacing(10)
@@ -80,11 +74,26 @@ class TranscriptPanel(QWidget):
         self.speech_engine_label.setFixedHeight(20)
         self.summarize_engine_label.setFixedHeight(20)
 
-
         main_layout.addLayout(header)
         main_layout.addWidget(self.splitter)
         main_layout.addLayout(footer)
         self.setLayout(main_layout)
+        
+        # Shortcuts
+        self.ocr_shortcut = QShortcut(QKeySequence("Shift+1"), self)
+        self.ocr_shortcut.activated.connect(lambda: self._panel_visibility(self.ocr_panel))
+        self.ocr_shortcut.setEnabled(True)
+        
+        self.speech_shortcut = QShortcut(QKeySequence("Shift+2"), self)
+        self.speech_shortcut.activated.connect(lambda: self._panel_visibility(self.speech_panel))
+        self.speech_shortcut.setEnabled(True)
+        
+        self.summary_shortcut = QShortcut(QKeySequence("Shift+3"), self)
+        self.summary_shortcut.activated.connect(lambda: self._panel_visibility(self.summary_panel))
+        self.summary_shortcut.setEnabled(True)
+
+    def _panel_visibility(self, panel: QWidget):
+        panel.setVisible(not panel.isVisible())
 
     def load_session(self, session: Session, captures: OCRCapture) -> None:
         self.set_session_locked(False)
@@ -119,6 +128,10 @@ class TranscriptPanel(QWidget):
         self.ocr_panel.ocr_button.setDisabled(locked)
         self.speech_panel.speech_button.setDisabled(locked)
         self.summary_panel.summary_button.setDisabled(locked)
+
+        self.ocr_shortcut.setEnabled(not locked)
+        self.speech_shortcut.setEnabled(not locked)
+        self.summary_shortcut.setEnabled(not locked)
 
     def set_properties_locked(self, locked: bool) -> None:
         self.properties_button.setDisabled(locked)

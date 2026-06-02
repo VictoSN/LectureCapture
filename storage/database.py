@@ -55,15 +55,15 @@ class Storage:
 
     def create_session(self, session: Session) -> int:
         # Convert to strings
-        session.date_modified = session.date_modified.isoformat()
-        session.date_recorded = session.date_recorded.isoformat()
-        session.summary_generated_at = session.summary_generated_at.isoformat() if session.summary_generated_at else None
+        date_recorded = session.date_recorded.isoformat()
+        date_modified = session.date_modified.isoformat()
+        summary_generated_at = session.summary_generated_at.isoformat() if session.summary_generated_at else None
 
         self.cursor.execute(
             "INSERT INTO session (name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (session.name, session.session_category, session.group_category, session.date_recorded, session.date_modified, session.length, session.summary, session.summary_generated_at)
+            (session.name, session.session_category, session.group_category, date_recorded, date_modified, session.length, session.summary, summary_generated_at)
         )
-
+    
         self.conn.commit()
 
         # Get new id and create session's folder

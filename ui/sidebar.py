@@ -90,6 +90,7 @@ class Sidebar(QWidget):
 
     def set_recording_locked(self, locked: bool) -> None:
         self.new_session_button.setDisabled(locked)
+        self.settings_button.setDisabled(locked)
         self.session_search.setDisabled(locked)
         self.session_category.setDisabled(locked)
         self.group_category.setDisabled(locked)

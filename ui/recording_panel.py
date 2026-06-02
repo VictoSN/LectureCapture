@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QComboBox, QWidget, QVBoxLayout,QHBoxLayout, QSpinBox
 )
 from PyQt6.QtCore import QSettings, Qt, pyqtSignal
+from PyQt6.QtGui import QShortcut, QKeySequence
 
 from ui.set_layout_visible import set_layout_visible
 from ui.setup_recording import setup_source, setup_audio, update_coord_ranges
@@ -66,13 +67,11 @@ class RecordingPanel(QWidget):
 
         # Actions Buttons
         cancel_button = QPushButton("Cancel")
-        cancel_button.clicked.connect(self.on_cancel)
+        cancel_button.clicked.connect(self._on_cancel)
         action_layout.addWidget(cancel_button)
         
         start_button = QPushButton("Start Recording")
-        start_button.clicked.connect(
-            lambda: self.on_record() if self.validate() else None
-        )
+        start_button.clicked.connect(self.try_record)
         action_layout.addWidget(start_button)
 
         main_layout.addLayout(capture_layout)
@@ -80,6 +79,8 @@ class RecordingPanel(QWidget):
         self.setLayout(main_layout)
         
         self.set_user_option()
+        QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self._on_cancel)
+        QShortcut(QKeySequence(Qt.Key.Key_Return), self, activated=self.try_record)
 
     def load_preferences(self) -> None:
         self.session_interval.setValue(int(self.interval))
@@ -193,14 +194,12 @@ class RecordingPanel(QWidget):
             self.region = self.settings.value("region", {"left": 0, "top": 0, "width": 800, "height": 800})
             self.saved_source = self.settings.value("source", "")
             self.saved_audio = self.settings.value("audio", "")
-            
-    def on_cancel(self) -> None:
+    
+    def try_record(self) -> None:
+        if self.validate():
+            self.on_record()
+    
+    def _on_cancel(self) -> None:
         self.reload_state()
         self.load_preferences()
         self.cancel_clicked.emit()
-            
-    def keyPressEvent(self, event) -> None:
-        if event.key() == Qt.Key.Key_Escape:
-            self.on_cancel()
-        else:
-            super().keyPressEvent(event)

@@ -2,6 +2,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QLineEdit, QComboBox, QWidget, QVBoxLayout,QHBoxLayout
 )
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QShortcut, QKeySequence
 
 class NewSessionPanel(QWidget):
     create_clicked = pyqtSignal(str, str, str)
@@ -27,24 +28,31 @@ class NewSessionPanel(QWidget):
 
         # Actions Buttons
         self.cancel_button = QPushButton("Cancel")
-        self.cancel_button.clicked.connect(self.cancel_clicked)
+        self.cancel_button.clicked.connect(self._on_cancel)
         button_layout.addWidget(self.cancel_button)
         
         self.create_button = QPushButton("Create")
-        self.create_button.clicked.connect(
-            lambda: self.create_clicked.emit(
-                self.session_name.text(), 
-                self.session_category.currentText(), 
-                self.group_category.text() if self.group_category.text().strip() else ""
-            ) if self.session_name.text().strip() else None
-        )
+        self.create_button.clicked.connect(self._on_save)
         button_layout.addWidget(self.create_button)
 
         main_layout.addLayout(button_layout)
         self.setLayout(main_layout)
-                
-    def keyPressEvent(self, event) -> None:
-        if event.key() == Qt.Key.Key_Escape:
-            self.cancel_clicked.emit()
-        else:
-            super().keyPressEvent(event)
+        
+        QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self._on_cancel)
+        QShortcut(QKeySequence(Qt.Key.Key_Return), self, activated=self._on_save)
+    
+    def _on_save(self) -> None:
+        self.create_clicked.emit(
+            self.session_name.text(), 
+            self.session_category.currentText(), 
+            self.group_category.text() if self.group_category.text().strip() else ""
+        ) if self.session_name.text().strip() else None
+
+    def _on_cancel(self) -> None:
+        self.reset_form()
+        self.cancel_clicked.emit()
+
+    def reset_form(self):
+        self.session_name.clear()
+        self.session_category.setCurrentIndex(0)
+        self.group_category.clear()

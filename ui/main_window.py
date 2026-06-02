@@ -4,15 +4,15 @@ import zipfile, json
 from PyQt6.QtWidgets import (
     QMainWindow, QSplitter, QMessageBox, QFileDialog
 )
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QIcon, QShortcut, QKeySequence
 from PyQt6.QtCore import Qt, QTimer, QUrl, QSettings
 from PyQt6.QtMultimedia import QSoundEffect
 
-from models.lecture import Session, OCRCapture
-from storage.database import Storage
 from pathlib import Path
 from datetime import datetime
 
+from models.lecture import Session, OCRCapture
+from storage.database import Storage
 from core.ocr import OCRWorker
 from core.audio import AudioWorker
 from core.summarizer import summarize
@@ -34,15 +34,16 @@ class MainWindow(QMainWindow):
         self.settings = QSettings("LectureCapture", "LectureCapture")
         self.current_session = None
         self.is_recording = False
-        self.is_settings_open = False
         self.is_new_session_open = False
+        self.is_settings_open = False
         self.is_properties_open = False
+        self.is_recording_open = False
 
         # Window details
         self.setWindowIcon(QIcon(str(ICON_PATH)))
         self.setMinimumSize(1100, 700)
         self.setWindowTitle("LectureCapture")
-
+        
         # Default Sound Effects
         self.DEFAULT_START_SOUND = str(Path(self.storage.base_dir) / 'sound_effects' / 'Beep 1 (Default).wav')
         self.DEFAULT_STOP_SOUND = str(Path(self.storage.base_dir) / 'sound_effects' / 'Chirp 1 (Default).wav')
@@ -126,14 +127,36 @@ class MainWindow(QMainWindow):
         self.splitter.setSizes([100, 400, 400, 400, 400, 400]) # 1 : 4 ratio
         self.transcript_panel.set_session_locked(True) # Locked buttons initially
 
-    def reset_new_session_form(self):
-        self.new_session_panel.session_name.clear()
-        self.new_session_panel.session_category.setCurrentIndex(0)
-        self.new_session_panel.group_category.clear()
+        # Shortcuts
+        self.create_session_shortcut = QShortcut(QKeySequence("Ctrl+T"), self)
+        self.create_session_shortcut.activated.connect(self.on_new_session_clicked)
+        self.create_session_shortcut.setEnabled(True)
+        
+        self.settings_shortcut = QShortcut(QKeySequence("Ctrl+S"), self)
+        self.settings_shortcut.activated.connect(self.on_settings_clicked)
+        self.settings_shortcut.setEnabled(True)
+        
+        self.properties_shortcut = QShortcut(QKeySequence("Ctrl+D"), self)
+        self.properties_shortcut.activated.connect(self.on_properties_clicked)
+        self.properties_shortcut.setEnabled(False)
+        
+        self.start_recording_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
+        self.start_recording_shortcut.activated.connect(self.handle_record_shortcut)
+        self.start_recording_shortcut.setEnabled(False)
+        
+        self.end_recording_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Return), self)
+        self.end_recording_shortcut.activated.connect(self.on_record_clicked)
+        self.end_recording_shortcut.setEnabled(False)
+
+    def handle_record_shortcut(self):
+        if not self.is_recording_open:
+            self.on_record_clicked()
+        else:
+            self.on_record_cancelled()
 
     def on_new_session_clicked(self) -> None:
         if self.is_new_session_open:
-            self.reset_new_session_form()
+            self.new_session_panel.reset_form()
         
         self.is_new_session_open = not self.is_new_session_open
         self.is_properties_open = False # Close Properties when opening new session
@@ -148,11 +171,16 @@ class MainWindow(QMainWindow):
         self.storage.create_session(new_session)
         self.sidebar.refresh(self.storage.get_all_sessions())
         self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
+        
+        self.is_new_session_open = not self.is_new_session_open
+        self.show_panel("transcript")
+        
+        self.current_session = new_session
+        self.on_session_selected(self.current_session)
     
     def on_new_session_cancelled(self) -> None:
         self.is_new_session_open = False
         self.show_panel("transcript")
-        self.reset_new_session_form()
     
     def rebuild_properties_panel(self) -> None:
         if self.properties_panel:
@@ -185,6 +213,9 @@ class MainWindow(QMainWindow):
         else:
             self.show_panel("transcript")
         
+        self.properties_shortcut.setEnabled(True)
+        self.start_recording_shortcut.setEnabled(True)
+        
     def start_recording(self, interval, region, monitor, device, hwnd=None) -> None:
         start_time = time.time()
         self.recording_start_time = start_time
@@ -204,6 +235,13 @@ class MainWindow(QMainWindow):
         # Que sound effect
         self.start_audio.play()
         
+        # Shortcut
+        self.create_session_shortcut.setEnabled(False)
+        self.settings_shortcut.setEnabled(False)
+        self.properties_shortcut.setEnabled(False)
+        self.start_recording_shortcut.setEnabled(False)
+        self.end_recording_shortcut.setEnabled(True)
+
     def update_timer(self) -> None:
         if self.is_recording:
             self.elapse_s += 1
@@ -252,6 +290,7 @@ class MainWindow(QMainWindow):
             return
         if not self.is_recording:
             self.show_panel("recording")
+            self.is_recording_open = True
             
             # Reset the values
             self.recording_panel.reload_state()
@@ -267,6 +306,7 @@ class MainWindow(QMainWindow):
         self.timer.start(1000) # Start Timer
         
         self.is_recording = True
+        self.is_recording_open = False
         self.transcript_panel.record_button.setText("Stop Recording") # Update Label
         self.sidebar.set_recording_locked(True)
         self.transcript_panel.set_properties_locked(True)
@@ -312,8 +352,16 @@ class MainWindow(QMainWindow):
         self.transcript_panel.summary_panel.summary_button.setDisabled(not has_content)
         self.transcript_panel.summary_panel.summary.setReadOnly(not has_content)
         
+        # Shortcut
+        self.create_session_shortcut.setEnabled(True)
+        self.settings_shortcut.setEnabled(True)
+        self.properties_shortcut.setEnabled(True)
+        self.start_recording_shortcut.setEnabled(True)
+        self.end_recording_shortcut.setEnabled(False)
+        
     def on_record_cancelled(self) -> None:
         self.show_panel("transcript")
+        self.is_recording_open = False
     
     def on_capture_ready(self, capture: OCRCapture) -> None:
         self.storage.create_ocr_capture(capture)
