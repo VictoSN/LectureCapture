@@ -283,6 +283,7 @@ class MainWindow(QMainWindow):
                 self.on_record_aborted,
                 monitor_index=data["monitor"]
             )
+        self.show_panel("transcript")
 
     def on_record_clicked(self) -> None:
         if not self.current_session:
