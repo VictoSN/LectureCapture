@@ -1,7 +1,7 @@
 import mss
 
 from PyQt6.QtWidgets import (
-    QPushButton, QComboBox, QWidget, QVBoxLayout,QHBoxLayout, QSpinBox
+    QPushButton, QComboBox, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QSpinBox, QLabel
 )
 from PyQt6.QtCore import QSettings, Qt, pyqtSignal
 from PyQt6.QtGui import QShortcut, QKeySequence
@@ -16,7 +16,8 @@ class RecordingPanel(QWidget):
     def __init__(self) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
-        capture_layout = QVBoxLayout()
+        preferences_layout = QVBoxLayout()
+        self.default_layout = QGridLayout()
         action_layout = QHBoxLayout()
         
         self.settings = QSettings("LectureCapture", "LectureCapture")
@@ -24,43 +25,71 @@ class RecordingPanel(QWidget):
 
         # Input Fields
         # Used QSpinBox for integer validation
+        
+        ## Interval
+        self.interval_label = QLabel("Default Interval")
+        self.default_layout.addWidget(self.interval_label, 0, 0)
+        
         self.session_interval = QSpinBox()
         self.session_interval.setRange(1, 30)
-        main_layout.addWidget(self.session_interval)
+        self.default_layout.addWidget(self.session_interval, 0, 1)
         
-        ## Control Dropdown
+        ## Capture Method Dropdown
+        self.capture_method_label = QLabel("Default Capture Method")
+        self.default_layout.addWidget(self.capture_method_label, 1, 0)
+        
         self.capture_method_dropdown = QComboBox()
         self.capture_method_dropdown.addItems(["Mouse Select", "Coordinates", "Full Window"])
         self.capture_method_dropdown.currentTextChanged.connect(self.set_user_option)
-        capture_layout.addWidget(self.capture_method_dropdown)
+        self.default_layout.addWidget(self.capture_method_dropdown, 1, 1)
 
         ## Source Dropdown
+        self.source_label = QLabel("Default Source")
+        self.default_layout.addWidget(self.source_label, 2, 0)
+
         self.source_dropdown = QComboBox()
         setup_source(self.source_dropdown)
-        capture_layout.addWidget(self.source_dropdown)
+        self.default_layout.addWidget(self.source_dropdown, 2, 1)
 
         ## Coords Layout
-        self.coords_layout = QHBoxLayout()
-        capture_layout.addLayout(self.coords_layout)
+        self.x_label = QLabel("Default X Coordinate")
+        self.default_layout.addWidget(self.x_label, 3, 0)
 
         self.x_coords = QSpinBox()
-        self.coords_layout.addWidget(self.x_coords)
+        self.default_layout.addWidget(self.x_coords, 3, 1)
+
+        self.y_label = QLabel("Default Y Coordinate")
+        self.default_layout.addWidget(self.y_label, 4, 0)
 
         self.y_coords = QSpinBox()
-        self.coords_layout.addWidget(self.y_coords)
+        self.default_layout.addWidget(self.y_coords, 4, 1)
+
+        self.width_label = QLabel("Default Width")
+        self.default_layout.addWidget(self.width_label, 5, 0)
 
         self.width_dimension = QSpinBox()
-        self.coords_layout.addWidget(self.width_dimension)
+        self.default_layout.addWidget(self.width_dimension, 5, 1)
+
+        self.height_label = QLabel("Default Height")
+        self.default_layout.addWidget(self.height_label, 6, 0)
 
         self.height_dimension = QSpinBox()
-        self.coords_layout.addWidget(self.height_dimension)
+        self.default_layout.addWidget(self.height_dimension, 6, 1)
 
         self.source_dropdown.currentIndexChanged.connect(self._on_source_changed)
         self._on_source_changed()
 
+        self.default_container = QWidget()
+        self.default_container.setLayout(self.default_layout)
+        preferences_layout.addWidget(self.default_container)
+
+        # Audio
+        self.audio_label = QLabel("Default Audio")
+        self.default_layout.addWidget(self.audio_label, 7, 0)
+
         self.audio_dropdown = QComboBox()
         setup_audio(self.audio_dropdown)
-        capture_layout.addWidget(self.audio_dropdown)
+        self.default_layout.addWidget(self.audio_dropdown, 7, 1)        
 
         # Need to call 'update_coord_ranges' before calling setValue
         self.load_preferences()
@@ -74,7 +103,7 @@ class RecordingPanel(QWidget):
         start_button.clicked.connect(self.try_record)
         action_layout.addWidget(start_button)
 
-        main_layout.addLayout(capture_layout)
+        main_layout.addLayout(preferences_layout)
         main_layout.addLayout(action_layout)
         self.setLayout(main_layout)
         
@@ -143,7 +172,15 @@ class RecordingPanel(QWidget):
     def set_user_option(self) -> None:
         self.capture_method = self.capture_method_dropdown.currentText()
         is_coords = self.capture_method == "Coordinates"
-        set_layout_visible(self.coords_layout, is_coords)
+
+        self.x_label.setVisible(is_coords)
+        self.x_coords.setVisible(is_coords)
+        self.y_label.setVisible(is_coords)
+        self.y_coords.setVisible(is_coords)
+        self.width_label.setVisible(is_coords)
+        self.width_dimension.setVisible(is_coords)
+        self.height_label.setVisible(is_coords)
+        self.height_dimension.setVisible(is_coords)
         
     def validate(self) -> bool:
         error = False
