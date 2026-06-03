@@ -61,6 +61,13 @@ class MainWindow(FramelessMainWindow):
         self.filter_category = ""
         self.filter_group = ""
 
+        # Title Bar
+        self.setTitleBar(CustomTitleBar(self))
+        self.setContentsMargins(0, self.titleBar.height(), 0, 0)
+        self.titleBar.raise_()
+        self.titleBar.new_session_button.clicked.connect(self.on_new_session_clicked)
+        self.titleBar.settings_button.clicked.connect(self.on_settings_clicked)
+
         # Splitter Layout
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.setCentralWidget(self.splitter)
@@ -126,11 +133,7 @@ class MainWindow(FramelessMainWindow):
         # Wait until the other widgets are added
         self.splitter.setSizes([100, 400, 400, 400, 400, 400]) # 1 : 4 ratio
         self.transcript_panel.set_session_locked(True) # Locked buttons initially
-
-        self.setTitleBar(CustomTitleBar(self))
-        self.setContentsMargins(0, self.titleBar.height(), 0, 0)
-        self.titleBar.raise_()
-
+        
         # Shortcuts
         self.create_session_shortcut = QShortcut(QKeySequence("Ctrl+T"), self)
         self.create_session_shortcut.activated.connect(self.on_new_session_clicked)
@@ -259,10 +262,16 @@ class MainWindow(FramelessMainWindow):
         self.is_recording = False
         self.timer.stop()
         self.elapse_s = 0
+        
+        # Reset Text
         self.transcript_panel.recording_time_label.setText("00:00")
         self.transcript_panel.record_button.setText("Record")
+        
+        # Unlock Buttons
         self.sidebar.set_recording_locked(False)
         self.transcript_panel.set_properties_locked(False)
+        self.titleBar.new_session_button.setDisabled(False)
+        self.titleBar.settings_button.setDisabled(False)
         self.showNormal()
 
     def show_overlay(self, data) -> None:
@@ -314,8 +323,13 @@ class MainWindow(FramelessMainWindow):
         self.is_recording = True
         self.is_recording_open = False
         self.transcript_panel.record_button.setText("Stop Recording") # Update Label
+        
+        # Lock Buttons
         self.sidebar.set_recording_locked(True)
         self.transcript_panel.set_properties_locked(True)
+        self.titleBar.new_session_button.setDisabled(True)
+        self.titleBar.settings_button.setDisabled(True)
+
         
         # Start the OCR and Audio threads
         if data["capture_option"] == "Mouse Select":
@@ -342,6 +356,8 @@ class MainWindow(FramelessMainWindow):
         # Unlock inputs
         self.sidebar.set_recording_locked(False)
         self.transcript_panel.set_properties_locked(False)
+        self.titleBar.new_session_button.setDisabled(False)
+        self.titleBar.settings_button.setDisabled(False)
         
         # Stop the threads
         self.ocr_worker.stop()

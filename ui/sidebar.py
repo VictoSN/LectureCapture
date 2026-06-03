@@ -19,14 +19,6 @@ class Sidebar(QWidget):
         main_layout = QVBoxLayout()
         header = QVBoxLayout()
 
-        self.new_session_button = QPushButton("+ New Session")
-        self.new_session_button.clicked.connect(self.new_session_clicked)
-        header.addWidget(self.new_session_button)
-
-        self.settings_button = QPushButton("Settings")
-        self.settings_button.clicked.connect(self.settings_clicked)
-        header.addWidget(self.settings_button)
-
         self.session_search = QLineEdit()
         self.session_search.setPlaceholderText("Search")
         self.session_search.textChanged.connect(self.search_changed)
@@ -85,8 +77,6 @@ class Sidebar(QWidget):
         self.lecture_list.verticalScrollBar().setValue(scroll)
 
     def set_recording_locked(self, locked: bool) -> None:
-        self.new_session_button.setDisabled(locked)
-        self.settings_button.setDisabled(locked)
         self.session_search.setDisabled(locked)
         self.session_category.setDisabled(locked)
         self.group_category.setDisabled(locked)

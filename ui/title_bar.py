@@ -31,14 +31,20 @@ class CustomTitleBar(TitleBar):
         self.title_label = QLabel("LectureCapture")
         self.title_label.setContentsMargins(10, 0, 0, 0)
 
-        self.help_button = QPushButton("?", self)
+        self.new_session_button = QPushButton("+")
+        self.settings_button = QPushButton("Settings")
+        self.help_button = QPushButton("?")
         self.help_button.setFixedSize(30, 30)
         self.help_button.clicked.connect(self._show_shortcuts)
-
+        
         # Insert before the min/max/close buttons
         self.hBoxLayout.insertWidget(0, self.title_label)
+        self.hBoxLayout.insertWidget(self.hBoxLayout.count() - 3, self.new_session_button)
+        self.hBoxLayout.insertWidget(self.hBoxLayout.count() - 3, self.settings_button)
         self.hBoxLayout.insertWidget(self.hBoxLayout.count() - 3, self.help_button)
-
+        
+        self.hBoxLayout.setSpacing(10)  
+        
     def _show_shortcuts(self) -> None:
         dialog = ShortcutsDialog(self.window())
         dialog.exec()
