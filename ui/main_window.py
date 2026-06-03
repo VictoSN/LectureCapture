@@ -1,9 +1,8 @@
 import time
 import zipfile, json
 
-from PyQt6.QtWidgets import (
-    QMainWindow, QSplitter, QMessageBox, QFileDialog
-)
+from qframelesswindow import FramelessMainWindow
+from PyQt6.QtWidgets import QSplitter, QMessageBox, QFileDialog
 from PyQt6.QtGui import QIcon, QShortcut, QKeySequence
 from PyQt6.QtCore import Qt, QTimer, QUrl, QSettings
 from PyQt6.QtMultimedia import QSoundEffect
@@ -16,6 +15,7 @@ from storage.database import Storage
 from core.ocr import OCRWorker
 from core.audio import AudioWorker
 from core.summarizer import summarize
+from ui.title_bar import CustomTitleBar
 from ui.capture_overlay import CaptureOverlay
 from ui.sidebar import Sidebar
 from ui.new_session_panel import NewSessionPanel
@@ -23,12 +23,11 @@ from ui.transcript_panel import TranscriptPanel
 from ui.properties_panel import PropertiesPanel
 from ui.recording_panel import RecordingPanel
 from ui.settings_panel import SettingsPanel
-from ui.styles import apply_theme
 
 BASE_DIR = Path(__file__).resolve().parent
 ICON_PATH = BASE_DIR.parent / 'assets' / 'icon.png'
 
-class MainWindow(QMainWindow):
+class MainWindow(FramelessMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.storage = Storage()
@@ -42,9 +41,8 @@ class MainWindow(QMainWindow):
 
         # Window details
         self.setWindowIcon(QIcon(str(ICON_PATH)))
-        self.setMinimumSize(1200, 800)
+        self.setMinimumSize(1100, 700)
         self.setWindowTitle("LectureCapture")
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         
         # Default Sound Effects
         self.DEFAULT_START_SOUND = str(Path(self.storage.base_dir) / 'sound_effects' / 'Beep 1 (Default).wav')
@@ -73,8 +71,6 @@ class MainWindow(QMainWindow):
 
         sessions = self.storage.get_all_sessions()
         group_categories = self.storage.get_group_categories() # Get all group categories
-        
-        # Sidebar
         self.sidebar = Sidebar(sessions, self.on_session_selected, group_categories)
         self.sidebar.new_session_clicked.connect(self.on_new_session_clicked)
         self.sidebar.settings_clicked.connect(self.on_settings_clicked)
@@ -85,7 +81,7 @@ class MainWindow(QMainWindow):
         self.sidebar.group_filter_changed.connect(self.on_group_filter_changed)
 
         # New Session Panel
-        self.new_session_panel = NewSessionPanel(self)
+        self.new_session_panel = NewSessionPanel()
         self.new_session_panel.create_clicked.connect(
             lambda session_name, session_category, group_category: self.on_new_session_create(session_name, session_category, group_category)
         )
@@ -95,7 +91,7 @@ class MainWindow(QMainWindow):
         self.new_session_panel.setVisible(False)
         
         # Init the settings, and hide it
-        self.settings_panel = SettingsPanel(sessions, self.storage.base_dir, self)
+        self.settings_panel = SettingsPanel(sessions, self.storage.base_dir)
         self.settings_panel.sound_effects_changed.connect(self.on_sound_effects_changed)
         self.settings_panel.export_clicked.connect(self.on_export_clicked)
         self.settings_panel.import_clicked.connect(self.on_import_clicked)
@@ -105,7 +101,7 @@ class MainWindow(QMainWindow):
         self.settings_panel.setVisible(False)
         
         # Transcript Panel
-        self.transcript_panel = TranscriptPanel(self.storage.base_dir, self)
+        self.transcript_panel = TranscriptPanel(self.storage.base_dir)
         self.transcript_panel.properties_clicked.connect(self.on_properties_clicked)
         self.transcript_panel.record_clicked.connect(self.on_record_clicked)
         self.transcript_panel.summary_panel.summarize_clicked.connect(self.on_summarize_clicked)
@@ -120,7 +116,7 @@ class MainWindow(QMainWindow):
         self.properties_panel = None 
         
         # Recording Panel
-        self.recording_panel = RecordingPanel(self)
+        self.recording_panel = RecordingPanel()
         self.recording_panel.cancel_clicked.connect(self.on_record_cancelled)
         self.recording_panel.record_clicked.connect(lambda data: self.on_recording_confirmed(data))
         
@@ -130,6 +126,10 @@ class MainWindow(QMainWindow):
         # Wait until the other widgets are added
         self.splitter.setSizes([100, 400, 400, 400, 400, 400]) # 1 : 4 ratio
         self.transcript_panel.set_session_locked(True) # Locked buttons initially
+
+        self.setTitleBar(CustomTitleBar(self))
+        self.setContentsMargins(0, self.titleBar.height(), 0, 0)
+        self.titleBar.raise_()
 
         # Shortcuts
         self.create_session_shortcut = QShortcut(QKeySequence("Ctrl+T"), self)

@@ -5,7 +5,6 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QShortcut, QKeySequence
 
 from models.lecture import Session, OCRCapture
-from ui.title_bar import attach_window_controls
 from ui.ocr_panel import OCRPanel
 from ui.speech_panel import SpeechPanel
 from ui.summary_panel import SummaryPanel
@@ -14,12 +13,10 @@ class TranscriptPanel(QWidget):
     properties_clicked = pyqtSignal()
     record_clicked = pyqtSignal()
     
-    def __init__(self, base_dir, window) -> None:
+    def __init__(self, base_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
-        header_widget = QWidget()
-        header = QHBoxLayout(header_widget)
-        header.setContentsMargins(0, 0, 0, 0)
+        header = QHBoxLayout()
         footer = QHBoxLayout()
         self.base_dir = base_dir
 
@@ -77,8 +74,7 @@ class TranscriptPanel(QWidget):
         self.speech_engine_label.setFixedHeight(20)
         self.summarize_engine_label.setFixedHeight(20)
 
-        attach_window_controls(window, header)
-        main_layout.addWidget(header_widget)
+        main_layout.addLayout(header)
         main_layout.addWidget(self.splitter)
         main_layout.addLayout(footer)
         self.setLayout(main_layout)

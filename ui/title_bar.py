@@ -1,56 +1,44 @@
-from PyQt6.QtWidgets import QPushButton, QLabel, QHBoxLayout
-from PyQt6.QtCore import Qt, QPoint
-from PyQt6.QtGui import QMouseEvent
+from qframelesswindow import TitleBar
+from PyQt6.QtWidgets import QPushButton, QDialog, QVBoxLayout, QLabel
+from PyQt6.QtCore import Qt
 
-def attach_window_controls(window, header_layout: QHBoxLayout, title: str = None) -> None:
-    if title:
-        title_label = QLabel(title)
-        header_layout.insertWidget(0, title_label)
+class ShortcutsDialog(QDialog):
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Keyboard Shortcuts")
+        layout = QVBoxLayout()
 
-    header_layout.addStretch()
+        shortcuts = [
+            ("Ctrl+T", "New Session"),
+            ("Ctrl+S", "Settings"),
+            ("Ctrl+D", "Properties"),
+            ("Ctrl+F", "Start/Cancel Recording"),
+            ("Enter", "Stop Recording"),
+            ("Shift+1", "Toggle OCR Panel"),
+            ("Shift+2", "Toggle Speech Panel"),
+            ("Shift+3", "Toggle Summary Panel"),
+        ]
 
-    min_button = QPushButton("—")
-    min_button.setFixedSize(30, 30)
-    min_button.clicked.connect(window.showMinimized)
-    header_layout.addWidget(min_button)
+        for key, desc in shortcuts:
+            layout.addWidget(QLabel(f"{key}  —  {desc}"))
 
-    max_button = QPushButton("□")
-    max_button.setFixedSize(30, 30)
-    def toggle_max():
-        if window.isMaximized():
-            window.showNormal()
-        else:
-            window.showMaximized()
-    max_button.clicked.connect(toggle_max)
-    header_layout.addWidget(max_button)
+        self.setLayout(layout)
 
-    close_button = QPushButton("✕")
-    close_button.setFixedSize(30, 30)
-    close_button.clicked.connect(window.close)
-    header_layout.addWidget(close_button)
+class CustomTitleBar(TitleBar):
+    def __init__(self, parent) -> None:
+        super().__init__(parent)
 
-    # Drag logic — attach to the widget that owns the header layout
-    header_widget = header_layout.parentWidget()
-    if not header_widget:
-        return
+        self.title_label = QLabel("LectureCapture")
+        self.title_label.setContentsMargins(10, 0, 0, 0)
 
-    header_widget._drag_pos = None
+        self.help_button = QPushButton("?", self)
+        self.help_button.setFixedSize(30, 30)
+        self.help_button.clicked.connect(self._show_shortcuts)
 
-    def mouse_press(event: QMouseEvent):
-        if event.button() == Qt.MouseButton.LeftButton:
-            header_widget._drag_pos = event.globalPosition().toPoint() - window.frameGeometry().topLeft()
+        # Insert before the min/max/close buttons
+        self.hBoxLayout.insertWidget(0, self.title_label)
+        self.hBoxLayout.insertWidget(self.hBoxLayout.count() - 3, self.help_button)
 
-    def mouse_move(event: QMouseEvent):
-        if header_widget._drag_pos and event.buttons() == Qt.MouseButton.LeftButton:
-            window.move(event.globalPosition().toPoint() - header_widget._drag_pos)
-
-    def mouse_release(event: QMouseEvent):
-        header_widget._drag_pos = None
-
-    def mouse_double_click(event: QMouseEvent):
-        toggle_max()
-
-    header_widget.mousePressEvent = mouse_press
-    header_widget.mouseMoveEvent = mouse_move
-    header_widget.mouseReleaseEvent = mouse_release
-    header_widget.mouseDoubleClickEvent = mouse_double_click
+    def _show_shortcuts(self) -> None:
+        dialog = ShortcutsDialog(self.window())
+        dialog.exec()

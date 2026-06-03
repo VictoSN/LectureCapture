@@ -8,7 +8,6 @@ from PyQt6.QtMultimedia import QSoundEffect
 from PyQt6.QtGui import QShortcut, QKeySequence
 
 from models.lecture import Session
-from ui.title_bar import attach_window_controls
 from ui.setup_recording import setup_source, setup_audio, update_coord_ranges
 from ui.styles import apply_theme
 
@@ -20,13 +19,9 @@ class SettingsPanel(QWidget):
     import_clicked = pyqtSignal()
     cancel_clicked = pyqtSignal()
     
-    def __init__(self, sessions, base_dir, window) -> None:
+    def __init__(self, sessions, base_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
-        
-        header_widget = QWidget()
-        header = QHBoxLayout(header_widget)
-        header.setContentsMargins(0, 0, 0, 0)
         
         # Processing
         processing_layout = QVBoxLayout()
@@ -56,8 +51,8 @@ class SettingsPanel(QWidget):
         self.base_dir = base_dir
 
         # Header Layout
-        settings_label = QLabel("Settings")
-        header.addWidget(settings_label)
+        self.settings_name = QLabel("Settings")
+        main_layout.addWidget(self.settings_name)
 
         # API vs Local
         processing_label = QLabel("Processing Location")
@@ -246,8 +241,6 @@ class SettingsPanel(QWidget):
         action_layout.addWidget(self.save_button)
         self.save_button.clicked.connect(self._on_save)
 
-        attach_window_controls(window, header)
-        main_layout.addWidget(header_widget)
         main_layout.addLayout(processing_layout)
         main_layout.addLayout(theme_layout)
         main_layout.addLayout(preferences_layout)
