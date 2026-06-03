@@ -1,0 +1,89 @@
+/* Global */
+QWidget {
+    background-color: #eff1f5;
+    color: #4c4f69;
+    font-size: 13px;
+}
+
+/* Buttons */
+QPushButton {
+    background-color: #dce0e8;
+    color: #4c4f69;
+    border: 1px solid #ccd0da;
+    border-radius: 6px;
+    padding: 5px 12px;
+}
+QPushButton:hover {
+    background-color: #ccd0da;
+}
+QPushButton:pressed {
+    background-color: #bcc0cc;
+}
+QPushButton:disabled {
+    background-color: #eff1f5;
+    color: #bcc0cc;
+}
+
+/* Inputs */
+QLineEdit, QTextEdit, QSpinBox, QComboBox {
+    background-color: #dce0e8;
+    color: #4c4f69;
+    border: 1px solid #ccd0da;
+    border-radius: 6px;
+    padding: 4px 8px;
+}
+QLineEdit:focus, QTextEdit:focus, QSpinBox:focus, QComboBox:focus {
+    border: 1px solid #1e66f5;
+}
+
+/* ComboBox dropdown */
+QComboBox::drop-down {
+    border: none;
+}
+QComboBox QAbstractItemView {
+    background-color: #dce0e8;
+    color: #4c4f69;
+    selection-background-color: #ccd0da;
+    border: 1px solid #ccd0da;
+}
+
+/* List */
+QListWidget {
+    background-color: #e6e9ef;
+    border: none;
+}
+QListWidget::item {
+    padding: 4px;
+    border-radius: 4px;
+}
+QListWidget::item:selected {
+    background-color: #dce0e8;
+}
+QListWidget::item:hover {
+    background-color: #e0e3eb;
+}
+
+/* Scroll */
+QScrollBar:vertical {
+    background: #eff1f5;
+    width: 8px;
+}
+QScrollBar::handle:vertical {
+    background: #bcc0cc;
+    border-radius: 4px;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+/* Splitter */
+QSplitter::handle {
+    background-color: #ccd0da;
+    width: 1px;
+}
+
+/* Labels */
+QLabel {
+    background: transparent;
+    border: none;
+}

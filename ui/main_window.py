@@ -23,6 +23,7 @@ from ui.transcript_panel import TranscriptPanel
 from ui.properties_panel import PropertiesPanel
 from ui.recording_panel import RecordingPanel
 from ui.settings_panel import SettingsPanel
+from ui.styles import apply_theme
 
 BASE_DIR = Path(__file__).resolve().parent
 ICON_PATH = BASE_DIR.parent / 'assets' / 'icon.png'
@@ -205,6 +206,7 @@ class MainWindow(QMainWindow):
                 
         # Close the settings panel if its opened
         if self.is_settings_open:
+            self.settings_panel.revert_theme()
             self.is_settings_open = False
                 
         if self.is_properties_open:
@@ -586,15 +588,21 @@ class MainWindow(QMainWindow):
         self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
 
     def show_panel(self, panel: str) -> None:
+        # Revert theme if leaving settings without saving
+        if self.is_settings_open and panel != "settings":
+            self.settings_panel.revert_theme()
+            
         # "transcript", "settings", "new_session", "recording", "properties"
         self.transcript_panel.setVisible(panel == "transcript")
         self.settings_panel.setVisible(panel == "settings")
         self.new_session_panel.setVisible(panel == "new_session")
         self.recording_panel.setVisible(panel == "recording")
+        
         if self.properties_panel:
             # Properties shows alongside transcript
             self.properties_panel.setVisible(panel == "properties")
-            self.transcript_panel.setVisible(panel in ("transcript", "properties"))
+            if panel == "properties":
+                self.transcript_panel.setVisible(True)
 
     def closeEvent(self, event) -> None:
         if self.is_recording:

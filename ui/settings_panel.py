@@ -9,6 +9,7 @@ from PyQt6.QtGui import QShortcut, QKeySequence
 
 from models.lecture import Session
 from ui.setup_recording import setup_source, setup_audio, update_coord_ranges
+from ui.styles import apply_theme
 
 from pathlib import Path
 
@@ -90,10 +91,15 @@ class SettingsPanel(QWidget):
         theme_layout.addWidget(theme_label)
         
         self.auto_button = QPushButton("Automatic")
+        self.auto_button.clicked.connect(lambda: self.set_theme("auto"))
         theme_buttons_layout.addWidget(self.auto_button)
+        
         self.light_button = QPushButton("Light Theme")
+        self.light_button.clicked.connect(lambda: self.set_theme("light"))
         theme_buttons_layout.addWidget(self.light_button)
+        
         self.dark_button = QPushButton("Dark Theme")
+        self.dark_button.clicked.connect(lambda: self.set_theme("dark"))
         theme_buttons_layout.addWidget(self.dark_button)
         theme_layout.addLayout(theme_buttons_layout)
         
@@ -326,7 +332,11 @@ class SettingsPanel(QWidget):
             self._preview_sound = effect
     
     def _on_save(self) -> None:
+        # Save preferences mode
         self.settings.setValue("preferences_mode", self.pref_mode)
+        
+        # Save theme
+        self.settings.setValue("theme", self.theme)
 
         # Save Recording Preferences        
         self.settings.setValue("default_interval", self.interval_input.value())
@@ -366,6 +376,7 @@ class SettingsPanel(QWidget):
     
     def load_settings(self) -> None:
         self.proc_mode = str(self.settings.value("processing_mode", "local")) # local, api
+        self.revert_theme() # theme
         self.pref_mode = str(self.settings.value("preferences_mode", "last")) # last, default, empty
         
         region = self.settings.value("default_region", {"left": 0, "top": 0, "width": 800, "height": 800})
@@ -392,7 +403,15 @@ class SettingsPanel(QWidget):
         if idx >= 0:
             self.stop_sound_dropdown.setCurrentIndex(idx)
 
-    def _on_cancel(self) -> None:
+    def revert_theme(self) -> None:
+        self.set_theme(str(self.settings.value("theme", "auto")))
+    
+    def _on_cancel(self) -> None:        
+        self.revert_theme()
         self.load_settings()
         self.update_ui()
         self.cancel_clicked.emit()
+    
+    def set_theme(self, theme: str) -> None:
+        self.theme = theme
+        apply_theme(theme)
