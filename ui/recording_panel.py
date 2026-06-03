@@ -6,16 +6,19 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import QSettings, Qt, pyqtSignal
 from PyQt6.QtGui import QShortcut, QKeySequence
 
-from ui.set_layout_visible import set_layout_visible
+from ui.title_bar import attach_window_controls
 from ui.setup_recording import setup_source, setup_audio, update_coord_ranges
 
 class RecordingPanel(QWidget):
     record_clicked = pyqtSignal(dict)
     cancel_clicked = pyqtSignal()
     
-    def __init__(self) -> None:
+    def __init__(self, window) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
+        header_widget = QWidget()
+        header = QHBoxLayout(header_widget)
+        header.setContentsMargins(0, 0, 0, 0)
         preferences_layout = QVBoxLayout()
         self.default_layout = QGridLayout()
         action_layout = QHBoxLayout()
@@ -23,9 +26,12 @@ class RecordingPanel(QWidget):
         self.settings = QSettings("LectureCapture", "LectureCapture")
         self.reload_state()
 
+        # Header
+        panel_label = QLabel("Recording")
+        header.addWidget(panel_label)
+
         # Input Fields
         # Used QSpinBox for integer validation
-        
         ## Interval
         self.interval_label = QLabel("Default Interval")
         self.default_layout.addWidget(self.interval_label, 0, 0)
@@ -103,6 +109,8 @@ class RecordingPanel(QWidget):
         start_button.clicked.connect(self.try_record)
         action_layout.addWidget(start_button)
 
+        attach_window_controls(window, header)
+        main_layout.addWidget(header_widget)
         main_layout.addLayout(preferences_layout)
         main_layout.addLayout(action_layout)
         self.setLayout(main_layout)

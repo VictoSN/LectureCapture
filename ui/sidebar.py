@@ -20,7 +20,7 @@ class Sidebar(QWidget):
         header = QVBoxLayout()
 
         # Header Layout
-        lecture_label = QLabel("Lectures")
+        lecture_label = QLabel("LectureCapture")
         header.addWidget(lecture_label)
 
         self.new_session_button = QPushButton("+ New Session")

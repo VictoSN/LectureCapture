@@ -3,17 +3,25 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QShortcut, QKeySequence
+from ui.title_bar import attach_window_controls
 
 class NewSessionPanel(QWidget):
     create_clicked = pyqtSignal(str, str, str)
     cancel_clicked = pyqtSignal()
     
-    def __init__(self) -> None:
+    def __init__(self, window) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
+        header_widget = QWidget()
+        header = QHBoxLayout(header_widget)
+        header.setContentsMargins(0, 0, 0, 0)
         grid_layout = QGridLayout()
         button_layout = QHBoxLayout()
 
+        # Header
+        panel_label = QLabel("New Session")
+        header.addWidget(panel_label)
+        
         # Input Fields
         ## Name
         session_name_label = QLabel("Session Name")
@@ -48,6 +56,8 @@ class NewSessionPanel(QWidget):
         self.create_button.clicked.connect(self._on_save)
         button_layout.addWidget(self.create_button)
 
+        attach_window_controls(window, header)
+        main_layout.addWidget(header_widget)
         main_layout.addLayout(grid_layout)
         main_layout.addLayout(button_layout)
         self.setLayout(main_layout)

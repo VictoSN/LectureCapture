@@ -19,6 +19,9 @@ class PropertiesPanel(QWidget):
         grid_layout = QGridLayout()
         button_layout = QHBoxLayout()
 
+        # Header
+        panel_label = QLabel("Properties")
+
         # Input Fields
         ## Name
         session_name_label = QLabel("Session Name")
@@ -82,6 +85,7 @@ class PropertiesPanel(QWidget):
         self.save_button.clicked.connect(self._on_save)
         button_layout.addWidget(self.save_button)
 
+        main_layout.addWidget(panel_label)
         main_layout.addLayout(grid_layout)
         main_layout.addLayout(button_layout)
         self.setLayout(main_layout)
