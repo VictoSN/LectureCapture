@@ -10,6 +10,7 @@ from pathlib import Path
 
 class OCRPanel(QWidget):
     ocr_text_changed = pyqtSignal(int, str) # capture_id & new text
+    immediate_change = pyqtSignal()
     
     def __init__(self, base_dir) -> None:
         super().__init__()
@@ -69,6 +70,7 @@ class OCRPanel(QWidget):
         timer.setSingleShot(True)
         ocr_text._save_timer = timer
         
+        ocr_text.textChanged.connect(self.immediate_change)
         ocr_text.textChanged.connect(lambda: ocr_text._save_timer.start(500))
 
         ocr_text._save_timer.timeout.connect(

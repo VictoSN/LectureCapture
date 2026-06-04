@@ -7,6 +7,7 @@ from models.lecture import OCRCapture
 
 class SpeechPanel(QWidget):
     speech_text_changed =pyqtSignal(int, str)
+    immediate_change = pyqtSignal()
     
     def __init__(self, base_dir) -> None:
         super().__init__()
@@ -53,6 +54,7 @@ class SpeechPanel(QWidget):
         timer.setSingleShot(True)
         speech_text._save_timer = timer
                 
+        speech_text.textChanged.connect(self.immediate_change)
         speech_text.textChanged.connect(lambda: speech_text._save_timer.start(500))
         
         speech_text._save_timer.timeout.connect(

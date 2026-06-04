@@ -71,6 +71,9 @@ class TranscriptPanel(QWidget):
         # Info Footer
         self.recording_time_label = QLabel("00:00") 
         footer.addWidget(self.recording_time_label)
+
+        self.saved_label = QLabel("Saved") 
+        footer.addWidget(self.saved_label)
         
         self.ocr_engine_label = QLabel("pytesseract") 
         footer.addWidget(self.ocr_engine_label)

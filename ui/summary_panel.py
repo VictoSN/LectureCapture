@@ -6,6 +6,7 @@ from PyQt6.QtCore import pyqtSignal, QTimer
 class SummaryPanel(QWidget):
     summarize_clicked = pyqtSignal()
     summary_text_changed = pyqtSignal(str) # new text
+    immediate_change = pyqtSignal()
     
     def __init__(self) -> None:
         super().__init__()
@@ -26,7 +27,8 @@ class SummaryPanel(QWidget):
         timer = QTimer(self.summary)
         timer.setSingleShot(True)
         self.summary._save_timer = timer
-                
+
+        self.summary.textChanged.connect(self.immediate_change)
         self.summary.textChanged.connect(lambda: self.summary._save_timer.start(500))
         
         self.summary._save_timer.timeout.connect(

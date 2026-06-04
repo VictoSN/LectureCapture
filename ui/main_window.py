@@ -124,10 +124,16 @@ class MainWindow(FramelessMainWindow):
         self.transcript_panel.record_clicked.connect(self.on_record_clicked)
         self.transcript_panel.summary_panel.summarize_clicked.connect(self.on_summarize_clicked)
         
-        # When any content is changed
+        ## When any content is changed
+        self.transcript_panel.ocr_panel.immediate_change.connect(self.unsaved_changes)
+        self.transcript_panel.speech_panel.immediate_change.connect(self.unsaved_changes)
+        self.transcript_panel.summary_panel.immediate_change.connect(self.unsaved_changes)
+
+        ## Saved Changes
         self.transcript_panel.ocr_panel.ocr_text_changed.connect(lambda cid, text: self.on_text_changed(cid, text, 1))
         self.transcript_panel.speech_panel.speech_text_changed.connect(lambda cid, text: self.on_text_changed(cid, text, 2))
         self.transcript_panel.summary_panel.summary_text_changed.connect(lambda text: self.on_text_changed(self.current_session.id, text, 3))
+
         self.splitter.addWidget(self.transcript_panel)
         
         # Properties Panel (created once with a placeholder session)
@@ -505,6 +511,9 @@ class MainWindow(FramelessMainWindow):
         self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
         self.on_session_selected(self.current_session)
     
+    def unsaved_changes(self) -> None:
+        self.transcript_panel.saved_label.setText("Unsaved")
+    
     def on_text_changed(self, id, text, option: int) -> None:
         now = datetime.now()
         self.current_session.date_modified = now
@@ -520,6 +529,7 @@ class MainWindow(FramelessMainWindow):
         self.storage.update_session(self.current_session)
         self.sidebar.refresh(self.storage.get_all_sessions())
         self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
+        self.transcript_panel.saved_label.setText("Saved")
 
     def on_settings_clicked(self) -> None:
         if self.is_settings_open:
