@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (
-    QWidget, QLabel, QHBoxLayout, QSizePolicy, QPushButton
+    QWidget, QLabel, QHBoxLayout, QSizePolicy, QPushButton, QToolButton
 )
 from PyQt6.QtGui import  QIcon
 from PyQt6.QtCore import Qt, QSize
@@ -30,6 +30,17 @@ def create_button(icon_path: str, icons_dir: Path, signal=None, size: int = 30, 
     btn.setIcon(QIcon(str(icons_dir / icon_path)))
     btn.setIconSize(QSize(icon_size, icon_size))
     btn.setFixedSize(width or size, size)
+    if signal:
+        btn.clicked.connect(signal)
+    return btn
+
+def create_button_label(icon_path: str, icons_dir: Path, text: str, signal=None, width: int = 100, height: int = 100, icon_size: int = 50) -> QToolButton:
+    btn = QToolButton()
+    btn.setIcon(QIcon(str(icons_dir / icon_path)))
+    btn.setIconSize(QSize(icon_size, icon_size))
+    btn.setText(text)
+    btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+    btn.setFixedSize(width, height)
     if signal:
         btn.clicked.connect(signal)
     return btn

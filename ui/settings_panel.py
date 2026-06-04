@@ -8,6 +8,7 @@ from PyQt6.QtMultimedia import QSoundEffect
 from PyQt6.QtGui import QShortcut, QKeySequence
 
 from models.lecture import Session
+from ui.widgets import create_button, create_button_label
 from ui.setup_recording import setup_source, setup_audio, update_coord_ranges
 from ui.styles import apply_theme
 
@@ -61,13 +62,11 @@ class SettingsPanel(QWidget):
         processing_label = QLabel("Processing Location")
         processing_layout.addWidget(processing_label)
         
-        self.local_button = QPushButton("Local")
+        self.local_button = create_button_label("local.svg", icons_dir, "Local", lambda: self.set_proc_mode("local"))
         processing_button_layout.addWidget(self.local_button)
-        self.local_button.clicked.connect(lambda: self.set_proc_mode("local"))
-        
-        self.api_button = QPushButton("API")
+
+        self.api_button = create_button_label("server.svg", icons_dir, "API", lambda: self.set_proc_mode("api"))
         processing_button_layout.addWidget(self.api_button)
-        self.api_button.clicked.connect(lambda: self.set_proc_mode("api"))
         processing_layout.addLayout(processing_button_layout)
         
         ocr_label = QLabel("OCR")
@@ -93,16 +92,13 @@ class SettingsPanel(QWidget):
         theme_label = QLabel("Application Theme")
         theme_layout.addWidget(theme_label)
         
-        self.auto_button = QPushButton("Automatic")
-        self.auto_button.clicked.connect(lambda: self.set_theme("auto"))
+        self.auto_button = create_button_label("dark_mode.svg", icons_dir, "Automatic", lambda: self.set_theme("auto"))
         theme_buttons_layout.addWidget(self.auto_button)
         
-        self.light_button = QPushButton("Light Theme")
-        self.light_button.clicked.connect(lambda: self.set_theme("light"))
+        self.light_button = create_button_label("light_mode.svg", icons_dir, "Light Theme", lambda: self.set_theme("light"))
         theme_buttons_layout.addWidget(self.light_button)
-        
-        self.dark_button = QPushButton("Dark Theme")
-        self.dark_button.clicked.connect(lambda: self.set_theme("dark"))
+
+        self.dark_button = create_button_label("dark_mode.svg", icons_dir, "Dark Theme", lambda: self.set_theme("dark"))
         theme_buttons_layout.addWidget(self.dark_button)
         theme_layout.addLayout(theme_buttons_layout)
         
@@ -110,16 +106,14 @@ class SettingsPanel(QWidget):
         preferences_label = QLabel("Recording Preferences")
         preferences_layout.addWidget(preferences_label)
         
-        self.last_button = QPushButton("Last Used Options")
-        self.last_button.clicked.connect(lambda: self.set_pref_mode("last"))
+        
+        self.last_button = create_button_label("history.svg", icons_dir, "Last Used", lambda: self.set_pref_mode("last"))
         preferences_buttons_layout.addWidget(self.last_button)
 
-        self.default_button = QPushButton("Default Options")
-        self.default_button.clicked.connect(lambda: self.set_pref_mode("default"))
+        self.default_button = create_button_label("sliders.svg", icons_dir, "Default", lambda: self.set_pref_mode("default"))
         preferences_buttons_layout.addWidget(self.default_button)
 
-        self.clear_button = QPushButton("Empty Options")
-        self.clear_button.clicked.connect(lambda: self.set_pref_mode("empty"))
+        self.clear_button = create_button_label("clear.svg", icons_dir, "Empty", lambda: self.set_pref_mode("empty"))
         preferences_buttons_layout.addWidget(self.clear_button)
         preferences_layout.addLayout(preferences_buttons_layout)
 
@@ -198,8 +192,7 @@ class SettingsPanel(QWidget):
         self.start_sound_dropdown = QComboBox()
         sound_grid_layout.addWidget(self.start_sound_dropdown, 0, 1)
         
-        self.start_sound_button = QPushButton("Play")
-        self.start_sound_button.clicked.connect(lambda: self.play_sound(self.start_sound_dropdown))
+        self.start_sound_button = create_button("play.svg", icons_dir, lambda: self.play_sound(self.start_sound_dropdown), width=90)
         sound_grid_layout.addWidget(self.start_sound_button, 0, 2)
 
         stop_sound_label = QLabel("Stop Recording Sound Effects")
@@ -208,37 +201,49 @@ class SettingsPanel(QWidget):
         self.stop_sound_dropdown = QComboBox()
         sound_grid_layout.addWidget(self.stop_sound_dropdown, 1, 1)
         
-        self.stop_sound_button = QPushButton("Play")
-        self.stop_sound_button.clicked.connect(lambda: self.play_sound(self.stop_sound_dropdown))
+        self.stop_sound_button = create_button("play.svg", icons_dir, lambda: self.play_sound(self.stop_sound_dropdown), width=90)
         sound_grid_layout.addWidget(self.stop_sound_button, 1, 2)
 
         sound_import_label = QLabel("Import Sound")
         sound_grid_layout.addWidget(sound_import_label, 2, 0)
         
-        sound_import_button = QPushButton("Import")
-        sound_import_button.clicked.connect(self.import_sound)
+        sound_import_button = create_button("import.svg", icons_dir, self.import_sound, width=90)
         sound_grid_layout.addWidget(sound_import_button, 2, 2)
         sound_layout.addLayout(sound_grid_layout)
         
         # Export & Import Sessions
         export_label = QLabel("Export Session")
         export_layout.addWidget(export_label)
+        
         self.export_dropdown = QComboBox()
         export_layout.addWidget(self.export_dropdown)
-        self.export_button = QPushButton("Export")
-        self.export_button.clicked.connect(lambda: self.export_clicked.emit(self.export_dropdown.currentData()))
+        
+        self.export_button = create_button("export.svg", icons_dir, lambda: self.export_clicked.emit(self.export_dropdown.currentData()), width=90)
         export_layout.addWidget(self.export_button)
         
         import_label = QLabel("Import Session")
         import_layout.addWidget(import_label)
-        self.import_button = QPushButton("Import")
-        self.import_button.clicked.connect(self.import_clicked)
+        
+        self.import_button = create_button("import.svg", icons_dir, self.import_clicked.emit, width=90)
         import_layout.addWidget(self.import_button)
         
         delete_label = QLabel("Delete All Session")
         delete_layout.addWidget(delete_label)
+        
         self.delete_button = QPushButton("Delete")
         self.delete_button.clicked.connect(self.deleteEvent)
+        self.delete_button.setStyleSheet("""
+            QPushButton {
+                background-color: red;
+                color: white;
+                border: none;
+                padding: 6px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: darkred;
+            }
+        """)
         delete_layout.addWidget(self.delete_button)
         
         # Close & Save Buttons
