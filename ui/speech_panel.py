@@ -29,12 +29,12 @@ class SpeechPanel(QWidget):
         self.feed_widget = QWidget()
         self.feed_layout = QVBoxLayout(self.feed_widget)
 
-        scroll = QScrollArea()
-        scroll.setWidget(self.feed_widget)
-        scroll.setWidgetResizable(True)
+        self.scroll = QScrollArea()
+        self.scroll.setWidget(self.feed_widget)
+        self.scroll.setWidgetResizable(True)
 
         main_layout.addLayout(header)
-        main_layout.addWidget(scroll)
+        main_layout.addWidget(self.scroll)
         self.setLayout(main_layout)
 
     def _create_capture_widget(self, capture: OCRCapture) -> QWidget:
