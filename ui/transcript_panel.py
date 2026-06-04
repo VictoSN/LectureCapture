@@ -1,8 +1,8 @@
 from PyQt6.QtWidgets import (
     QWidget, QLabel, QPushButton, QSplitter, QVBoxLayout, QHBoxLayout
 )
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QShortcut, QKeySequence
+from PyQt6.QtCore import Qt, pyqtSignal, QSize
+from PyQt6.QtGui import QShortcut, QKeySequence, QIcon
 
 from models.lecture import Session, OCRCapture
 from ui.ocr_panel import OCRPanel
@@ -13,7 +13,7 @@ class TranscriptPanel(QWidget):
     properties_clicked = pyqtSignal()
     record_clicked = pyqtSignal()
     
-    def __init__(self, base_dir) -> None:
+    def __init__(self, base_dir, icons_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         header = QHBoxLayout()
@@ -25,19 +25,31 @@ class TranscriptPanel(QWidget):
         self.session_name.setText("Select a session")
         header.addWidget(self.session_name)
 
-        self.properties_button = QPushButton("Properties")
+        self.properties_button = QPushButton()
+        self.properties_button.setIcon(QIcon(str(icons_dir / 'info.svg')))
+        self.properties_button.setIconSize(QSize(18, 18))
+        self.properties_button.setFixedSize(30, 30)
         self.properties_button.clicked.connect(self.properties_clicked)
         header.addWidget(self.properties_button)
         
-        self.ocr_visibility_button = QPushButton("OCR")
+        self.ocr_visibility_button = QPushButton()
+        self.ocr_visibility_button.setIcon(QIcon(str(icons_dir / 'scan.svg')))
+        self.ocr_visibility_button.setIconSize(QSize(18, 18))
+        self.ocr_visibility_button.setFixedSize(30, 30)
         self.ocr_visibility_button.clicked.connect(lambda: self._panel_visibility(self.summary_panel))
         header.addWidget(self.ocr_visibility_button)
         
-        self.speech_visibility_button = QPushButton("S2T")
+        self.speech_visibility_button = QPushButton()
+        self.speech_visibility_button.setIcon(QIcon(str(icons_dir / 'microphone.svg')))
+        self.speech_visibility_button.setIconSize(QSize(18, 18))
+        self.speech_visibility_button.setFixedSize(30, 30)
         self.speech_visibility_button.clicked.connect(lambda: self._panel_visibility(self.speech_panel))
         header.addWidget(self.speech_visibility_button)
         
-        self.summary_visibility_button = QPushButton("AI")
+        self.summary_visibility_button = QPushButton()
+        self.summary_visibility_button.setIcon(QIcon(str(icons_dir / 'summarize.svg')))
+        self.summary_visibility_button.setIconSize(QSize(18, 18))
+        self.summary_visibility_button.setFixedSize(30, 30)
         self.summary_visibility_button.clicked.connect(lambda: self._panel_visibility(self.summary_panel))
         header.addWidget(self.summary_visibility_button)
         
@@ -59,10 +71,13 @@ class TranscriptPanel(QWidget):
         # Info Footer
         self.recording_time_label = QLabel("00:00") 
         footer.addWidget(self.recording_time_label)
+        
         self.ocr_engine_label = QLabel("pytesseract") 
         footer.addWidget(self.ocr_engine_label)
+        
         self.speech_engine_label = QLabel("faster-whisper") 
         footer.addWidget(self.speech_engine_label)
+        
         self.summarize_engine_label = QLabel("sumy") 
         footer.addWidget(self.summarize_engine_label)
 

@@ -1,7 +1,7 @@
 import shutil
 
 from PyQt6.QtWidgets import (
-    QWidget, QLabel, QPushButton, QComboBox, QVBoxLayout, QHBoxLayout, QGridLayout, QSpinBox, QFileDialog, QLineEdit
+    QWidget, QLabel, QPushButton, QComboBox, QVBoxLayout, QHBoxLayout, QGridLayout, QSpinBox, QFileDialog, QLineEdit, QMessageBox
 )
 from PyQt6.QtCore import pyqtSignal, QSettings, QUrl, Qt
 from PyQt6.QtMultimedia import QSoundEffect
@@ -18,6 +18,7 @@ class SettingsPanel(QWidget):
     export_clicked = pyqtSignal(int) # session_id
     import_clicked = pyqtSignal()
     cancel_clicked = pyqtSignal()
+    delete_clicked = pyqtSignal()
     
     def __init__(self, sessions, base_dir) -> None:
         super().__init__()
@@ -45,6 +46,7 @@ class SettingsPanel(QWidget):
         export_layout = QHBoxLayout()
         import_layout = QHBoxLayout()
 
+        delete_layout = QHBoxLayout()
         action_layout = QHBoxLayout()
 
         self.settings = QSettings("LectureCapture", "LectureCapture")
@@ -232,6 +234,12 @@ class SettingsPanel(QWidget):
         self.import_button.clicked.connect(self.import_clicked)
         import_layout.addWidget(self.import_button)
         
+        delete_label = QLabel("Delete All Session")
+        delete_layout.addWidget(delete_label)
+        self.delete_button = QPushButton("Delete")
+        self.delete_button.clicked.connect(self.deleteEvent)
+        delete_layout.addWidget(self.delete_button)
+        
         # Cancel & Save Buttons
         self.cancel_button = QPushButton("Cancel")
         self.cancel_button.clicked.connect(self._on_cancel)
@@ -247,6 +255,7 @@ class SettingsPanel(QWidget):
         main_layout.addLayout(sound_layout)
         main_layout.addLayout(export_layout)
         main_layout.addLayout(import_layout)
+        main_layout.addLayout(delete_layout)
         main_layout.addLayout(action_layout)
         self.setLayout(main_layout)
 
@@ -415,3 +424,15 @@ class SettingsPanel(QWidget):
     def set_theme(self, theme: str) -> None:
         self.theme = theme
         apply_theme(theme)
+    
+    def deleteEvent(self) -> None:
+        reply = QMessageBox.question(
+            self, 
+            "Delete All Session", 
+            "Delete all of the sessions?"
+        )
+        if reply == QMessageBox.StandardButton.No:
+            return
+        else:
+            self.delete_clicked.emit()
+            print('test')

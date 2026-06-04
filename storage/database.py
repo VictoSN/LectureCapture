@@ -126,6 +126,20 @@ class Storage:
         self.cursor.execute("DELETE FROM session WHERE id = ?", (id,))
         self.conn.commit()
     
+    def delete_all_sessions(self) -> None:        
+        sessions_dir = Path(self.base_dir) / "sessions"
+
+        if sessions_dir.exists():
+            for item in sessions_dir.iterdir():
+                if item.is_dir():
+                    shutil.rmtree(item)
+                else:
+                    item.unlink()
+
+        self.cursor.execute("DELETE FROM session")
+        self.cursor.execute("DELETE FROM sqlite_sequence WHERE name IN ('session', 'ocrcapture')")
+        self.conn.commit()
+        
     def create_ocr_capture(self, capture: OCRCapture) -> int:        
         self.cursor.execute(
             "INSERT INTO ocrcapture (timestamp, image_path, extracted_text, speech_text, session_id) VALUES (?, ?, ?, ?, ?)",

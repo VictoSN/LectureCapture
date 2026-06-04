@@ -3,7 +3,7 @@ import zipfile, json
 
 from qframelesswindow import FramelessMainWindow
 from PyQt6.QtWidgets import QSplitter, QMessageBox, QFileDialog
-from PyQt6.QtGui import QIcon, QShortcut, QKeySequence
+from PyQt6.QtGui import QIcon, QShortcut, QKeySequence, QGuiApplication
 from PyQt6.QtCore import Qt, QTimer, QUrl, QSettings
 from PyQt6.QtMultimedia import QSoundEffect
 
@@ -25,7 +25,10 @@ from ui.recording_panel import RecordingPanel
 from ui.settings_panel import SettingsPanel
 
 BASE_DIR = Path(__file__).resolve().parent
-ICON_PATH = BASE_DIR.parent / 'assets' / 'icon.png'
+LIGHT_ICONS_DIR = BASE_DIR.parent / 'assets' / 'light_icons'
+DARK_ICONS_DIR = BASE_DIR.parent / 'assets' / 'dark_icons'
+ICONS_DIR = LIGHT_ICONS_DIR
+APP_ICON_PATH = BASE_DIR.parent / 'assets' / 'icons' / 'LectureCapture.png'
 
 class MainWindow(FramelessMainWindow):
     def __init__(self) -> None:
@@ -40,9 +43,16 @@ class MainWindow(FramelessMainWindow):
         self.is_recording_open = False
 
         # Window details
-        self.setWindowIcon(QIcon(str(ICON_PATH)))
-        self.setMinimumSize(1100, 700)
+        self.setWindowIcon(QIcon(str(APP_ICON_PATH)))
         self.setWindowTitle("LectureCapture")
+        self.setMinimumSize(800, 600)
+        self.resize(1200, 800)
+        
+        # Move it to the middle
+        screen = QGuiApplication.primaryScreen().availableGeometry()
+        frame = self.frameGeometry()
+        frame.moveCenter(screen.center())
+        self.move(frame.topLeft())
         
         # Default Sound Effects
         self.DEFAULT_START_SOUND = str(Path(self.storage.base_dir) / 'sound_effects' / 'Beep 1 (Default).wav')
@@ -62,7 +72,7 @@ class MainWindow(FramelessMainWindow):
         self.filter_group = ""
 
         # Title Bar
-        self.setTitleBar(CustomTitleBar(self))
+        self.setTitleBar(CustomTitleBar(self, ICONS_DIR))
         self.setContentsMargins(0, self.titleBar.height(), 0, 0)
         self.titleBar.raise_()
         self.titleBar.new_session_button.clicked.connect(self.on_new_session_clicked)
@@ -103,12 +113,13 @@ class MainWindow(FramelessMainWindow):
         self.settings_panel.export_clicked.connect(self.on_export_clicked)
         self.settings_panel.import_clicked.connect(self.on_import_clicked)
         self.settings_panel.cancel_clicked.connect(self.on_settings_clicked)
+        self.settings_panel.delete_clicked.connect(self.on_all_deleted_clicked)
         
         self.splitter.addWidget(self.settings_panel)
         self.settings_panel.setVisible(False)
         
         # Transcript Panel
-        self.transcript_panel = TranscriptPanel(self.storage.base_dir)
+        self.transcript_panel = TranscriptPanel(self.storage.base_dir, ICONS_DIR)
         self.transcript_panel.properties_clicked.connect(self.on_properties_clicked)
         self.transcript_panel.record_clicked.connect(self.on_record_clicked)
         self.transcript_panel.summary_panel.summarize_clicked.connect(self.on_summarize_clicked)
@@ -605,6 +616,13 @@ class MainWindow(FramelessMainWindow):
                 self.storage.create_ocr_capture(capture)
         self.sidebar.refresh(self.storage.get_all_sessions())
         self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
+
+    def on_all_deleted_clicked(self) -> None:
+        self.storage.delete_all_sessions()
+        self.current_session = None
+        self.sidebar.refresh(self.storage.get_all_sessions())
+        self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
+        self.transcript_panel.clear_panels()
 
     def show_panel(self, panel: str) -> None:
         # Revert theme if leaving settings without saving

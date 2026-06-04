@@ -66,6 +66,10 @@ class PropertiesPanel(QWidget):
         grid_layout.addWidget(self.summary_generated, 5, 1)
 
         # Actions Buttons
+        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button.clicked.connect(self.cancel_clicked)
+        button_layout.addWidget(self.cancel_button)
+
         self.delete_button = QPushButton("Delete")
         self.delete_button.clicked.connect(self.deleteEvent)
         button_layout.addWidget(self.delete_button)
@@ -73,10 +77,6 @@ class PropertiesPanel(QWidget):
         self.duplicate_button = QPushButton("Duplicate")
         self.duplicate_button.clicked.connect(self.duplicate_clicked)
         button_layout.addWidget(self.duplicate_button)
-        
-        self.cancel_button = QPushButton("Cancel")
-        self.cancel_button.clicked.connect(self.cancel_clicked)
-        button_layout.addWidget(self.cancel_button)
         
         self.save_button = QPushButton("Save")
         self.save_button.clicked.connect(self._on_save)
