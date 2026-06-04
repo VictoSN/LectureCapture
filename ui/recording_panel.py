@@ -12,7 +12,7 @@ class RecordingPanel(QWidget):
     record_clicked = pyqtSignal(dict)
     cancel_clicked = pyqtSignal()
     
-    def __init__(self) -> None:
+    def __init__(self, icons_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         preferences_layout = QVBoxLayout()
@@ -47,7 +47,7 @@ class RecordingPanel(QWidget):
         self.default_layout.addWidget(self.source_label, 2, 0)
 
         self.source_dropdown = QComboBox()
-        setup_source(self.source_dropdown)
+        setup_source(self.source_dropdown, icons_dir)
         self.default_layout.addWidget(self.source_dropdown, 2, 1)
 
         ## Coords Layout
@@ -87,7 +87,7 @@ class RecordingPanel(QWidget):
         self.default_layout.addWidget(self.audio_label, 7, 0)
 
         self.audio_dropdown = QComboBox()
-        setup_audio(self.audio_dropdown)
+        setup_audio(self.audio_dropdown, icons_dir)
         self.default_layout.addWidget(self.audio_dropdown, 7, 1)        
 
         # Need to call 'update_coord_ranges' before calling setValue

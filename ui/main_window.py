@@ -109,7 +109,7 @@ class MainWindow(FramelessMainWindow):
         self.new_session_panel.setVisible(False)
         
         # Init the settings, and hide it
-        self.settings_panel = SettingsPanel(sessions, self.storage.base_dir, BUNDLED_SOUNDS_DIR)
+        self.settings_panel = SettingsPanel(sessions, self.storage.base_dir, BUNDLED_SOUNDS_DIR, ICONS_DIR)
         self.settings_panel.sound_effects_changed.connect(self.on_sound_effects_changed)
         self.settings_panel.export_clicked.connect(self.on_export_clicked)
         self.settings_panel.import_clicked.connect(self.on_import_clicked)
@@ -141,7 +141,7 @@ class MainWindow(FramelessMainWindow):
         self.properties_panel = None 
         
         # Recording Panel
-        self.recording_panel = RecordingPanel()
+        self.recording_panel = RecordingPanel(ICONS_DIR)
         self.recording_panel.cancel_clicked.connect(self.on_record_cancelled)
         self.recording_panel.record_clicked.connect(lambda data: self.on_recording_confirmed(data))
         
