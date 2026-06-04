@@ -1,7 +1,8 @@
 from PyQt6.QtWidgets import (
-    QWidget, QListWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QComboBox, QListWidgetItem
+    QWidget, QListWidget, QVBoxLayout, QPushButton, QLineEdit, QComboBox, QListWidgetItem, QHBoxLayout
 )
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal, QSize
+from PyQt6.QtGui import QIcon
 
 from models.lecture import Session
 from ui.session_card import SessionCard
@@ -14,24 +15,34 @@ class Sidebar(QWidget):
     category_filter_changed = pyqtSignal(str)
     group_filter_changed = pyqtSignal(str)
     
-    def __init__(self, sessions: list[Session], on_session_selected, group_categories: list[str]) -> None:
+    def __init__(self, sessions: list[Session], on_session_selected, group_categories: list[str], icons_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
+        search_layout = QHBoxLayout()
         header = QVBoxLayout()
 
         self.session_search = QLineEdit()
         self.session_search.setPlaceholderText("Search")
         self.session_search.textChanged.connect(self.search_changed)
-        header.addWidget(self.session_search)
+        search_layout.addWidget(self.session_search)
+        
+        self.filter_button = QPushButton()
+        self.filter_button.setIcon(QIcon(str(icons_dir / 'filter.svg')))
+        self.filter_button.setIconSize(QSize(18, 18))
+        self.filter_button.setFixedSize(30, 30)
+        self.filter_button.clicked.connect(self._show_filter)
+        search_layout.addWidget(self.filter_button)
         
         self.session_category = QComboBox()
         self.session_category.addItems(["All", "Lab", "Tutorial", "Lecture"])
         self.session_category.currentTextChanged.connect(self.category_filter_changed)
+        self.session_category.setVisible(False)
         header.addWidget(self.session_category)
         
         self.group_category = QComboBox()
         self.group_category.addItems(["All"] + group_categories)
         self.group_category.currentTextChanged.connect(self.group_filter_changed)
+        self.group_category.setVisible(False)
         header.addWidget(self.group_category)
 
         # List Layout
@@ -48,6 +59,7 @@ class Sidebar(QWidget):
             lambda item: on_session_selected(self.sessions[self.lecture_list.row(item)])
         )
 
+        main_layout.addLayout(search_layout)
         main_layout.addLayout(header)
         main_layout.addWidget(self.lecture_list)
         self.setLayout(main_layout)
@@ -81,3 +93,13 @@ class Sidebar(QWidget):
         self.session_category.setDisabled(locked)
         self.group_category.setDisabled(locked)
         self.lecture_list.setDisabled(locked)
+    
+    def _show_filter(self) -> None:
+        current_visibility = self.session_category.isVisible()
+        
+        self.session_category.setVisible(not current_visibility)
+        self.group_category.setVisible(not current_visibility)
+        
+        if current_visibility:
+            self.session_category.setCurrentIndex(0)
+            self.group_category.setCurrentIndex(0)

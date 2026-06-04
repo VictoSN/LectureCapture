@@ -88,7 +88,7 @@ class MainWindow(FramelessMainWindow):
 
         sessions = self.storage.get_all_sessions()
         group_categories = self.storage.get_group_categories() # Get all group categories
-        self.sidebar = Sidebar(sessions, self.on_session_selected, group_categories)
+        self.sidebar = Sidebar(sessions, self.on_session_selected, group_categories, ICONS_DIR)
         self.sidebar.new_session_clicked.connect(self.on_new_session_clicked)
         self.sidebar.settings_clicked.connect(self.on_settings_clicked)
         self.splitter.addWidget(self.sidebar)
