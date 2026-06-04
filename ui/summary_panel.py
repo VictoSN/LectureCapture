@@ -1,24 +1,23 @@
-from PyQt6.QtWidgets import (
-    QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit
-)
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QTextEdit
 from PyQt6.QtCore import pyqtSignal, QTimer
+
+from ui.widgets import create_label, create_button
 
 class SummaryPanel(QWidget):
     summarize_clicked = pyqtSignal()
     summary_text_changed = pyqtSignal(str) # new text
     immediate_change = pyqtSignal()
     
-    def __init__(self) -> None:
+    def __init__(self, icons_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         header = QHBoxLayout()
 
-        # Header Layout
-        summary_label = QLabel("AI summary")
-        header.addWidget(summary_label)
-        self.summary_button = QPushButton("Summarize")
-        self.summary_button.clicked.connect(self.summarize_clicked)
-        self.summary_button.setDisabled(False)
+        # Header Layout        
+        summary_w, self.summarize_engine_label = create_label('summarize.svg', 'AI summary', icons_dir)
+        header.addWidget(summary_w)
+        
+        self.summary_button = create_button('sparkle.svg', icons_dir, self.summarize_clicked, text="Summarize", width=130, icon_size=14)
         header.addWidget(self.summary_button)
 
         # Summary        

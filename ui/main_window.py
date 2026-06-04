@@ -339,7 +339,7 @@ class MainWindow(FramelessMainWindow):
         
         self.is_recording = True
         self.is_recording_open = False
-        self.transcript_panel.record_button.setText("Stop Recording") # Update Label
+        self.transcript_panel.record_button.setText("Recording") # Update Label
         
         # Lock Buttons
         self.sidebar.set_recording_locked(True)

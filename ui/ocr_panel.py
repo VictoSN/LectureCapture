@@ -6,13 +6,15 @@ from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 
 from models.lecture import OCRCapture
+from ui.widgets import create_label
+
 from pathlib import Path
 
 class OCRPanel(QWidget):
     ocr_text_changed = pyqtSignal(int, str) # capture_id & new text
     immediate_change = pyqtSignal()
     
-    def __init__(self, base_dir) -> None:
+    def __init__(self, base_dir, icons_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         header = QHBoxLayout()
@@ -20,8 +22,9 @@ class OCRPanel(QWidget):
         self.is_locked = True
 
         # Header Layout
-        ocr_label = QLabel("Screen OCR")
-        header.addWidget(ocr_label)
+        ocr_w, self.ocr_engine_label = create_label('scan.svg', 'Screen OCR', icons_dir)
+        header.addWidget(ocr_w)
+        
         self.ocr_button = QPushButton("Locked")
         self.ocr_button.clicked.connect(self.set_locked)
         header.addWidget(self.ocr_button)

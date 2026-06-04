@@ -1,7 +1,8 @@
+from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel
+
+from ui.widgets import create_button
+
 from qframelesswindow import TitleBar
-from PyQt6.QtWidgets import QPushButton, QDialog, QVBoxLayout, QLabel
-from PyQt6.QtGui import QIcon
-from PyQt6.QtCore import QSize
 
 class ShortcutsDialog(QDialog):
     def __init__(self, parent=None) -> None:
@@ -31,22 +32,12 @@ class CustomTitleBar(TitleBar):
 
         self.title_label = QLabel("LectureCapture")
         self.title_label.setContentsMargins(10, 0, 0, 0)
+        
+        self.new_session_button = create_button('plus.svg', icons_dir)
 
-        self.new_session_button = QPushButton()
-        self.new_session_button.setIcon(QIcon(str(icons_dir / 'plus.svg')))
-        self.new_session_button.setIconSize(QSize(18, 18))
-        self.new_session_button.setFixedSize(30, 30)
-        
-        self.settings_button = QPushButton()
-        self.settings_button.setIcon(QIcon(str(icons_dir / 'settings.svg')))
-        self.settings_button.setIconSize(QSize(18, 18))
-        self.settings_button.setFixedSize(30, 30)
-        
-        self.help_button = QPushButton()
-        self.help_button.setIcon(QIcon(str(icons_dir / 'question.svg')))
-        self.help_button.setIconSize(QSize(22, 22))
-        self.help_button.setFixedSize(30, 30)
-        self.help_button.clicked.connect(self._show_shortcuts)
+        self.settings_button = create_button('settings.svg', icons_dir)
+
+        self.help_button = create_button('question.svg', icons_dir, self._show_shortcuts, icon_size=22)
         
         # Insert before the min/max/close buttons
         self.hBoxLayout.insertWidget(0, self.title_label)

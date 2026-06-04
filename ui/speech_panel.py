@@ -4,12 +4,13 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import pyqtSignal, QTimer
 
 from models.lecture import OCRCapture
+from ui.widgets import create_label
 
 class SpeechPanel(QWidget):
     speech_text_changed =pyqtSignal(int, str)
     immediate_change = pyqtSignal()
     
-    def __init__(self, base_dir) -> None:
+    def __init__(self, base_dir, icons_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         header = QHBoxLayout()
@@ -17,8 +18,9 @@ class SpeechPanel(QWidget):
         self.is_locked = True
 
         # Header Layout
-        speech_label = QLabel("Audio transcript")
-        header.addWidget(speech_label)
+        speech_w, self.speech_engine_label = create_label('microphone.svg', 'Audio transcript', icons_dir)
+        header.addWidget(speech_w)
+        
         self.speech_button = QPushButton("Locked")
         self.speech_button.clicked.connect(self.set_locked)
         header.addWidget(self.speech_button)

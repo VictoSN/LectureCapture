@@ -16,7 +16,7 @@ class NewSessionPanel(QWidget):
 
         # Input Fields
         ## Name
-        session_name_label = QLabel("Session Name")
+        session_name_label = QLabel("Session Name:")
         grid_layout.addWidget(session_name_label, 0, 0)
         
         self.session_name = QLineEdit()
@@ -24,7 +24,7 @@ class NewSessionPanel(QWidget):
         grid_layout.addWidget(self.session_name, 0, 1)
 
         ## Session Category
-        session_category_label = QLabel("Session Category")
+        session_category_label = QLabel("Session Category:")
         grid_layout.addWidget(session_category_label, 1, 0)
 
         self.session_category = QComboBox()
@@ -32,7 +32,7 @@ class NewSessionPanel(QWidget):
         grid_layout.addWidget(self.session_category, 1, 1)
 
         ## Group Category
-        group_category_label = QLabel("Group Category")
+        group_category_label = QLabel("Group Category:")
         grid_layout.addWidget(group_category_label, 2, 0)
         
         self.group_category = QLineEdit()

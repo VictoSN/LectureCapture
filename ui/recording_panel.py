@@ -6,7 +6,6 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import QSettings, Qt, pyqtSignal
 from PyQt6.QtGui import QShortcut, QKeySequence
 
-from ui.set_layout_visible import set_layout_visible
 from ui.setup_recording import setup_source, setup_audio, update_coord_ranges
 
 class RecordingPanel(QWidget):
@@ -27,7 +26,7 @@ class RecordingPanel(QWidget):
         # Used QSpinBox for integer validation
         
         ## Interval
-        self.interval_label = QLabel("Default Interval")
+        self.interval_label = QLabel("Interval:")
         self.default_layout.addWidget(self.interval_label, 0, 0)
         
         self.session_interval = QSpinBox()
@@ -35,7 +34,7 @@ class RecordingPanel(QWidget):
         self.default_layout.addWidget(self.session_interval, 0, 1)
         
         ## Capture Method Dropdown
-        self.capture_method_label = QLabel("Default Capture Method")
+        self.capture_method_label = QLabel("Capture Method:")
         self.default_layout.addWidget(self.capture_method_label, 1, 0)
         
         self.capture_method_dropdown = QComboBox()
@@ -44,7 +43,7 @@ class RecordingPanel(QWidget):
         self.default_layout.addWidget(self.capture_method_dropdown, 1, 1)
 
         ## Source Dropdown
-        self.source_label = QLabel("Default Source")
+        self.source_label = QLabel("Source:")
         self.default_layout.addWidget(self.source_label, 2, 0)
 
         self.source_dropdown = QComboBox()
@@ -52,25 +51,25 @@ class RecordingPanel(QWidget):
         self.default_layout.addWidget(self.source_dropdown, 2, 1)
 
         ## Coords Layout
-        self.x_label = QLabel("Default X Coordinate")
+        self.x_label = QLabel("X Coordinate:")
         self.default_layout.addWidget(self.x_label, 3, 0)
 
         self.x_coords = QSpinBox()
         self.default_layout.addWidget(self.x_coords, 3, 1)
 
-        self.y_label = QLabel("Default Y Coordinate")
+        self.y_label = QLabel("Y Coordinate:")
         self.default_layout.addWidget(self.y_label, 4, 0)
 
         self.y_coords = QSpinBox()
         self.default_layout.addWidget(self.y_coords, 4, 1)
 
-        self.width_label = QLabel("Default Width")
+        self.width_label = QLabel("Width:")
         self.default_layout.addWidget(self.width_label, 5, 0)
 
         self.width_dimension = QSpinBox()
         self.default_layout.addWidget(self.width_dimension, 5, 1)
 
-        self.height_label = QLabel("Default Height")
+        self.height_label = QLabel("Height:")
         self.default_layout.addWidget(self.height_label, 6, 0)
 
         self.height_dimension = QSpinBox()
@@ -84,7 +83,7 @@ class RecordingPanel(QWidget):
         preferences_layout.addWidget(self.default_container)
 
         # Audio
-        self.audio_label = QLabel("Default Audio")
+        self.audio_label = QLabel("Audio:")
         self.default_layout.addWidget(self.audio_label, 7, 0)
 
         self.audio_dropdown = QComboBox()

@@ -123,7 +123,7 @@ class SettingsPanel(QWidget):
         preferences_layout.addLayout(preferences_buttons_layout)
 
         ## Interval
-        self.interval_label = QLabel("Default Interval")
+        self.interval_label = QLabel("Default Interval:")
         self.default_layout.addWidget(self.interval_label, 0, 0)
         
         self.interval_input = QSpinBox()
@@ -131,7 +131,7 @@ class SettingsPanel(QWidget):
         self.default_layout.addWidget(self.interval_input, 0, 1)
         
         ## Control Dropdown
-        self.capture_method_label = QLabel("Default Capture Method")
+        self.capture_method_label = QLabel("Default Capture Method:")
         self.default_layout.addWidget(self.capture_method_label, 1, 0)
         
         self.capture_method_dropdown = QComboBox()
@@ -140,7 +140,7 @@ class SettingsPanel(QWidget):
         self.default_layout.addWidget(self.capture_method_dropdown, 1, 1)
 
         ## Source Dropdown
-        self.source_label = QLabel("Default Source")
+        self.source_label = QLabel("Default Source:")
         self.default_layout.addWidget(self.source_label, 2, 0)
 
         self.source_dropdown = QComboBox()
@@ -148,25 +148,25 @@ class SettingsPanel(QWidget):
         self.default_layout.addWidget(self.source_dropdown, 2, 1)
 
         ## Coords Layout
-        self.x_label = QLabel("Default X Coordinate")
+        self.x_label = QLabel("Default X Coordinate:")
         self.default_layout.addWidget(self.x_label, 3, 0)
 
         self.x_coords = QSpinBox()
         self.default_layout.addWidget(self.x_coords, 3, 1)
 
-        self.y_label = QLabel("Default Y Coordinate")
+        self.y_label = QLabel("Default Y Coordinate:")
         self.default_layout.addWidget(self.y_label, 4, 0)
 
         self.y_coords = QSpinBox()
         self.default_layout.addWidget(self.y_coords, 4, 1)
 
-        self.width_label = QLabel("Default Width")
+        self.width_label = QLabel("Default Width:")
         self.default_layout.addWidget(self.width_label, 5, 0)
 
         self.width_dimension = QSpinBox()
         self.default_layout.addWidget(self.width_dimension, 5, 1)
 
-        self.height_label = QLabel("Default Height")
+        self.height_label = QLabel("Default Height:")
         self.default_layout.addWidget(self.height_label, 6, 0)
 
         self.height_dimension = QSpinBox()
@@ -180,7 +180,7 @@ class SettingsPanel(QWidget):
         preferences_layout.addWidget(self.default_container)
 
         # Audio
-        self.audio_label = QLabel("Default Audio")
+        self.audio_label = QLabel("Default Audio:")
         self.default_layout.addWidget(self.audio_label, 7, 0)
 
         self.audio_dropdown = QComboBox()
@@ -240,8 +240,8 @@ class SettingsPanel(QWidget):
         self.delete_button.clicked.connect(self.deleteEvent)
         delete_layout.addWidget(self.delete_button)
         
-        # Cancel & Save Buttons
-        self.cancel_button = QPushButton("Cancel")
+        # Close & Save Buttons
+        self.cancel_button = QPushButton("Close")
         self.cancel_button.clicked.connect(self._on_cancel)
         action_layout.addWidget(self.cancel_button)
         

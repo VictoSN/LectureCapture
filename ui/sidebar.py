@@ -1,10 +1,11 @@
 from PyQt6.QtWidgets import (
-    QWidget, QListWidget, QVBoxLayout, QPushButton, QLineEdit, QComboBox, QListWidgetItem, QHBoxLayout
+    QWidget, QListWidget, QVBoxLayout, QLineEdit, QComboBox, QListWidgetItem, QHBoxLayout
 )
-from PyQt6.QtCore import pyqtSignal, QSize
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QIcon
 
 from models.lecture import Session
+from ui.widgets import create_button
 from ui.session_card import SessionCard
 
 class Sidebar(QWidget):
@@ -26,11 +27,13 @@ class Sidebar(QWidget):
         self.session_search.textChanged.connect(self.search_changed)
         search_layout.addWidget(self.session_search)
         
-        self.filter_button = QPushButton()
-        self.filter_button.setIcon(QIcon(str(icons_dir / 'filter.svg')))
-        self.filter_button.setIconSize(QSize(18, 18))
-        self.filter_button.setFixedSize(30, 30)
-        self.filter_button.clicked.connect(self._show_filter)
+        self.session_search.setClearButtonEnabled(True)
+        self.session_search.addAction(
+            QIcon(str(icons_dir / "search.svg")),
+            QLineEdit.ActionPosition.LeadingPosition
+        )
+        
+        self.filter_button = create_button('filter.svg', icons_dir, self._show_filter)
         search_layout.addWidget(self.filter_button)
         
         self.session_category = QComboBox()

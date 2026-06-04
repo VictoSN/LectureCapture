@@ -21,7 +21,7 @@ class PropertiesPanel(QWidget):
 
         # Input Fields
         ## Name
-        session_name_label = QLabel("Session Name")
+        session_name_label = QLabel("Session Name:")
         grid_layout.addWidget(session_name_label, 0, 0)
         
         self.session_name = QLineEdit()
@@ -29,7 +29,7 @@ class PropertiesPanel(QWidget):
         grid_layout.addWidget(self.session_name, 0, 1)
 
         ## Session Category
-        session_category_label = QLabel("Session Category")
+        session_category_label = QLabel("Session Category:")
         grid_layout.addWidget(session_category_label, 1, 0)
 
         self.session_category = QComboBox()
@@ -37,7 +37,7 @@ class PropertiesPanel(QWidget):
         grid_layout.addWidget(self.session_category, 1, 1)
 
         ## Group Category
-        group_category_label = QLabel("Group Category")
+        group_category_label = QLabel("Group Category:")
         grid_layout.addWidget(group_category_label, 2, 0)
         
         self.group_category = QLineEdit()
@@ -45,28 +45,28 @@ class PropertiesPanel(QWidget):
         grid_layout.addWidget(self.group_category, 2, 1)
 
         # Date Recorded
-        date_recorded_label = QLabel("Date Recorded")
+        date_recorded_label = QLabel("Date Recorded:")
         grid_layout.addWidget(date_recorded_label, 3, 0)
 
         self.date_recorded = QLabel(FormatDetailedTime(session.date_recorded))
         grid_layout.addWidget(self.date_recorded, 3, 1)
 
         # Date Modified
-        date_modified_label = QLabel("Date Modified")
+        date_modified_label = QLabel("Date Modified:")
         grid_layout.addWidget(date_modified_label, 4, 0)
         
         self.date_modified = QLabel(FormatDetailedTime(session.date_modified))
         grid_layout.addWidget(self.date_modified, 4, 1)
         
         # Summary Generated
-        summary_generated_label = QLabel("Summary Generated")
+        summary_generated_label = QLabel("Summary Generated:")
         grid_layout.addWidget(summary_generated_label, 5, 0)
         
-        self.summary_generated = QLabel(FormatDetailedTime(session.summary_generated_at) or "")
+        self.summary_generated = QLabel(FormatDetailedTime(session.summary_generated_at) or "None")
         grid_layout.addWidget(self.summary_generated, 5, 1)
 
         # Actions Buttons
-        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button = QPushButton("Close")
         self.cancel_button.clicked.connect(self.cancel_clicked)
         button_layout.addWidget(self.cancel_button)
 
