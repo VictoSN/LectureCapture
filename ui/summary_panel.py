@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QTextEdit
 from PyQt6.QtCore import pyqtSignal, QTimer
 
-from ui.widgets import create_label, create_button
+from ui.styles import create_label, create_button
 
 class SummaryPanel(QWidget):
     summarize_clicked = pyqtSignal()
@@ -14,10 +14,10 @@ class SummaryPanel(QWidget):
         header = QHBoxLayout()
 
         # Header Layout        
-        summary_w, self.summarize_engine_label = create_label('summarize.svg', 'AI summary', icons_dir)
+        summary_w, self.summarize_engine_label = create_label(icons_dir / 'summarize.svg', 'AI summary')
         header.addWidget(summary_w)
         
-        self.summary_button = create_button('sparkle.svg', icons_dir, self.summarize_clicked, text="Summarize", width=130, icon_size=14)
+        self.summary_button = create_button(icons_dir / 'sparkle.svg', self.summarize_clicked, text="Summarize", width=130, icon_size=14)
         header.addWidget(self.summary_button)
 
         # Summary        

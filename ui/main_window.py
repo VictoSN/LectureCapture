@@ -26,9 +26,8 @@ from ui.settings_panel import SettingsPanel
 
 BASE_DIR = Path(__file__).resolve().parent
 BUNDLED_SOUNDS_DIR = BASE_DIR.parent / 'assets' / 'sound_effects'
-LIGHT_ICONS_DIR = BASE_DIR.parent / 'assets' / 'light_icons'
-DARK_ICONS_DIR = BASE_DIR.parent / 'assets' / 'dark_icons'
-ICONS_DIR = LIGHT_ICONS_DIR
+ICONS_DIR = BASE_DIR.parent / 'assets' / 'icons'
+THEMES_DIR = BASE_DIR.parent / 'assets' / 'themes'
 APP_ICON_PATH = BASE_DIR.parent / 'assets' / 'icons' / 'LectureCapture.png'
 
 class MainWindow(FramelessMainWindow):
@@ -109,7 +108,7 @@ class MainWindow(FramelessMainWindow):
         self.new_session_panel.setVisible(False)
         
         # Init the settings, and hide it
-        self.settings_panel = SettingsPanel(sessions, self.storage.base_dir, BUNDLED_SOUNDS_DIR, ICONS_DIR)
+        self.settings_panel = SettingsPanel(sessions, self.storage.base_dir, BUNDLED_SOUNDS_DIR, ICONS_DIR, THEMES_DIR)
         self.settings_panel.sound_effects_changed.connect(self.on_sound_effects_changed)
         self.settings_panel.export_clicked.connect(self.on_export_clicked)
         self.settings_panel.import_clicked.connect(self.on_import_clicked)

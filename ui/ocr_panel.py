@@ -6,7 +6,7 @@ from PyQt6.QtGui import QPixmap, QGuiApplication
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 
 from models.lecture import OCRCapture
-from ui.widgets import create_label
+from ui.styles import create_label
 from ui.scalable_image_label import ScalableImageLabel
 
 from pathlib import Path
@@ -23,7 +23,7 @@ class OCRPanel(QWidget):
         self.is_locked = True
 
         # Header Layout
-        ocr_w, self.ocr_engine_label = create_label('scan.svg', 'Screen OCR', icons_dir)
+        ocr_w, self.ocr_engine_label = create_label(icons_dir / 'scan.svg', 'Screen OCR')
         header.addWidget(ocr_w)
         
         self.ocr_button = QPushButton("Locked")

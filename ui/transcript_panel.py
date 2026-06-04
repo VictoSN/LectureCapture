@@ -5,7 +5,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QShortcut, QKeySequence
 
 from models.lecture import Session, OCRCapture
-from ui.widgets import create_label, create_button
+from ui.styles import create_label, create_button
 from ui.ocr_panel import OCRPanel
 from ui.speech_panel import SpeechPanel
 from ui.summary_panel import SummaryPanel
@@ -30,22 +30,22 @@ class TranscriptPanel(QWidget):
         self.session_name.setText("Select a session")
         header.addWidget(self.session_name)
 
-        self.properties_button = create_button('info.svg', icons_dir, self.properties_clicked)
+        self.properties_button = create_button(icons_dir / 'info.svg', self.properties_clicked)
         header.addWidget(self.properties_button)
 
-        self.sync_scroll_button = create_button('lock.svg', icons_dir, self._toggle_sync_scroll)
+        self.sync_scroll_button = create_button(icons_dir / 'lock.svg', self._toggle_sync_scroll)
         header.addWidget(self.sync_scroll_button)
 
-        self.ocr_visibility_button = create_button('scan.svg', icons_dir, lambda: self._panel_visibility(self.ocr_panel))
+        self.ocr_visibility_button = create_button(icons_dir / 'scan.svg', lambda: self._panel_visibility(self.ocr_panel))
         header.addWidget(self.ocr_visibility_button)
 
-        self.speech_visibility_button = create_button('microphone.svg', icons_dir, lambda: self._panel_visibility(self.speech_panel))
+        self.speech_visibility_button = create_button(icons_dir / 'microphone.svg', lambda: self._panel_visibility(self.speech_panel))
         header.addWidget(self.speech_visibility_button)
 
-        self.summary_visibility_button = create_button('summarize.svg', icons_dir, lambda: self._panel_visibility(self.summary_panel))
+        self.summary_visibility_button = create_button(icons_dir / 'summarize.svg', lambda: self._panel_visibility(self.summary_panel))
         header.addWidget(self.summary_visibility_button)
 
-        self.record_button = create_button('red_dot.svg', icons_dir, self.record_clicked, text="Record", width=120)
+        self.record_button = create_button(icons_dir / 'red_dot.svg', self.record_clicked, text="Record", width=120)
         header.addWidget(self.record_button)
 
         # Splitter Layout for content
@@ -60,11 +60,11 @@ class TranscriptPanel(QWidget):
         self.splitter.setSizes([100, 100, 100]) # 1 : 4 ratio
 
         # Info Footer
-        clock_w, self.recording_time_label = create_label('clock.svg', '00:00', icons_dir)
-        saved_w, self.saved_label = create_label('save.svg', 'Saved', icons_dir)
-        ocr_w, self.ocr_engine_label = create_label('scan.svg', 'pytesseract', icons_dir)
-        speech_w, self.speech_engine_label = create_label('microphone.svg', 'faster-whisper', icons_dir)
-        summary_w, self.summarize_engine_label = create_label('summarize.svg', 'sumy', icons_dir)
+        clock_w, self.recording_time_label = create_label(icons_dir / 'clock.svg', '00:00')
+        saved_w, self.saved_label = create_label(icons_dir / 'save.svg', 'Saved')
+        ocr_w, self.ocr_engine_label = create_label(icons_dir / 'scan.svg', 'pytesseract')
+        speech_w, self.speech_engine_label = create_label(icons_dir / 'microphone.svg', 'faster-whisper')
+        summary_w, self.summarize_engine_label = create_label(icons_dir / 'summarize.svg', 'sumy')
 
         for w in [clock_w, saved_w, ocr_w, speech_w, summary_w]:
             footer.addWidget(w)

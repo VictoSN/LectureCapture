@@ -5,7 +5,7 @@ from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QIcon
 
 from models.lecture import Session
-from ui.widgets import create_button
+from ui.styles import create_button, load_icon
 from ui.session_card import SessionCard
 
 class Sidebar(QWidget):
@@ -29,11 +29,11 @@ class Sidebar(QWidget):
         
         self.session_search.setClearButtonEnabled(True)
         self.session_search.addAction(
-            QIcon(str(icons_dir / "search.svg")),
+            load_icon(str(icons_dir / "search.svg")),
             QLineEdit.ActionPosition.LeadingPosition
         )
         
-        self.filter_button = create_button('filter.svg', icons_dir, self._show_filter)
+        self.filter_button = create_button(icons_dir / 'filter.svg', self._show_filter)
         search_layout.addWidget(self.filter_button)
         
         self.session_category = QComboBox()

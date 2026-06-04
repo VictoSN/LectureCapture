@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel
 
-from ui.widgets import create_button
+from ui.styles import create_button
 
 from qframelesswindow import TitleBar
 
@@ -33,11 +33,11 @@ class CustomTitleBar(TitleBar):
         self.title_label = QLabel("LectureCapture")
         self.title_label.setContentsMargins(10, 0, 0, 0)
         
-        self.new_session_button = create_button('plus.svg', icons_dir)
+        self.new_session_button = create_button(icons_dir / 'plus.svg')
 
-        self.settings_button = create_button('settings.svg', icons_dir)
+        self.settings_button = create_button(icons_dir / 'settings.svg')
 
-        self.help_button = create_button('question.svg', icons_dir, self._show_shortcuts, icon_size=22)
+        self.help_button = create_button(icons_dir / 'question.svg', self._show_shortcuts, icon_size=22)
         
         # Insert before the min/max/close buttons
         self.hBoxLayout.insertWidget(0, self.title_label)

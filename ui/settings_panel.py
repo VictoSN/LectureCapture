@@ -9,9 +9,8 @@ from PyQt6.QtMultimedia import QSoundEffect
 from PyQt6.QtGui import QShortcut, QKeySequence
 
 from models.lecture import Session
-from ui.widgets import create_button, create_button_label
 from ui.setup_recording import setup_source, setup_audio, update_coord_ranges
-from ui.styles import apply_theme
+from ui.styles import apply_theme, create_button, create_button_label, get_system_theme, refresh_icons
 
 from pathlib import Path
 
@@ -22,7 +21,7 @@ class SettingsPanel(QWidget):
     cancel_clicked = pyqtSignal()
     delete_clicked = pyqtSignal()
     
-    def __init__(self, sessions, base_dir, bundled_sounds_dir, icons_dir) -> None:
+    def __init__(self, sessions, base_dir, bundled_sounds_dir, icons_dir, themes_dir) -> None:
         super().__init__()
         outer_layout = QVBoxLayout()
         outer_layout.setContentsMargins(0, 0, 0, 0)
@@ -69,6 +68,7 @@ class SettingsPanel(QWidget):
         self.settings = QSettings("LectureCapture", "LectureCapture")
         self.base_dir = base_dir
         self.bundled_sounds_dir = bundled_sounds_dir
+        self.themes_dir = themes_dir
 
         # Header Layout
         self.settings_name = QLabel("Settings")
@@ -78,10 +78,10 @@ class SettingsPanel(QWidget):
         processing_label = QLabel("Processing Location")
         processing_layout.addWidget(processing_label)
         
-        self.local_button = create_button_label("local.svg", icons_dir, "Local", lambda: self.set_proc_mode("local"))
+        self.local_button = create_button_label(icons_dir / "local.svg", "Local", lambda: self.set_proc_mode("local"))
         processing_button_layout.addWidget(self.local_button)
 
-        self.api_button = create_button_label("server.svg", icons_dir, "API", lambda: self.set_proc_mode("api"))
+        self.api_button = create_button_label(icons_dir / "server.svg", "API", lambda: self.set_proc_mode("api"))
         processing_button_layout.addWidget(self.api_button)
         processing_layout.addLayout(processing_button_layout)
         
@@ -108,13 +108,14 @@ class SettingsPanel(QWidget):
         theme_label = QLabel("Application Theme")
         theme_layout.addWidget(theme_label)
         
-        self.auto_button = create_button_label("dark_mode.svg", icons_dir, "Automatic", lambda: self.set_theme("auto"))
+        theme = get_system_theme()
+        self.auto_button = create_button_label(icons_dir / f"{theme}_mode.svg", "Automatic", lambda: self.set_theme("auto"))
         theme_buttons_layout.addWidget(self.auto_button)
         
-        self.light_button = create_button_label("light_mode.svg", icons_dir, "Light Theme", lambda: self.set_theme("light"))
+        self.light_button = create_button_label(icons_dir / "light_mode.svg", "Light Theme", lambda: self.set_theme("light"))
         theme_buttons_layout.addWidget(self.light_button)
 
-        self.dark_button = create_button_label("dark_mode.svg", icons_dir, "Dark Theme", lambda: self.set_theme("dark"))
+        self.dark_button = create_button_label(icons_dir / "dark_mode.svg", "Dark Theme", lambda: self.set_theme("dark"))
         theme_buttons_layout.addWidget(self.dark_button)
         theme_layout.addLayout(theme_buttons_layout)
         
@@ -122,13 +123,13 @@ class SettingsPanel(QWidget):
         preferences_label = QLabel("Recording Preferences")
         preferences_layout.addWidget(preferences_label)
         
-        self.last_button = create_button_label("history.svg", icons_dir, "Last Used", lambda: self.set_pref_mode("last"))
+        self.last_button = create_button_label(icons_dir / "history.svg", "Last Used", lambda: self.set_pref_mode("last"))
         preferences_buttons_layout.addWidget(self.last_button)
 
-        self.default_button = create_button_label("sliders.svg", icons_dir, "Default", lambda: self.set_pref_mode("default"))
+        self.default_button = create_button_label(icons_dir / "sliders.svg", "Default", lambda: self.set_pref_mode("default"))
         preferences_buttons_layout.addWidget(self.default_button)
 
-        self.clear_button = create_button_label("clear.svg", icons_dir, "Empty", lambda: self.set_pref_mode("empty"))
+        self.clear_button = create_button_label(icons_dir / "clear.svg", "Empty", lambda: self.set_pref_mode("empty"))
         preferences_buttons_layout.addWidget(self.clear_button)
         preferences_layout.addLayout(preferences_buttons_layout)
 
@@ -204,7 +205,7 @@ class SettingsPanel(QWidget):
         self.start_sound_dropdown = QComboBox()
         sound_grid_layout.addWidget(self.start_sound_dropdown, 0, 1)
         
-        self.start_sound_button = create_button("play.svg", icons_dir, lambda: self.play_sound(self.start_sound_dropdown), width=90)
+        self.start_sound_button = create_button(icons_dir / "play.svg", lambda: self.play_sound(self.start_sound_dropdown), width=90)
         sound_grid_layout.addWidget(self.start_sound_button, 0, 2)
 
         stop_sound_label = QLabel("Stop Recording Sound")
@@ -213,13 +214,13 @@ class SettingsPanel(QWidget):
         self.stop_sound_dropdown = QComboBox()
         sound_grid_layout.addWidget(self.stop_sound_dropdown, 1, 1)
         
-        self.stop_sound_button = create_button("play.svg", icons_dir, lambda: self.play_sound(self.stop_sound_dropdown), width=90)
+        self.stop_sound_button = create_button(icons_dir / "play.svg", lambda: self.play_sound(self.stop_sound_dropdown), width=90)
         sound_grid_layout.addWidget(self.stop_sound_button, 1, 2)
 
         sound_import_label = QLabel("Import Sound")
         sound_grid_layout.addWidget(sound_import_label, 2, 0)
         
-        sound_import_button = create_button("import.svg", icons_dir, self.import_sound, width=90)
+        sound_import_button = create_button(icons_dir / "import.svg", self.import_sound, width=90)
         sound_grid_layout.addWidget(sound_import_button, 2, 2)
         
         # Export & Import Sessions
@@ -229,13 +230,13 @@ class SettingsPanel(QWidget):
         self.export_dropdown = QComboBox()
         export_layout.addWidget(self.export_dropdown)
         
-        self.export_button = create_button("export.svg", icons_dir, lambda: self.export_clicked.emit(self.export_dropdown.currentData()), width=90)
+        self.export_button = create_button(icons_dir / "export.svg", lambda: self.export_clicked.emit(self.export_dropdown.currentData()), width=90)
         export_layout.addWidget(self.export_button)
         
         import_label = QLabel("Import Session")
         import_layout.addWidget(import_label)
         
-        self.import_button = create_button("import.svg", icons_dir, self.import_clicked.emit, width=90)
+        self.import_button = create_button(icons_dir / "import.svg", self.import_clicked.emit, width=90)
         import_layout.addWidget(self.import_button)
         
         delete_label = QLabel("Delete All Session")
@@ -431,8 +432,9 @@ class SettingsPanel(QWidget):
     
     def set_theme(self, theme: str) -> None:
         self.theme = theme
-        apply_theme(theme)
-    
+        apply_theme(theme, self.themes_dir)
+        refresh_icons(self)  
+
     def _set_dropdown(self, dropdown: QComboBox, path: str, default: str) -> None:
         resolved = path if path and Path(path).exists() else default
         idx = dropdown.findData(resolved)
@@ -449,4 +451,3 @@ class SettingsPanel(QWidget):
             return
         else:
             self.delete_clicked.emit()
-            print('test')
