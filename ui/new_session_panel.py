@@ -49,6 +49,7 @@ class NewSessionPanel(QWidget):
         button_layout.addWidget(self.create_button)
 
         main_layout.addLayout(grid_layout)
+        main_layout.addStretch()
         main_layout.addLayout(button_layout)
         self.setLayout(main_layout)
         

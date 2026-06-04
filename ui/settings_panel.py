@@ -1,7 +1,8 @@
 import shutil
 
 from PyQt6.QtWidgets import (
-    QWidget, QLabel, QPushButton, QComboBox, QVBoxLayout, QHBoxLayout, QGridLayout, QSpinBox, QFileDialog, QLineEdit, QMessageBox
+    QWidget, QLabel, QPushButton, QComboBox, QVBoxLayout, QHBoxLayout, QGridLayout, QSpinBox, 
+    QFileDialog, QLineEdit, QMessageBox, QScrollArea
 )
 from PyQt6.QtCore import pyqtSignal, QSettings, QUrl, Qt
 from PyQt6.QtMultimedia import QSoundEffect
@@ -23,8 +24,22 @@ class SettingsPanel(QWidget):
     
     def __init__(self, sessions, base_dir, bundled_sounds_dir, icons_dir) -> None:
         super().__init__()
-        main_layout = QVBoxLayout()
+        outer_layout = QVBoxLayout()
+        outer_layout.setContentsMargins(0, 0, 0, 0)
         
+        # Scroll area
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        
+        # Inner widget holds all the content
+        inner = QWidget()
+        main_layout = QVBoxLayout(inner)
+        
+        scroll.setWidget(inner)
+        outer_layout.addWidget(scroll)
+        self.setLayout(outer_layout)
+            
         # Processing
         processing_layout = QVBoxLayout()
         processing_button_layout = QHBoxLayout()
@@ -106,7 +121,6 @@ class SettingsPanel(QWidget):
         preferences_label = QLabel("Recording Preferences")
         preferences_layout.addWidget(preferences_label)
         
-        
         self.last_button = create_button_label("history.svg", icons_dir, "Last Used", lambda: self.set_pref_mode("last"))
         preferences_buttons_layout.addWidget(self.last_button)
 
@@ -120,15 +134,15 @@ class SettingsPanel(QWidget):
         ## Interval
         self.interval_label = QLabel("Default Interval:")
         self.default_layout.addWidget(self.interval_label, 0, 0)
-        
+
         self.interval_input = QSpinBox()
         self.interval_input.setRange(1, 30)
         self.default_layout.addWidget(self.interval_input, 0, 1)
-        
+
         ## Control Dropdown
         self.capture_method_label = QLabel("Default Capture Method:")
         self.default_layout.addWidget(self.capture_method_label, 1, 0)
-        
+
         self.capture_method_dropdown = QComboBox()
         self.capture_method_dropdown.addItems(["Mouse Select", "Coordinates", "Full Window"])
         self.capture_method_dropdown.currentTextChanged.connect(self.update_ui)
@@ -167,20 +181,20 @@ class SettingsPanel(QWidget):
         self.height_dimension = QSpinBox()
         self.default_layout.addWidget(self.height_dimension, 6, 1)
 
-        self.source_dropdown.currentIndexChanged.connect(self._on_source_changed)
-        self._on_source_changed()
-
-        self.default_container = QWidget()
-        self.default_container.setLayout(self.default_layout)
-        preferences_layout.addWidget(self.default_container)
-
-        # Audio
+        ## Audio
         self.audio_label = QLabel("Default Audio:")
         self.default_layout.addWidget(self.audio_label, 7, 0)
 
         self.audio_dropdown = QComboBox()
         setup_audio(self.audio_dropdown, icons_dir)
         self.default_layout.addWidget(self.audio_dropdown, 7, 1)
+
+        self.source_dropdown.currentIndexChanged.connect(self._on_source_changed)
+        self._on_source_changed()
+
+        self.default_container = QWidget()
+        self.default_container.setLayout(self.default_layout)
+        preferences_layout.addWidget(self.default_container)
         
         # Start & Stop sound effects
         sound_label = QLabel("Sound Effects")
@@ -262,6 +276,7 @@ class SettingsPanel(QWidget):
         main_layout.addLayout(export_layout)
         main_layout.addLayout(import_layout)
         main_layout.addLayout(delete_layout)
+        main_layout.addStretch()
         main_layout.addLayout(action_layout)
         self.setLayout(main_layout)
 

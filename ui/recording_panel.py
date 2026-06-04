@@ -103,6 +103,7 @@ class RecordingPanel(QWidget):
         action_layout.addWidget(start_button)
 
         main_layout.addLayout(preferences_layout)
+        main_layout.addStretch()
         main_layout.addLayout(action_layout)
         self.setLayout(main_layout)
         

@@ -83,6 +83,7 @@ class PropertiesPanel(QWidget):
         button_layout.addWidget(self.save_button)
 
         main_layout.addLayout(grid_layout)
+        main_layout.addStretch()
         main_layout.addLayout(button_layout)
         self.setLayout(main_layout)
 
