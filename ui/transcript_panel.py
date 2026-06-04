@@ -85,6 +85,23 @@ class TranscriptPanel(QWidget):
 
     def _panel_visibility(self, panel: QWidget):
         panel.setVisible(not panel.isVisible())
+        self._rebalance_splitter()
+
+    def _rebalance_splitter(self):
+        panels = [self.ocr_panel, self.speech_panel, self.summary_panel]
+        visible = [p for p in panels if p.isVisible()]
+
+        if not visible:
+            return
+
+        total = self.splitter.width()
+        share = total // len(visible)
+
+        sizes = []
+        for p in panels:
+            sizes.append(share if p.isVisible() else 0)
+
+        self.splitter.setSizes(sizes)
 
     def load_session(self, session: Session, captures: OCRCapture) -> None:
         self.set_session_locked(False)

@@ -14,6 +14,10 @@ class NewSessionPanel(QWidget):
         grid_layout = QGridLayout()
         button_layout = QHBoxLayout()
 
+        # Panel Label
+        self.new_session_name = QLabel("New Session")
+        main_layout.addWidget(self.new_session_name)
+
         # Input Fields
         ## Name
         session_name_label = QLabel("Session Name:")

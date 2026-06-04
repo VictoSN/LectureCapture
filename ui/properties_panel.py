@@ -19,6 +19,10 @@ class PropertiesPanel(QWidget):
         grid_layout = QGridLayout()
         button_layout = QHBoxLayout()
 
+        # Panel Label
+        self.properties_name = QLabel("Properties")
+        main_layout.addWidget(self.properties_name)
+
         # Input Fields
         ## Name
         session_name_label = QLabel("Session Name:")

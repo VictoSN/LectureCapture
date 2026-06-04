@@ -1,12 +1,13 @@
 from PyQt6.QtWidgets import (
     QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QScrollArea, QLabel,
-    QTextEdit
+    QTextEdit, QSplitter, QDialog
 )
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QPixmap, QGuiApplication
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 
 from models.lecture import OCRCapture
 from ui.widgets import create_label
+from ui.scalable_image_label import ScalableImageLabel
 
 from pathlib import Path
 
@@ -43,50 +44,74 @@ class OCRPanel(QWidget):
 
     def _create_capture_widget(self, capture: OCRCapture) -> QWidget:
         capture_widget = QWidget()
-        capture_layout = QVBoxLayout()
-        
-        # OCR Image
-        capture_image = QLabel()
-        capture_layout.addWidget(capture_image)
-        
-        pixmap = QPixmap(str(Path(self.base_dir) / 'sessions' / str(capture.session_id) / 'captures' / capture.image_path))
-        
-        # Check if image Exist
-        if pixmap.isNull():
-            capture_image.setText("[No image]")
-        else:
-            capture_image.setPixmap(pixmap)
-        capture_image.setAlignment(Qt.AlignmentFlag.AlignTop)
+        capture_layout = QVBoxLayout(capture_widget)
+        capture_widget.setFixedHeight(300)
+        capture_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Timestamp & Extracted ocr text
+        # Timestamp
         capture_timestamp = QLabel(f"{capture.timestamp:.2f}s")
         capture_layout.addWidget(capture_timestamp)
-        
+
+        # Vertical splitter
+        splitter = QSplitter(Qt.Orientation.Vertical)
+
+        # Image
+        image_path = str(Path(self.base_dir) / 'sessions' / str(capture.session_id) / 'captures' / capture.image_path)
+        pixmap = QPixmap(image_path)
+
+        if pixmap.isNull():
+            capture_image = QLabel("[No image]")
+            capture_image.setAlignment(Qt.AlignmentFlag.AlignTop)
+        else:
+            capture_image = ScalableImageLabel(pixmap)
+            capture_image.setCursor(Qt.CursorShape.PointingHandCursor)
+            capture_image.mousePressEvent = lambda _: self._show_full_image(pixmap)
+
+        splitter.addWidget(capture_image)
+
+        # Text
         ocr_text = QTextEdit()
         ocr_text.blockSignals(True)
         ocr_text.setPlainText(capture.extracted_text or "")
         ocr_text.blockSignals(False)
         ocr_text.setReadOnly(self.is_locked)
-        
-        # Update after 500ms
+        ocr_text.setMaximumHeight(300)
+        splitter.addWidget(ocr_text)
+
+        splitter.setSizes([200, 300])
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 1)
+
+        capture_layout.addWidget(splitter, stretch=1)
+
+        # Timer
         timer = QTimer(ocr_text)
         timer.setSingleShot(True)
         ocr_text._save_timer = timer
-        
         ocr_text.textChanged.connect(self.immediate_change)
         ocr_text.textChanged.connect(lambda: ocr_text._save_timer.start(500))
-
         ocr_text._save_timer.timeout.connect(
             lambda cap_id=capture.id, w=ocr_text:
                 self.ocr_text_changed.emit(cap_id, w.toPlainText())
         )
-        
-        capture_layout.addWidget(ocr_text)
-        
-        capture_widget.setProperty("capture_id", capture.id)
-        capture_widget.setLayout(capture_layout)
-        return capture_widget # Return to load and add methods
 
+        capture_widget.setProperty("capture_id", capture.id)
+        return capture_widget
+
+    def _show_full_image(self, pixmap: QPixmap) -> None:
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Image Preview")
+        layout = QVBoxLayout(dialog)
+        label = QLabel()
+        screen = QGuiApplication.primaryScreen().availableGeometry()
+        label.setPixmap(pixmap.scaled(
+            int(screen.width() * 0.8), int(screen.height() * 0.8),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        ))
+        layout.addWidget(label)
+        dialog.exec()
+    
     def clear_captures(self) -> None:
         # Clear out the layout first
         while self.feed_layout.count():

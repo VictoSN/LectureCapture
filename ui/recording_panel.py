@@ -15,16 +15,18 @@ class RecordingPanel(QWidget):
     def __init__(self, icons_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
-        preferences_layout = QVBoxLayout()
         self.default_layout = QGridLayout()
         action_layout = QHBoxLayout()
         
         self.settings = QSettings("LectureCapture", "LectureCapture")
         self.reload_state()
 
+        # Panel Label
+        self.recording_name = QLabel("Recording")
+        main_layout.addWidget(self.recording_name)
+
         # Input Fields
         # Used QSpinBox for integer validation
-        
         ## Interval
         self.interval_label = QLabel("Interval:")
         self.default_layout.addWidget(self.interval_label, 0, 0)
@@ -78,10 +80,6 @@ class RecordingPanel(QWidget):
         self.source_dropdown.currentIndexChanged.connect(self._on_source_changed)
         self._on_source_changed()
 
-        self.default_container = QWidget()
-        self.default_container.setLayout(self.default_layout)
-        preferences_layout.addWidget(self.default_container)
-
         # Audio
         self.audio_label = QLabel("Audio:")
         self.default_layout.addWidget(self.audio_label, 7, 0)
@@ -102,7 +100,7 @@ class RecordingPanel(QWidget):
         start_button.clicked.connect(self.try_record)
         action_layout.addWidget(start_button)
 
-        main_layout.addLayout(preferences_layout)
+        main_layout.addLayout(self.default_layout)
         main_layout.addStretch()
         main_layout.addLayout(action_layout)
         self.setLayout(main_layout)

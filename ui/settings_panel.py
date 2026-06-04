@@ -26,20 +26,22 @@ class SettingsPanel(QWidget):
         super().__init__()
         outer_layout = QVBoxLayout()
         outer_layout.setContentsMargins(0, 0, 0, 0)
-        
-        # Scroll area
+
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        
-        # Inner widget holds all the content
-        inner = QWidget()
-        main_layout = QVBoxLayout(inner)
-        
-        scroll.setWidget(inner)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        content = QWidget()
+        content.setMinimumWidth(400)
+        main_layout = QVBoxLayout(content)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(10)
+
+        scroll.setWidget(content)
         outer_layout.addWidget(scroll)
         self.setLayout(outer_layout)
-            
+        
         # Processing
         processing_layout = QVBoxLayout()
         processing_button_layout = QHBoxLayout()
@@ -55,7 +57,6 @@ class SettingsPanel(QWidget):
         self.default_layout = QGridLayout()
         
         # Sound Effects
-        sound_layout = QVBoxLayout()
         sound_grid_layout = QGridLayout()
         
         # Exports & Import
@@ -197,10 +198,7 @@ class SettingsPanel(QWidget):
         preferences_layout.addWidget(self.default_container)
         
         # Start & Stop sound effects
-        sound_label = QLabel("Sound Effects")
-        sound_layout.addWidget(sound_label)
-        
-        start_sound_label = QLabel("Start Recording Sound Effects")
+        start_sound_label = QLabel("Start Recording Sound")
         sound_grid_layout.addWidget(start_sound_label, 0, 0)
         
         self.start_sound_dropdown = QComboBox()
@@ -209,7 +207,7 @@ class SettingsPanel(QWidget):
         self.start_sound_button = create_button("play.svg", icons_dir, lambda: self.play_sound(self.start_sound_dropdown), width=90)
         sound_grid_layout.addWidget(self.start_sound_button, 0, 2)
 
-        stop_sound_label = QLabel("Stop Recording Sound Effects")
+        stop_sound_label = QLabel("Stop Recording Sound")
         sound_grid_layout.addWidget(stop_sound_label, 1, 0)
         
         self.stop_sound_dropdown = QComboBox()
@@ -223,7 +221,6 @@ class SettingsPanel(QWidget):
         
         sound_import_button = create_button("import.svg", icons_dir, self.import_sound, width=90)
         sound_grid_layout.addWidget(sound_import_button, 2, 2)
-        sound_layout.addLayout(sound_grid_layout)
         
         # Export & Import Sessions
         export_label = QLabel("Export Session")
@@ -272,13 +269,12 @@ class SettingsPanel(QWidget):
         main_layout.addLayout(processing_layout)
         main_layout.addLayout(theme_layout)
         main_layout.addLayout(preferences_layout)
-        main_layout.addLayout(sound_layout)
+        main_layout.addLayout(sound_grid_layout)
         main_layout.addLayout(export_layout)
         main_layout.addLayout(import_layout)
         main_layout.addLayout(delete_layout)
         main_layout.addStretch()
         main_layout.addLayout(action_layout)
-        self.setLayout(main_layout)
 
         self.setup_sound_effects() # Populate dropdowns first
         self.load_settings() # Set values for the dropdown
