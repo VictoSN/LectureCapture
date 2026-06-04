@@ -25,6 +25,7 @@ from ui.recording_panel import RecordingPanel
 from ui.settings_panel import SettingsPanel
 
 BASE_DIR = Path(__file__).resolve().parent
+BUNDLED_SOUNDS_DIR = BASE_DIR.parent / 'assets' / 'sound_effects'
 LIGHT_ICONS_DIR = BASE_DIR.parent / 'assets' / 'light_icons'
 DARK_ICONS_DIR = BASE_DIR.parent / 'assets' / 'dark_icons'
 ICONS_DIR = LIGHT_ICONS_DIR
@@ -55,8 +56,8 @@ class MainWindow(FramelessMainWindow):
         self.move(frame.topLeft())
         
         # Default Sound Effects
-        self.DEFAULT_START_SOUND = str(Path(self.storage.base_dir) / 'sound_effects' / 'Beep 1 (Default).wav')
-        self.DEFAULT_STOP_SOUND = str(Path(self.storage.base_dir) / 'sound_effects' / 'Chirp 1 (Default).wav')
+        self.DEFAULT_START_SOUND = str(BUNDLED_SOUNDS_DIR / 'Beep 1 (Default).wav')
+        self.DEFAULT_STOP_SOUND = str(BUNDLED_SOUNDS_DIR / 'Chirp 1 (Default).wav')
 
         start_path = self.settings.value("start_sound", self.DEFAULT_START_SOUND)
         stop_path = self.settings.value("stop_sound", self.DEFAULT_STOP_SOUND)
@@ -108,7 +109,7 @@ class MainWindow(FramelessMainWindow):
         self.new_session_panel.setVisible(False)
         
         # Init the settings, and hide it
-        self.settings_panel = SettingsPanel(sessions, self.storage.base_dir)
+        self.settings_panel = SettingsPanel(sessions, self.storage.base_dir, BUNDLED_SOUNDS_DIR)
         self.settings_panel.sound_effects_changed.connect(self.on_sound_effects_changed)
         self.settings_panel.export_clicked.connect(self.on_export_clicked)
         self.settings_panel.import_clicked.connect(self.on_import_clicked)

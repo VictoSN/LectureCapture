@@ -20,7 +20,7 @@ class SettingsPanel(QWidget):
     cancel_clicked = pyqtSignal()
     delete_clicked = pyqtSignal()
     
-    def __init__(self, sessions, base_dir) -> None:
+    def __init__(self, sessions, base_dir, bundled_sounds_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         
@@ -51,6 +51,7 @@ class SettingsPanel(QWidget):
 
         self.settings = QSettings("LectureCapture", "LectureCapture")
         self.base_dir = base_dir
+        self.bundled_sounds_dir = bundled_sounds_dir
 
         # Header Layout
         self.settings_name = QLabel("Settings")
@@ -315,22 +316,21 @@ class SettingsPanel(QWidget):
         self.start_sound_dropdown.addItem("None", None)
         self.stop_sound_dropdown.addItem("None", None)
         
-        for wav in sound_dir.glob("*.wav"):
-            self.start_sound_dropdown.addItem(wav.name, str(wav))
-            self.stop_sound_dropdown.addItem(wav.name, str(wav))
+        seen = set()
+        for wav in list(self.bundled_sounds_dir.glob("*.wav")) + list(sound_dir.glob("*.wav")):
+            if wav.name not in seen:
+                seen.add(wav.name)
+                self.start_sound_dropdown.addItem(wav.name, str(wav))
+                self.stop_sound_dropdown.addItem(wav.name, str(wav))
         
-        saved_start = self.settings.value("start_sound", str(Path(self.base_dir) / 'sound_effects' / 'Beep 1 (Default).wav'))
-        saved_stop = self.settings.value("stop_sound", str(Path(self.base_dir) / 'sound_effects' / 'Chirp 1 (Default).wav'))
-    
-        if saved_start:
-            idx = self.start_sound_dropdown.findData(saved_start)
-            if idx >= 0:
-                self.start_sound_dropdown.setCurrentIndex(idx)
-        
-        if saved_stop:
-            idx = self.stop_sound_dropdown.findData(saved_stop)
-            if idx >= 0:
-                self.stop_sound_dropdown.setCurrentIndex(idx)
+        saved_start = self.settings.value("start_sound", str(self.bundled_sounds_dir / 'Beep 1 (Default).wav'))
+        saved_stop = self.settings.value("stop_sound", str(self.bundled_sounds_dir / 'Chirp 1 (Default).wav'))
+
+        for saved, dropdown in [(saved_start, self.start_sound_dropdown), (saved_stop, self.stop_sound_dropdown)]:
+            if saved:
+                idx = dropdown.findData(saved)
+                if idx >= 0:
+                    dropdown.setCurrentIndex(idx)
     
     def play_sound(self, dropdown: QComboBox) -> None:
         path = dropdown.currentData()
@@ -401,17 +401,9 @@ class SettingsPanel(QWidget):
         self.height_dimension.setValue(int(region["height"]))
         self.audio_dropdown.setCurrentText(self.settings.value("default_audio", ""))
         
-        saved_start = self.settings.value("start_sound", str(Path(self.base_dir) / 'sound_effects' / 'Beep 1 (Default).wav'))
-        saved_stop = self.settings.value("stop_sound", str(Path(self.base_dir) / 'sound_effects' / 'Chirp 1 (Default).wav'))
+        self._set_dropdown(self.start_sound_dropdown, self.settings.value("start_sound"), str(self.bundled_sounds_dir / 'Beep 1 (Default).wav'))
+        self._set_dropdown(self.stop_sound_dropdown, self.settings.value("stop_sound"), str(self.bundled_sounds_dir / 'Chirp 1 (Default).wav'))
         
-        idx = self.start_sound_dropdown.findData(saved_start)
-        if idx >= 0:
-            self.start_sound_dropdown.setCurrentIndex(idx)
-        
-        idx = self.stop_sound_dropdown.findData(saved_stop)
-        if idx >= 0:
-            self.stop_sound_dropdown.setCurrentIndex(idx)
-
     def revert_theme(self) -> None:
         self.set_theme(str(self.settings.value("theme", "auto")))
     
@@ -424,6 +416,12 @@ class SettingsPanel(QWidget):
     def set_theme(self, theme: str) -> None:
         self.theme = theme
         apply_theme(theme)
+    
+    def _set_dropdown(self, dropdown: QComboBox, path: str, default: str) -> None:
+        resolved = path if path and Path(path).exists() else default
+        idx = dropdown.findData(resolved)
+        if idx >= 0:
+            dropdown.setCurrentIndex(idx)
     
     def deleteEvent(self) -> None:
         reply = QMessageBox.question(
