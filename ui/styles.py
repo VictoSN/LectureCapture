@@ -30,25 +30,30 @@ def check_theme(theme: str) -> bool:
     else:
         return check_theme(get_system_theme())
 
-def refresh_icons(root: QWidget) -> None:
+def refresh_icons(root: QWidget, theme: str = None) -> None:
     for widget in root.findChildren((QPushButton, QToolButton)):
         path = getattr(widget, "_icon_path", None)
         if path:
-            widget.setIcon(load_icon(path))
+            widget.setIcon(load_icon(path, theme))
             
     for widget in root.findChildren(QLabel):
         path = getattr(widget, "_icon_path", None)
         if path:
             size = getattr(widget, "_icon_size", 14)
-            widget.setPixmap(load_icon(path).pixmap(size, size))
+            widget.setPixmap(load_icon(path, theme).pixmap(size, size))
 
-def load_icon(icon_path: str | Path) -> QIcon:
+def load_icon(icon_path: str | Path, theme: str = None) -> QIcon:
     name = Path(icon_path).name
     if name in ("light_mode.svg", "dark_mode.svg", "red_dot.svg"):
         return QIcon(str(icon_path))
     
-    settings = QSettings("LectureCapture", "LectureCapture")    
-    dark_mode = check_theme(str(settings.value("theme", "auto")))
+    if not theme:
+        settings = QSettings("LectureCapture", "LectureCapture")    
+        dark_mode = check_theme(str(settings.value("theme", "auto")))
+    elif theme == "auto":
+        dark_mode = check_theme(get_system_theme())
+    else:
+        dark_mode = check_theme(theme)
     
     pixmap = QPixmap(str(icon_path))
     if not dark_mode:

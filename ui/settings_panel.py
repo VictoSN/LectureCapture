@@ -10,13 +10,14 @@ from PyQt6.QtGui import QShortcut, QKeySequence
 
 from models.lecture import Session
 from ui.setup_recording import setup_source, setup_audio, update_coord_ranges
-from ui.styles import apply_theme, create_button, create_button_label, get_system_theme, refresh_icons
+from ui.styles import apply_theme, create_button, create_button_label, get_system_theme
 
 from pathlib import Path
 
 class SettingsPanel(QWidget):
-    sound_effects_changed = pyqtSignal(str, str)  # start path, stop path
     api_keys_changed = pyqtSignal(str, str, str)  # ocr_key, speech_key, summarize_key
+    theme_changed = pyqtSignal(str)
+    sound_effects_changed = pyqtSignal(str, str)  # start path, stop path
     export_clicked = pyqtSignal(int) # session_id
     import_clicked = pyqtSignal()
     cancel_clicked = pyqtSignal()
@@ -465,7 +466,7 @@ class SettingsPanel(QWidget):
     def set_theme(self, theme: str) -> None:
         self.theme = theme
         apply_theme(theme, self.themes_dir)
-        refresh_icons(self)  
+        self.theme_changed.emit(theme)
 
     def _set_dropdown(self, dropdown: QComboBox, path: str, default: str) -> None:
         resolved = path if path and Path(path).exists() else default

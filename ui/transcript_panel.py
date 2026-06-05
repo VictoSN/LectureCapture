@@ -30,19 +30,19 @@ class TranscriptPanel(QWidget):
         self.session_name.setText("Select a session")
         header.addWidget(self.session_name)
 
-        self.properties_button = create_button(icons_dir / 'info.svg', self.properties_clicked)
+        self.properties_button = create_button(icons_dir / 'info.svg', self.properties_clicked, text="Properties", width=110)
         header.addWidget(self.properties_button)
 
-        self.sync_scroll_button = create_button(icons_dir / 'lock.svg', self._toggle_sync_scroll)
+        self.sync_scroll_button = create_button(icons_dir / 'lock.svg', self._toggle_sync_scroll, text="Scroll Lock", width=110)
         header.addWidget(self.sync_scroll_button)
 
-        self.ocr_visibility_button = create_button(icons_dir / 'scan.svg', lambda: self._panel_visibility(self.ocr_panel))
+        self.ocr_visibility_button = create_button(icons_dir / 'scan.svg', lambda: self._panel_visibility(self.ocr_panel), text="OCR", width=80)
         header.addWidget(self.ocr_visibility_button)
 
-        self.speech_visibility_button = create_button(icons_dir / 'microphone.svg', lambda: self._panel_visibility(self.speech_panel))
+        self.speech_visibility_button = create_button(icons_dir / 'microphone.svg', lambda: self._panel_visibility(self.speech_panel), text="Audio", width=80)
         header.addWidget(self.speech_visibility_button)
 
-        self.summary_visibility_button = create_button(icons_dir / 'summarize.svg', lambda: self._panel_visibility(self.summary_panel))
+        self.summary_visibility_button = create_button(icons_dir / 'summarize.svg', lambda: self._panel_visibility(self.summary_panel), text="Summary", width=110)
         header.addWidget(self.summary_visibility_button)
 
         self.record_button = create_button(icons_dir / 'red_dot.svg', self.record_clicked, text="Record", width=120)

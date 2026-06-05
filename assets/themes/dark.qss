@@ -87,3 +87,20 @@ QLabel {
     background: transparent;
     border: none;
 }
+
+MinimizeButton, MaximizeButton, CloseButton {
+    background: transparent;
+}
+MinimizeButton {
+    qproperty-normalColor: white;
+    qproperty-hoverColor: white;
+    qproperty-pressedColor: gray;
+}
+MaximizeButton {
+    qproperty-normalColor: white;
+    qproperty-hoverColor: white;
+    qproperty-pressedColor: gray;
+}
+CloseButton {
+    qproperty-normalColor: white;
+}

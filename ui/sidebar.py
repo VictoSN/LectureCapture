@@ -28,8 +28,9 @@ class Sidebar(QWidget):
         search_layout.addWidget(self.session_search)
         
         self.session_search.setClearButtonEnabled(True)
-        self.session_search.addAction(
-            load_icon(str(icons_dir / "search.svg")),
+        self._search_icon_path = icons_dir / "search.svg"
+        self._search_action = self.session_search.addAction(
+            load_icon(self._search_icon_path),
             QLineEdit.ActionPosition.LeadingPosition
         )
         
@@ -106,3 +107,10 @@ class Sidebar(QWidget):
         if current_visibility:
             self.session_category.setCurrentIndex(0)
             self.group_category.setCurrentIndex(0)
+
+    def refresh_theme(self, theme: str = None) -> None:
+        self.session_search.removeAction(self._search_action)
+        self._search_action = self.session_search.addAction(
+            load_icon(self._search_icon_path, theme),
+            QLineEdit.ActionPosition.LeadingPosition
+        )

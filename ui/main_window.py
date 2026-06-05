@@ -23,12 +23,12 @@ from ui.transcript_panel import TranscriptPanel
 from ui.properties_panel import PropertiesPanel
 from ui.recording_panel import RecordingPanel
 from ui.settings_panel import SettingsPanel
+from ui.styles import load_icon, refresh_icons
 
 BASE_DIR = Path(__file__).resolve().parent
 BUNDLED_SOUNDS_DIR = BASE_DIR.parent / 'assets' / 'sound_effects'
 ICONS_DIR = BASE_DIR.parent / 'assets' / 'icons'
 THEMES_DIR = BASE_DIR.parent / 'assets' / 'themes'
-APP_ICON_PATH = BASE_DIR.parent / 'assets' / 'icons' / 'LectureCapture.png'
 
 class MainWindow(FramelessMainWindow):
     def __init__(self) -> None:
@@ -43,7 +43,7 @@ class MainWindow(FramelessMainWindow):
         self.is_recording_open = False
 
         # Window details
-        self.setWindowIcon(QIcon(str(APP_ICON_PATH)))
+        self.setWindowIcon(load_icon(ICONS_DIR / 'logo.png'))
         self.setWindowTitle("LectureCapture")
         self.setMinimumSize(800, 600)
         self.resize(1200, 800)
@@ -109,8 +109,9 @@ class MainWindow(FramelessMainWindow):
         
         # Init the settings, and hide it
         self.settings_panel = SettingsPanel(sessions, self.storage.base_dir, BUNDLED_SOUNDS_DIR, ICONS_DIR, THEMES_DIR)
-        self.settings_panel.sound_effects_changed.connect(self.on_sound_effects_changed)
         self.settings_panel.api_keys_changed.connect(self.on_api_keys_changed)
+        self.settings_panel.theme_changed.connect(lambda theme: self._on_theme_changed(theme))
+        self.settings_panel.sound_effects_changed.connect(self.on_sound_effects_changed)
         self.settings_panel.export_clicked.connect(self.on_export_clicked)
         self.settings_panel.import_clicked.connect(self.on_import_clicked)
         self.settings_panel.cancel_clicked.connect(self.on_settings_clicked)
@@ -569,6 +570,10 @@ class MainWindow(FramelessMainWindow):
         self.api_key_speech = speech_key
         self.api_key_summarize = summarize_key
         self._refresh_engine_labels()
+
+    def _on_theme_changed(self, theme: str) -> None:
+        refresh_icons(self, theme)
+        self.sidebar.refresh_theme(theme)
 
     def on_sound_effects_changed(self, start: str, stop: str) -> None:
         self.start_audio.setSource(QUrl.fromLocalFile(start if start else self.DEFAULT_START_SOUND))

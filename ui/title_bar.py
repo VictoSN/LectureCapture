@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel
 
-from ui.styles import create_button
+from ui.styles import create_button, load_icon
 
 from qframelesswindow import TitleBar
 
@@ -30,8 +30,14 @@ class CustomTitleBar(TitleBar):
     def __init__(self, parent, icons_dir) -> None:
         super().__init__(parent)
 
+        self.title_logo = QLabel()
+        self.title_logo._icon_path = icons_dir / "logo.png"
+        self.title_logo.setPixmap(
+            load_icon(icons_dir / "logo.png").pixmap(24, 24)
+        )
+        self.title_logo.setContentsMargins(10, 0, 0, 0)
+
         self.title_label = QLabel("LectureCapture")
-        self.title_label.setContentsMargins(10, 0, 0, 0)
         
         self.new_session_button = create_button(icons_dir / 'plus.svg')
 
@@ -40,7 +46,8 @@ class CustomTitleBar(TitleBar):
         self.help_button = create_button(icons_dir / 'question.svg', self._show_shortcuts, icon_size=22)
         
         # Insert before the min/max/close buttons
-        self.hBoxLayout.insertWidget(0, self.title_label)
+        self.hBoxLayout.insertWidget(0, self.title_logo)
+        self.hBoxLayout.insertWidget(1, self.title_label)
         self.hBoxLayout.insertWidget(self.hBoxLayout.count() - 3, self.new_session_button)
         self.hBoxLayout.insertWidget(self.hBoxLayout.count() - 3, self.settings_button)
         self.hBoxLayout.insertWidget(self.hBoxLayout.count() - 3, self.help_button)
