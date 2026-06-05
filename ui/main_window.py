@@ -110,6 +110,7 @@ class MainWindow(FramelessMainWindow):
         # Init the settings, and hide it
         self.settings_panel = SettingsPanel(sessions, self.storage.base_dir, BUNDLED_SOUNDS_DIR, ICONS_DIR, THEMES_DIR)
         self.settings_panel.api_keys_changed.connect(self.on_api_keys_changed)
+        self.settings_panel.processing_mode_changed.connect(self.on_processing_mode_changed)
         self.settings_panel.theme_changed.connect(lambda theme: self._on_theme_changed(theme))
         self.settings_panel.sound_effects_changed.connect(self.on_sound_effects_changed)
         self.settings_panel.export_clicked.connect(self.on_export_clicked)
@@ -153,8 +154,9 @@ class MainWindow(FramelessMainWindow):
         self.splitter.setSizes([100, 400, 400, 400, 400, 400]) # 1 : 4 ratio
         self.transcript_panel.set_session_locked(True) # Locked buttons initially
 
-        # Load API keys from saved settings
+        # Load API keys and processing mode from saved settings
         self._load_api_keys()
+        self._load_processing_mode()
         self._refresh_engine_labels()
         
         # Shortcuts
@@ -254,18 +256,27 @@ class MainWindow(FramelessMainWindow):
         # Create ocr worker thread
         self.ocr_worker = OCRWorker(
             self.current_session.id, self.storage.base_dir, interval, region, monitor, start_time, self.current_session.length, hwnd=hwnd,
-            ocr_api_key=self.api_key_ocr
+            ocr_api_key=self._effective_api_key("ocr")
         )
         self.ocr_worker.capture_ready.connect(self.on_capture_ready)
+        self.ocr_worker.engine_fallback.connect(self._on_ocr_engine_fallback)
         self.ocr_worker.start()
         
         # Create audio worker thread
-        self.audio_worker = AudioWorker(self.current_session.id, self.storage.base_dir, interval, device, start_time, self.current_session.length, speech_api_key=self.api_key_speech)
+        self.audio_worker = AudioWorker(
+            self.current_session.id, self.storage.base_dir, interval, device, start_time, self.current_session.length,
+            speech_api_key=self._effective_api_key("speech")
+        )
         self.audio_worker.chunk_ready.connect(self.on_chunk_ready)
+        self.audio_worker.engine_fallback.connect(self._on_speech_engine_fallback)
         self.audio_worker.start()
 
         # Update footer to show live engine names
-        self._refresh_engine_labels()
+        self.transcript_panel.update_engine_labels(
+            self.ocr_worker.engine_name,
+            self.audio_worker.engine_name,
+            self._summarize_engine_label(),
+        )
 
         # Que sound effect
         self.start_audio.play()
@@ -443,7 +454,7 @@ class MainWindow(FramelessMainWindow):
             total_text += (capture.extracted_text or "") + (capture.speech_text or "")
         
         # Summarize then update the QTextEdit and current_session object
-        summarized_text, engine = summarize(total_text, api_key=self.api_key_summarize)
+        summarized_text, engine = summarize(total_text, api_key=self._effective_api_key("summarize"))
         self.transcript_panel.update_engine_labels(
             self.transcript_panel.ocr_engine_label.text(),
             self.transcript_panel.speech_engine_label.text(),
@@ -559,16 +570,50 @@ class MainWindow(FramelessMainWindow):
         self.api_key_speech = str(self.settings.value("api_key_speech", ""))
         self.api_key_summarize = str(self.settings.value("api_key_summarize", ""))
 
+    def _load_processing_mode(self) -> None:
+        self.processing_mode = str(self.settings.value("processing_mode", "local"))
+
+    def _effective_api_key(self, kind: str) -> str:
+        if self.processing_mode != "api":
+            return ""
+        keys = {
+            "ocr": self.api_key_ocr,
+            "speech": self.api_key_speech,
+            "summarize": self.api_key_summarize,
+        }
+        return keys.get(kind, "")
+
+    def _summarize_engine_label(self) -> str:
+        return "claude-haiku" if self._effective_api_key("summarize") else "sumy"
+
     def _refresh_engine_labels(self) -> None:
-        ocr_engine = "tesseract + claude" if self.api_key_ocr else "pytesseract"
-        speech_engine = "api" if self.api_key_speech else "faster-whisper"
-        summarize_engine = "claude-haiku" if self.api_key_summarize else "sumy"
-        self.transcript_panel.update_engine_labels(ocr_engine, speech_engine, summarize_engine)
+        ocr_engine = "tesseract + claude" if self._effective_api_key("ocr") else "pytesseract"
+        speech_engine = "api" if self._effective_api_key("speech") else "faster-whisper"
+        self.transcript_panel.update_engine_labels(ocr_engine, speech_engine, self._summarize_engine_label())
+
+    def _on_ocr_engine_fallback(self, engine: str) -> None:
+        self.transcript_panel.update_engine_labels(
+            engine,
+            self.transcript_panel.speech_engine_label.text(),
+            self.transcript_panel.summarize_engine_label.text(),
+        )
+
+    def _on_speech_engine_fallback(self, engine: str) -> None:
+        self.transcript_panel.update_engine_labels(
+            self.transcript_panel.ocr_engine_label.text(),
+            engine,
+            self.transcript_panel.summarize_engine_label.text(),
+        )
+
+    def on_processing_mode_changed(self, mode: str) -> None:
+        self.processing_mode = mode
+        self._refresh_engine_labels()
 
     def on_api_keys_changed(self, ocr_key: str, speech_key: str, summarize_key: str) -> None:
         self.api_key_ocr = ocr_key
         self.api_key_speech = speech_key
         self.api_key_summarize = summarize_key
+        self._load_processing_mode()
         self._refresh_engine_labels()
 
     def _on_theme_changed(self, theme: str) -> None:

@@ -14,7 +14,8 @@ from datetime import datetime
 from pathlib import Path
 
 class OCRWorker(QThread):    
-    capture_ready = pyqtSignal(OCRCapture)   
+    capture_ready = pyqtSignal(OCRCapture)
+    engine_fallback = pyqtSignal(str)
     
     def __init__(self, session_id, base_dir, interval, region: dict | None, monitor_index, start_time, offset, hwnd=None, ocr_api_key: str = "") -> None:
         super().__init__()
@@ -30,6 +31,7 @@ class OCRWorker(QThread):
         self.hwnd = hwnd
         self.previous_text = ""
         self.ocr_api_key = ocr_api_key
+        self._api_failed = False
     
         self.sct = mss.mss()
 
@@ -146,7 +148,13 @@ class OCRWorker(QThread):
                 return self._cleanup_with_api(raw_text)
             except Exception as e:
                 print(f"[OCR] API cleanup failed, using raw text: {e}")
+                self._mark_api_failed()
         return raw_text
+
+    def _mark_api_failed(self) -> None:
+        if not self._api_failed:
+            self._api_failed = True
+            self.engine_fallback.emit(self.engine_name)
 
     def _cleanup_with_api(self, raw_text: str) -> str:
         import anthropic
@@ -169,7 +177,7 @@ class OCRWorker(QThread):
 
     @property
     def engine_name(self) -> str:
-        if self.ocr_api_key:
+        if self.ocr_api_key and not self._api_failed:
             return "tesseract + claude"
         return "pytesseract"
     

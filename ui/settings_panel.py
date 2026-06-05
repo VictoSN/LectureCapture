@@ -16,6 +16,7 @@ from pathlib import Path
 
 class SettingsPanel(QWidget):
     api_keys_changed = pyqtSignal(str, str, str)  # ocr_key, speech_key, summarize_key
+    processing_mode_changed = pyqtSignal(str)  # local, api
     theme_changed = pyqtSignal(str)
     sound_effects_changed = pyqtSignal(str, str)  # start path, stop path
     export_clicked = pyqtSignal(int) # session_id
@@ -321,6 +322,7 @@ class SettingsPanel(QWidget):
         self.settings.setValue("processing_mode", mode)
         self.settings.sync()
         self.update_ui()
+        self.processing_mode_changed.emit(mode)
         
     def set_pref_mode(self, mode):
         self.pref_mode = mode
@@ -406,6 +408,7 @@ class SettingsPanel(QWidget):
         self.settings.setValue("api_key_summarize", summarize_key)
         self.settings.sync()
         self.api_keys_changed.emit(ocr_key, speech_key, summarize_key)
+        self.processing_mode_changed.emit(self.proc_mode)
     
     def import_sound(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Import Sound", "", "WAV Files (*.wav)")
