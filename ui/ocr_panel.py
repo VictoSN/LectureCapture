@@ -14,6 +14,7 @@ from pathlib import Path
 class OCRPanel(QWidget):
     ocr_text_changed = pyqtSignal(int, str) # capture_id & new text
     immediate_change = pyqtSignal()
+    capture_added = pyqtSignal()  # emitted after add_capture so parent can sync heights
     
     def __init__(self, base_dir, icons_dir) -> None:
         super().__init__()
@@ -33,6 +34,7 @@ class OCRPanel(QWidget):
         # Scrollable
         self.feed_widget = QWidget()
         self.feed_layout = QVBoxLayout(self.feed_widget)
+        self.feed_layout.setAlignment(Qt.AlignmentFlag.AlignTop)  # fixes centering bug
 
         self.scroll = QScrollArea()
         self.scroll.setWidget(self.feed_widget)
@@ -45,8 +47,8 @@ class OCRPanel(QWidget):
     def _create_capture_widget(self, capture: OCRCapture) -> QWidget:
         capture_widget = QWidget()
         capture_layout = QVBoxLayout(capture_widget)
-        capture_widget.setFixedHeight(300)
         capture_layout.setContentsMargins(0, 0, 0, 0)
+        # No fixed height — height is controlled externally by sync_row_heights
 
         # Timestamp
         capture_timestamp = QLabel(f"{capture.timestamp:.2f}s")
@@ -75,7 +77,6 @@ class OCRPanel(QWidget):
         ocr_text.setPlainText(capture.extracted_text or "")
         ocr_text.blockSignals(False)
         ocr_text.setReadOnly(self.is_locked)
-        ocr_text.setMaximumHeight(300)
         splitter.addWidget(ocr_text)
 
         splitter.setSizes([200, 300])
@@ -113,7 +114,6 @@ class OCRPanel(QWidget):
         dialog.exec()
     
     def clear_captures(self) -> None:
-        # Clear out the layout first
         while self.feed_layout.count():
             item = self.feed_layout.takeAt(0)
             if item.widget():
@@ -121,25 +121,18 @@ class OCRPanel(QWidget):
 
     def load_captures(self, captures: list[OCRCapture]) -> None:
         self.clear_captures()
-        
         for capture in captures:
             self.feed_layout.addWidget(self._create_capture_widget(capture))
-            
-        # Disable button if empty
-        if self.has_content():
-            self.ocr_button.setDisabled(False)
-        else:
-            self.ocr_button.setDisabled(True)
+        self.ocr_button.setDisabled(not self.has_content())
             
     def add_capture(self, capture: OCRCapture) -> None:
         self.feed_layout.addWidget(self._create_capture_widget(capture))
         self.ocr_button.setDisabled(False)
+        self.capture_added.emit()
         
     def set_locked(self) -> None:
         self.is_locked = not self.is_locked
         self.ocr_button.setText("Locked" if self.is_locked else "Editable")
-        
-        # Lock only the text edit
         for i in range(self.feed_layout.count()):
             widget = self.feed_layout.itemAt(i).widget()
             if widget:

@@ -1,13 +1,13 @@
 from PyQt6.QtWidgets import (
     QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QScrollArea, QLabel, QTextEdit
 )
-from PyQt6.QtCore import pyqtSignal, QTimer
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 
 from models.lecture import OCRCapture
 from ui.styles import create_label
 
 class SpeechPanel(QWidget):
-    speech_text_changed =pyqtSignal(int, str)
+    speech_text_changed = pyqtSignal(int, str)
     immediate_change = pyqtSignal()
     
     def __init__(self, base_dir, icons_dir) -> None:
@@ -28,6 +28,7 @@ class SpeechPanel(QWidget):
         # Scrollable
         self.feed_widget = QWidget()
         self.feed_layout = QVBoxLayout(self.feed_widget)
+        self.feed_layout.setAlignment(Qt.AlignmentFlag.AlignTop)  # fixes centering bug
 
         self.scroll = QScrollArea()
         self.scroll.setWidget(self.feed_widget)
@@ -41,7 +42,6 @@ class SpeechPanel(QWidget):
         capture_widget = QWidget()
         capture_layout = QVBoxLayout()
         
-        # Timestamp & Extracted speech text
         capture_timestamp = QLabel(f"{capture.timestamp:.2f}s")
         capture_layout.addWidget(capture_timestamp)
         
@@ -51,27 +51,22 @@ class SpeechPanel(QWidget):
         speech_text.blockSignals(False)
         speech_text.setReadOnly(self.is_locked)
         
-        # Update after 500ms
         timer = QTimer(speech_text)
         timer.setSingleShot(True)
         speech_text._save_timer = timer
-                
         speech_text.textChanged.connect(self.immediate_change)
         speech_text.textChanged.connect(lambda: speech_text._save_timer.start(500))
-        
         speech_text._save_timer.timeout.connect(
             lambda cap_id=capture.id, w=speech_text:
                 self.speech_text_changed.emit(cap_id, w.toPlainText())
         )
         
         capture_layout.addWidget(speech_text)
-        
         capture_widget.setProperty("capture_id", capture.id)
         capture_widget.setLayout(capture_layout)
-        return capture_widget # Return to load and add methods
+        return capture_widget
 
     def clear_captures(self) -> None:
-        # Clear out the layout first
         while self.feed_layout.count():
             item = self.feed_layout.takeAt(0)
             if item.widget():
@@ -79,21 +74,14 @@ class SpeechPanel(QWidget):
 
     def load_captures(self, captures: list[OCRCapture]) -> None:
         self.clear_captures()
-
         for capture in captures:
             self.feed_layout.addWidget(self._create_capture_widget(capture))
-            
-        # Disable button if empty
-        if self.has_content():
-            self.speech_button.setDisabled(False)
-        else:
-            self.speech_button.setDisabled(True)
+        self.speech_button.setDisabled(not self.has_content())
 
     def add_capture(self, capture: OCRCapture) -> None:
         self.feed_layout.addWidget(self._create_capture_widget(capture))
         self.speech_button.setDisabled(False)
     
-    # Used to update the current capture text while recording
     def update_capture_speech(self, capture_id, text) -> None:
         for i in range(self.feed_layout.count()):
             widget = self.feed_layout.itemAt(i).widget()
@@ -106,8 +94,6 @@ class SpeechPanel(QWidget):
     def set_locked(self) -> None:
         self.is_locked = not self.is_locked
         self.speech_button.setText("Locked" if self.is_locked else "Editable")
-        
-        # Lock only the text edit
         for i in range(self.feed_layout.count()):
             widget = self.feed_layout.itemAt(i).widget()
             if widget:

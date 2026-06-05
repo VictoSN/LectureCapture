@@ -16,7 +16,7 @@ from pathlib import Path
 class OCRWorker(QThread):    
     capture_ready = pyqtSignal(OCRCapture)   
     
-    def __init__(self, session_id, base_dir, interval, region: dict | None, monitor_index, start_time, offset, hwnd=None) -> None:
+    def __init__(self, session_id, base_dir, interval, region: dict | None, monitor_index, start_time, offset, hwnd=None, ocr_api_key: str = "") -> None:
         super().__init__()
         self._running = True
     
@@ -29,6 +29,7 @@ class OCRWorker(QThread):
         self.offset = offset
         self.hwnd = hwnd
         self.previous_text = ""
+        self.ocr_api_key = ocr_api_key
     
         self.sct = mss.mss()
 
@@ -132,10 +133,45 @@ class OCRWorker(QThread):
                 self.capture_ready.emit(new_capture)
             
     def ocr_pil(self, pil_img) -> str:
+        from PIL import ImageFilter, ImageEnhance
         pil_img = pil_img.convert("L")
-        pil_img = pil_img.resize((pil_img.width * 2, pil_img.height * 2))
+        pil_img = pil_img.resize((pil_img.width * 2, pil_img.height * 2), Image.LANCZOS)
+        pil_img = ImageEnhance.Contrast(pil_img).enhance(2.0)
+        pil_img = pil_img.filter(ImageFilter.SHARPEN)
         config = "--psm 6 --oem 3"
-        return pytesseract.image_to_string(pil_img, config=config)
+        raw_text = pytesseract.image_to_string(pil_img, config=config)
+
+        if self.ocr_api_key and raw_text.strip():
+            try:
+                return self._cleanup_with_api(raw_text)
+            except Exception as e:
+                print(f"[OCR] API cleanup failed, using raw text: {e}")
+        return raw_text
+
+    def _cleanup_with_api(self, raw_text: str) -> str:
+        import anthropic
+        client = anthropic.Anthropic(api_key=self.ocr_api_key)
+        response = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=1000,
+            messages=[{
+                "role": "user",
+                "content": (
+                    "The following text was extracted from a lecture slide via OCR and may contain "
+                    "errors, garbled characters, or broken formatting. Fix any OCR errors and clean up "
+                    "the text while preserving ALL original content, structure, and meaning. "
+                    "Return only the cleaned text with no commentary.\n\n"
+                    f"{raw_text}"
+                )
+            }]
+        )
+        return response.content[0].text
+
+    @property
+    def engine_name(self) -> str:
+        if self.ocr_api_key:
+            return "tesseract + claude"
+        return "pytesseract"
     
     def get_window_screenshot(self):
         if not self.hwnd or not win32gui.IsWindow(self.hwnd):

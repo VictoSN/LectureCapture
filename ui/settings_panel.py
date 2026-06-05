@@ -16,6 +16,7 @@ from pathlib import Path
 
 class SettingsPanel(QWidget):
     sound_effects_changed = pyqtSignal(str, str)  # start path, stop path
+    api_keys_changed = pyqtSignal(str, str, str)  # ocr_key, speech_key, summarize_key
     export_clicked = pyqtSignal(int) # session_id
     import_clicked = pyqtSignal()
     cancel_clicked = pyqtSignal()
@@ -85,20 +86,31 @@ class SettingsPanel(QWidget):
         processing_button_layout.addWidget(self.api_button)
         processing_layout.addLayout(processing_button_layout)
         
-        ocr_label = QLabel("OCR")
+        ocr_label = QLabel("OCR (Anthropic)")
         self.api_layout.addWidget(ocr_label, 0, 0)
         self.ocr_input = QLineEdit()
+        self.ocr_input.setPlaceholderText("sk-ant-... (leave blank for local)")
+        self.ocr_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.api_layout.addWidget(self.ocr_input, 0, 1)
-        
-        speech_label = QLabel("Speech-to-Text")
+
+        speech_label = QLabel("Speech-to-Text (Google)")
         self.api_layout.addWidget(speech_label, 1, 0)
         self.speech_input = QLineEdit()
+        self.speech_input.setPlaceholderText("Google API key (leave blank for local)")
+        self.speech_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.api_layout.addWidget(self.speech_input, 1, 1)
-        
-        summarize_label = QLabel("Summarizer")
+
+        summarize_label = QLabel("Summarizer (Anthropic)")
         self.api_layout.addWidget(summarize_label, 2, 0)
         self.summarize_input = QLineEdit()
+        self.summarize_input.setPlaceholderText("sk-ant-... (leave blank for local)")
+        self.summarize_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.api_layout.addWidget(self.summarize_input, 2, 1)
+
+        api_note = QLabel("OCR and Summarizer use Anthropic. Speech uses Google Cloud.")
+        api_note.setWordWrap(True)
+        api_note.setStyleSheet("color: gray; font-size: 11px;")
+        self.api_layout.addWidget(api_note, 3, 0, 1, 2)
 
         self.api_container = QWidget()
         self.api_container.setLayout(self.api_layout)
@@ -383,6 +395,16 @@ class SettingsPanel(QWidget):
         start = self.start_sound_dropdown.currentData() or ""
         stop = self.stop_sound_dropdown.currentData() or ""
         self.sound_effects_changed.emit(start, stop)
+
+        # Save API keys (only overwrite if user typed something; blank clears it)
+        ocr_key = self.ocr_input.text().strip()
+        speech_key = self.speech_input.text().strip()
+        summarize_key = self.summarize_input.text().strip()
+        self.settings.setValue("api_key_ocr", ocr_key)
+        self.settings.setValue("api_key_speech", speech_key)
+        self.settings.setValue("api_key_summarize", summarize_key)
+        self.settings.sync()
+        self.api_keys_changed.emit(ocr_key, speech_key, summarize_key)
     
     def import_sound(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Import Sound", "", "WAV Files (*.wav)")
@@ -420,6 +442,16 @@ class SettingsPanel(QWidget):
         
         self._set_dropdown(self.start_sound_dropdown, self.settings.value("start_sound"), str(self.bundled_sounds_dir / 'Beep 1 (Default).wav'))
         self._set_dropdown(self.stop_sound_dropdown, self.settings.value("stop_sound"), str(self.bundled_sounds_dir / 'Chirp 1 (Default).wav'))
+
+        # Load API keys — show masked placeholder if key exists
+        for attr, key in [
+            ("ocr_input", "api_key_ocr"),
+            ("speech_input", "api_key_speech"),
+            ("summarize_input", "api_key_summarize"),
+        ]:
+            saved = self.settings.value(key, "")
+            widget = getattr(self, attr)
+            widget.setText(saved)
         
     def revert_theme(self) -> None:
         self.set_theme(str(self.settings.value("theme", "auto")))

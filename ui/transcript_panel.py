@@ -59,6 +59,9 @@ class TranscriptPanel(QWidget):
         self.splitter.addWidget(self.summary_panel)
         self.splitter.setSizes([100, 100, 100]) # 1 : 4 ratio
 
+        # Sync row heights whenever a new capture is added during recording
+        self.ocr_panel.capture_added.connect(self._sync_row_heights)
+
         # Info Footer
         clock_w, self.recording_time_label = create_label(icons_dir / 'clock.svg', '00:00')
         saved_w, self.saved_label = create_label(icons_dir / 'save.svg', 'Saved')
@@ -101,7 +104,8 @@ class TranscriptPanel(QWidget):
             ocr_w = self.ocr_panel.feed_layout.itemAt(i).widget()
             speech_w = self.speech_panel.feed_layout.itemAt(i).widget()
             if ocr_w and speech_w:
-                h = max(ocr_w.sizeHint().height(), speech_w.sizeHint().height())
+                # Use the larger of the two natural heights, with a sensible minimum
+                h = max(ocr_w.sizeHint().height(), speech_w.sizeHint().height(), 300)
                 ocr_w.setFixedHeight(h)
                 speech_w.setFixedHeight(h)
 
@@ -186,3 +190,8 @@ class TranscriptPanel(QWidget):
         self.ocr_panel.clear_captures()
         self.speech_panel.clear_captures()
         self.summary_panel.summary.clear()
+
+    def update_engine_labels(self, ocr_engine: str, speech_engine: str, summarize_engine: str) -> None:
+        self.ocr_engine_label.setText(ocr_engine)
+        self.speech_engine_label.setText(speech_engine)
+        self.summarize_engine_label.setText(summarize_engine)

@@ -110,6 +110,7 @@ class MainWindow(FramelessMainWindow):
         # Init the settings, and hide it
         self.settings_panel = SettingsPanel(sessions, self.storage.base_dir, BUNDLED_SOUNDS_DIR, ICONS_DIR, THEMES_DIR)
         self.settings_panel.sound_effects_changed.connect(self.on_sound_effects_changed)
+        self.settings_panel.api_keys_changed.connect(self.on_api_keys_changed)
         self.settings_panel.export_clicked.connect(self.on_export_clicked)
         self.settings_panel.import_clicked.connect(self.on_import_clicked)
         self.settings_panel.cancel_clicked.connect(self.on_settings_clicked)
@@ -150,6 +151,10 @@ class MainWindow(FramelessMainWindow):
         # Wait until the other widgets are added
         self.splitter.setSizes([100, 400, 400, 400, 400, 400]) # 1 : 4 ratio
         self.transcript_panel.set_session_locked(True) # Locked buttons initially
+
+        # Load API keys from saved settings
+        self._load_api_keys()
+        self._refresh_engine_labels()
         
         # Shortcuts
         self.create_session_shortcut = QShortcut(QKeySequence("Ctrl+T"), self)
@@ -247,15 +252,19 @@ class MainWindow(FramelessMainWindow):
         
         # Create ocr worker thread
         self.ocr_worker = OCRWorker(
-            self.current_session.id, self.storage.base_dir, interval, region, monitor, start_time, self.current_session.length, hwnd=hwnd
+            self.current_session.id, self.storage.base_dir, interval, region, monitor, start_time, self.current_session.length, hwnd=hwnd,
+            ocr_api_key=self.api_key_ocr
         )
         self.ocr_worker.capture_ready.connect(self.on_capture_ready)
         self.ocr_worker.start()
         
         # Create audio worker thread
-        self.audio_worker = AudioWorker(self.current_session.id, self.storage.base_dir, interval, device, start_time, self.current_session.length)
+        self.audio_worker = AudioWorker(self.current_session.id, self.storage.base_dir, interval, device, start_time, self.current_session.length, speech_api_key=self.api_key_speech)
         self.audio_worker.chunk_ready.connect(self.on_chunk_ready)
         self.audio_worker.start()
+
+        # Update footer to show live engine names
+        self._refresh_engine_labels()
 
         # Que sound effect
         self.start_audio.play()
@@ -433,7 +442,12 @@ class MainWindow(FramelessMainWindow):
             total_text += (capture.extracted_text or "") + (capture.speech_text or "")
         
         # Summarize then update the QTextEdit and current_session object
-        summarized_text = summarize(total_text)
+        summarized_text, engine = summarize(total_text, api_key=self.api_key_summarize)
+        self.transcript_panel.update_engine_labels(
+            self.transcript_panel.ocr_engine_label.text(),
+            self.transcript_panel.speech_engine_label.text(),
+            engine
+        )
         current = self.transcript_panel.summary_panel.summary.toPlainText()
         
         # If the user has modified the summary, double confirm
@@ -539,6 +553,23 @@ class MainWindow(FramelessMainWindow):
         self.is_properties_open = False # Close Properties when opening settings
         self.show_panel("settings" if self.is_settings_open else "transcript")
     
+    def _load_api_keys(self) -> None:
+        self.api_key_ocr = str(self.settings.value("api_key_ocr", ""))
+        self.api_key_speech = str(self.settings.value("api_key_speech", ""))
+        self.api_key_summarize = str(self.settings.value("api_key_summarize", ""))
+
+    def _refresh_engine_labels(self) -> None:
+        ocr_engine = "tesseract + claude" if self.api_key_ocr else "pytesseract"
+        speech_engine = "api" if self.api_key_speech else "faster-whisper"
+        summarize_engine = "claude-haiku" if self.api_key_summarize else "sumy"
+        self.transcript_panel.update_engine_labels(ocr_engine, speech_engine, summarize_engine)
+
+    def on_api_keys_changed(self, ocr_key: str, speech_key: str, summarize_key: str) -> None:
+        self.api_key_ocr = ocr_key
+        self.api_key_speech = speech_key
+        self.api_key_summarize = summarize_key
+        self._refresh_engine_labels()
+
     def on_sound_effects_changed(self, start: str, stop: str) -> None:
         self.start_audio.setSource(QUrl.fromLocalFile(start if start else self.DEFAULT_START_SOUND))
         self.stop_audio.setSource(QUrl.fromLocalFile(stop if stop else self.DEFAULT_STOP_SOUND))
