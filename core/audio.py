@@ -9,7 +9,6 @@ from PyQt6.QtCore import QThread, pyqtSignal
 from faster_whisper import WhisperModel
 
 RECORD_SAMPLE_RATE = 44100
-API_SAMPLE_RATE = 16000
 
 class AudioWorker(QThread):
     chunk_ready = pyqtSignal(float, str)
@@ -90,57 +89,25 @@ class AudioWorker(QThread):
             print(f"Transcription error: {e}")
         return extracted_text
 
-    @staticmethod
-    def _prepare_pcm_for_api(path: str, target_rate: int = API_SAMPLE_RATE) -> tuple[bytes, int]:
-        audio, sample_rate = sf.read(path, dtype="float32", always_2d=True)
-        audio = np.mean(audio, axis=1)
-
-        if sample_rate != target_rate:
-            target_length = max(1, int(len(audio) * target_rate / sample_rate))
-            indices = np.linspace(0, len(audio) - 1, target_length)
-            audio = np.interp(indices, np.arange(len(audio)), audio)
-            sample_rate = target_rate
-
-        pcm = (np.clip(audio, -1.0, 1.0) * 32767).astype(np.int16)
-        return pcm.tobytes(), sample_rate
-
     def _transcribe_api(self, tmp: str, chunk_start: float) -> str:
-        import base64, json, urllib.request, urllib.error
-        extracted_text = ""
-        pcm_bytes, sample_rate = self._prepare_pcm_for_api(tmp)
-        audio_b64 = base64.b64encode(pcm_bytes).decode("utf-8")
-        payload = json.dumps({
-            "config": {
-                "encoding": "LINEAR16",
-                "sampleRateHertz": sample_rate,
-                "languageCode": "en-US",
-                "enableWordTimeOffsets": True,
-                "model": "latest_long",
-            },
-            "audio": {"content": audio_b64}
-        }).encode("utf-8")
-        url = f"https://speech.googleapis.com/v1/speech:recognize?key={self.speech_api_key}"
-        req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
-        try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                result = json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as e:
-            body = e.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"HTTP {e.code}: {body}") from e
-        for alternative in result.get("results", []):
-            words = alternative.get("alternatives", [{}])[0].get("words", [])
-            if words:
-                t0 = chunk_start + float(words[0]["startTime"].rstrip("s"))
-                t1 = chunk_start + float(words[-1]["endTime"].rstrip("s"))
-                text = " ".join(w["word"] for w in words)
-                line = f"[{t0:.2f}s -> {t1:.2f}s] {text}"
-            else:
-                text = alternative.get("alternatives", [{}])[0].get("transcript", "").strip()
-                line = f"[{chunk_start:.2f}s] {text}"
-            if line:
-                print(line)
-                extracted_text += line + "\n"
-        return extracted_text
+        from google import genai
+        from google.genai import types
+        client = genai.Client(api_key=self.speech_api_key)
+        with open(tmp, "rb") as f:
+            audio_bytes = f.read()
+        response = client.models.generate_content(
+            model="gemini-3.1-flash-lite-preview",
+            contents=[
+                types.Part.from_bytes(data=audio_bytes, mime_type="audio/wav"),
+                "Transcribe this audio accurately. Return only the spoken words with no timestamps, labels, or commentary."
+            ]
+        )
+        transcript = response.text.strip()
+        if not transcript:
+            return ""
+        line = f"[{chunk_start:.2f}s] {transcript}"
+        print(line)
+        return line + "\n"
 
     def record_loopback(self) -> None:
         chunk_start = time.time() - self.start_time + self.offset
@@ -217,7 +184,7 @@ class AudioWorker(QThread):
     @property
     def engine_name(self) -> str:
         if self.speech_api_key and not self._api_failed:
-            return "api"
+            return "gemini"
         return "faster-whisper"
 
     def run(self) -> None:

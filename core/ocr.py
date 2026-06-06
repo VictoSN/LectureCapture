@@ -143,12 +143,17 @@ class OCRWorker(QThread):
         config = "--psm 6 --oem 3"
         raw_text = pytesseract.image_to_string(pil_img, config=config)
 
-        if self.ocr_api_key and raw_text.strip():
-            try:
-                return self._cleanup_with_api(raw_text)
-            except Exception as e:
-                print(f"[OCR] API cleanup failed, using raw text: {e}")
-                self._mark_api_failed()
+        if not raw_text.strip():
+            return raw_text
+
+        if self.ocr_api_key and not self._api_failed:
+            similar = SequenceMatcher(None, raw_text, self.previous_text).ratio() >= 0.95
+            if not similar:
+                try:
+                    return self._cleanup_with_api(raw_text)
+                except Exception as e:
+                    print(f"[OCR] API cleanup failed, using raw text: {e}")
+                    self._mark_api_failed()
         return raw_text
 
     def _mark_api_failed(self) -> None:
@@ -157,28 +162,24 @@ class OCRWorker(QThread):
             self.engine_fallback.emit(self.engine_name)
 
     def _cleanup_with_api(self, raw_text: str) -> str:
-        import anthropic
-        client = anthropic.Anthropic(api_key=self.ocr_api_key)
-        response = client.messages.create(
-            model="claude-haiku-4-5",
-            max_tokens=1000,
-            messages=[{
-                "role": "user",
-                "content": (
-                    "The following text was extracted from a lecture slide via OCR and may contain "
-                    "errors, garbled characters, or broken formatting. Fix any OCR errors and clean up "
-                    "the text while preserving ALL original content, structure, and meaning. "
-                    "Return only the cleaned text with no commentary.\n\n"
-                    f"{raw_text}"
-                )
-            }]
+        from google import genai
+        client = genai.Client(api_key=self.ocr_api_key)
+        response = client.models.generate_content(
+            model="gemini-3.1-flash-lite-preview",
+            contents=(
+                "The following text was extracted from a lecture slide via OCR and may contain "
+                "errors, garbled characters, or broken formatting. Fix any OCR errors and clean up "
+                "the text while preserving ALL original content, structure, and meaning. "
+                "Return only the cleaned text with no commentary.\n\n"
+                f"{raw_text}"
+            )
         )
-        return response.content[0].text
+        return response.text
 
     @property
     def engine_name(self) -> str:
         if self.ocr_api_key and not self._api_failed:
-            return "tesseract + claude"
+            return "tesseract + gemini"
         return "pytesseract"
     
     def get_window_screenshot(self):

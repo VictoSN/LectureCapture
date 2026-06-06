@@ -48,12 +48,12 @@ class TranscriptPanel(QWidget):
         self.summary_visibility_button = create_button(icons_dir / 'summarize.svg', lambda: self._panel_visibility(self.summary_panel), text="Summary", width=110)
         header.addWidget(self.summary_visibility_button)
 
-        self.record_button = create_button(icons_dir / 'red_dot.svg', self._on_record_button_clicked, text="Record", width=120)
-        header.addWidget(self.record_button)
-
         self.force_capture_button = create_button(icons_dir / 'scan.svg', self.force_capture_clicked, text="Capture Now", width=120)
         self.force_capture_button.setVisible(False)
         header.addWidget(self.force_capture_button)
+
+        self.record_button = create_button(icons_dir / 'red_dot.svg', self._on_record_button_clicked, text="Record", width=120)
+        header.addWidget(self.record_button)
 
         # Splitter Layout for content
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -205,7 +205,7 @@ class TranscriptPanel(QWidget):
             # Assign the summary text, while blocking signal to prevent triggering on_text_changed
             summary_widget = self.summary_panel.summary
             summary_widget.blockSignals(True)
-            summary_widget.setText(session.summary)
+            summary_widget.setPlainText(session.summary)
             summary_widget.blockSignals(False)
         else:
             self.summary_panel.summary.clear()

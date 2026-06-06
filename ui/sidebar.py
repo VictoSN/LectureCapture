@@ -93,6 +93,7 @@ class Sidebar(QWidget):
         self.lecture_list.verticalScrollBar().setValue(scroll)
 
     def set_recording_locked(self, locked: bool) -> None:
+        self.filter_button.setDisabled(locked)
         self.session_search.setDisabled(locked)
         self.session_category.setDisabled(locked)
         self.group_category.setDisabled(locked)

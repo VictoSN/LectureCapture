@@ -511,7 +511,7 @@ class MainWindow(FramelessMainWindow):
         # Assign while blocking the signal to avoid triggering on_text_changed
         summary_widget = self.transcript_panel.summary_panel.summary
         summary_widget.blockSignals(True)
-        summary_widget.setText(summarized_text)
+        summary_widget.setPlainText(summarized_text)
         summary_widget.blockSignals(False)
         
         self.current_session.summary = summarized_text
@@ -599,29 +599,22 @@ class MainWindow(FramelessMainWindow):
         self.show_panel("settings" if self.is_settings_open else "transcript")
     
     def _load_api_keys(self) -> None:
-        self.api_key_ocr = str(self.settings.value("api_key_ocr", ""))
-        self.api_key_speech = str(self.settings.value("api_key_speech", ""))
-        self.api_key_summarize = str(self.settings.value("api_key_summarize", ""))
+        self.api_key = str(self.settings.value("api_key_gemini", ""))
 
     def _load_processing_mode(self) -> None:
         self.processing_mode = str(self.settings.value("processing_mode", "local"))
 
-    def _effective_api_key(self, kind: str) -> str:
+    def _effective_api_key(self, kind: str = "") -> str:
         if self.processing_mode != "api":
             return ""
-        keys = {
-            "ocr": self.api_key_ocr,
-            "speech": self.api_key_speech,
-            "summarize": self.api_key_summarize,
-        }
-        return keys.get(kind, "")
+        return self.api_key
 
     def _summarize_engine_label(self) -> str:
-        return "claude-haiku" if self._effective_api_key("summarize") else "sumy"
+        return "gemini-flash" if self._effective_api_key() else "sumy"
 
     def _refresh_engine_labels(self) -> None:
-        ocr_engine = "tesseract + claude" if self._effective_api_key("ocr") else "pytesseract"
-        speech_engine = "api" if self._effective_api_key("speech") else "faster-whisper"
+        ocr_engine = "tesseract + gemini" if self._effective_api_key() else "pytesseract"
+        speech_engine = "gemini" if self._effective_api_key() else "faster-whisper"
         self.transcript_panel.update_engine_labels(ocr_engine, speech_engine, self._summarize_engine_label())
 
     def _on_ocr_engine_fallback(self, engine: str) -> None:
@@ -642,10 +635,8 @@ class MainWindow(FramelessMainWindow):
         self.processing_mode = mode
         self._refresh_engine_labels()
 
-    def on_api_keys_changed(self, ocr_key: str, speech_key: str, summarize_key: str) -> None:
-        self.api_key_ocr = ocr_key
-        self.api_key_speech = speech_key
-        self.api_key_summarize = summarize_key
+    def on_api_keys_changed(self, key: str) -> None:
+        self.api_key = key
         self._load_processing_mode()
         self._refresh_engine_labels()
 

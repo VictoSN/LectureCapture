@@ -1,8 +1,8 @@
 import shutil
 
 from PyQt6.QtWidgets import (
-    QWidget, QLabel, QPushButton, QComboBox, QVBoxLayout, QHBoxLayout, QGridLayout, QSpinBox, 
-    QFileDialog, QLineEdit, QMessageBox, QScrollArea
+    QWidget, QLabel, QPushButton, QComboBox, QVBoxLayout, QHBoxLayout, QGridLayout, QSpinBox,
+    QFileDialog, QLineEdit, QMessageBox, QScrollArea, QTextEdit
 )
 from PyQt6.QtCore import pyqtSignal, QSettings, QUrl, Qt
 from PyQt6.QtMultimedia import QSoundEffect
@@ -15,7 +15,7 @@ from ui.styles import apply_theme, create_button, create_button_label, get_syste
 from pathlib import Path
 
 class SettingsPanel(QWidget):
-    api_keys_changed = pyqtSignal(str, str, str)  # ocr_key, speech_key, summarize_key
+    api_keys_changed = pyqtSignal(str)  # gemini_api_key
     processing_mode_changed = pyqtSignal(str)  # local, api
     theme_changed = pyqtSignal(str)
     sound_effects_changed = pyqtSignal(str, str)  # start path, stop path
@@ -88,31 +88,28 @@ class SettingsPanel(QWidget):
         processing_button_layout.addWidget(self.api_button)
         processing_layout.addLayout(processing_button_layout)
         
-        ocr_label = QLabel("OCR (Anthropic)")
-        self.api_layout.addWidget(ocr_label, 0, 0)
-        self.ocr_input = QLineEdit()
-        self.ocr_input.setPlaceholderText("sk-ant-... (leave blank for local)")
-        self.ocr_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.api_layout.addWidget(self.ocr_input, 0, 1)
+        gemini_label = QLabel("Google Gemini API Key")
+        self.api_layout.addWidget(gemini_label, 0, 0)
+        self.gemini_input = QLineEdit()
+        self.gemini_input.setPlaceholderText("AIza... (leave blank for local)")
+        self.gemini_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.api_layout.addWidget(self.gemini_input, 0, 1)
 
-        speech_label = QLabel("Speech-to-Text (Google)")
-        self.api_layout.addWidget(speech_label, 1, 0)
-        self.speech_input = QLineEdit()
-        self.speech_input.setPlaceholderText("Google API key (leave blank for local)")
-        self.speech_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.api_layout.addWidget(self.speech_input, 1, 1)
-
-        summarize_label = QLabel("Summarizer (Anthropic)")
-        self.api_layout.addWidget(summarize_label, 2, 0)
-        self.summarize_input = QLineEdit()
-        self.summarize_input.setPlaceholderText("sk-ant-... (leave blank for local)")
-        self.summarize_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.api_layout.addWidget(self.summarize_input, 2, 1)
-
-        api_note = QLabel("OCR and Summarizer use Anthropic. Speech uses Google Cloud.")
+        api_note = QLabel("Used for OCR cleanup, speech-to-text, and summarization. Get a free key at aistudio.google.com.")
         api_note.setWordWrap(True)
         api_note.setStyleSheet("color: gray; font-size: 11px;")
-        self.api_layout.addWidget(api_note, 3, 0, 1, 2)
+        self.api_layout.addWidget(api_note, 1, 0, 1, 2)
+
+        self.test_api_button = QPushButton("Test API Connection")
+        self.test_api_button.clicked.connect(self._test_api_connection)
+        self.api_layout.addWidget(self.test_api_button, 2, 0, 1, 2)
+
+        self.api_test_output = QTextEdit()
+        self.api_test_output.setReadOnly(True)
+        self.api_test_output.setFixedHeight(80)
+        self.api_test_output.setPlaceholderText("Test results will appear here...")
+        self.api_test_output.setVisible(False)
+        self.api_layout.addWidget(self.api_test_output, 3, 0, 1, 2)
 
         self.api_container = QWidget()
         self.api_container.setLayout(self.api_layout)
@@ -399,15 +396,11 @@ class SettingsPanel(QWidget):
         stop = self.stop_sound_dropdown.currentData() or ""
         self.sound_effects_changed.emit(start, stop)
 
-        # Save API keys (only overwrite if user typed something; blank clears it)
-        ocr_key = self.ocr_input.text().strip()
-        speech_key = self.speech_input.text().strip()
-        summarize_key = self.summarize_input.text().strip()
-        self.settings.setValue("api_key_ocr", ocr_key)
-        self.settings.setValue("api_key_speech", speech_key)
-        self.settings.setValue("api_key_summarize", summarize_key)
+        # Save API key
+        gemini_key = self.gemini_input.text().strip()
+        self.settings.setValue("api_key_gemini", gemini_key)
         self.settings.sync()
-        self.api_keys_changed.emit(ocr_key, speech_key, summarize_key)
+        self.api_keys_changed.emit(gemini_key)
         self.processing_mode_changed.emit(self.proc_mode)
     
     def import_sound(self) -> None:
@@ -447,15 +440,8 @@ class SettingsPanel(QWidget):
         self._set_dropdown(self.start_sound_dropdown, self.settings.value("start_sound"), str(self.bundled_sounds_dir / 'Beep 1 (Default).wav'))
         self._set_dropdown(self.stop_sound_dropdown, self.settings.value("stop_sound"), str(self.bundled_sounds_dir / 'Chirp 1 (Default).wav'))
 
-        # Load API keys — show masked placeholder if key exists
-        for attr, key in [
-            ("ocr_input", "api_key_ocr"),
-            ("speech_input", "api_key_speech"),
-            ("summarize_input", "api_key_summarize"),
-        ]:
-            saved = self.settings.value(key, "")
-            widget = getattr(self, attr)
-            widget.setText(saved)
+        # Load API key
+        self.gemini_input.setText(self.settings.value("api_key_gemini", ""))
         
     def revert_theme(self) -> None:
         self.set_theme(str(self.settings.value("theme", "auto")))
@@ -477,6 +463,29 @@ class SettingsPanel(QWidget):
         if idx >= 0:
             dropdown.setCurrentIndex(idx)
     
+    def _test_api_connection(self) -> None:
+        from google import genai
+
+        def show(text: str) -> None:
+            print(text)
+            self.api_test_output.setVisible(True)
+            self.api_test_output.setPlainText(text)
+
+        key = self.gemini_input.text().strip()
+        if not key:
+            show("[API Test] No API key entered.")
+            return
+
+        print("[API Test] Testing Google Gemini connection...")
+        self.api_test_output.setVisible(True)
+        self.api_test_output.setPlainText("Testing...")
+        try:
+            client = genai.Client(api_key=key)
+            client.models.generate_content(model="gemini-3.1-flash-lite-preview", contents="ping")
+            show("[API Test] Connected successfully.")
+        except Exception as e:
+            show(f"[API Test] Connection failed:\n{e}")
+
     def deleteEvent(self) -> None:
         reply = QMessageBox.question(
             self, 
