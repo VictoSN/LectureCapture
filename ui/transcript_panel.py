@@ -12,8 +12,10 @@ from ui.summary_panel import SummaryPanel
 
 class TranscriptPanel(QWidget):
     properties_clicked = pyqtSignal()
-    record_clicked = pyqtSignal()
-    capture_deleted = pyqtSignal(int)  # capture_id — connect to storage.delete_capture
+    record_clicked = pyqtSignal()          # open recording panel
+    stop_recording_clicked = pyqtSignal()  # request stop (with confirmation) while recording
+    force_capture_clicked = pyqtSignal()
+    capture_deleted = pyqtSignal(int)
     
     def __init__(self, base_dir, icons_dir) -> None:
         super().__init__()
@@ -46,8 +48,12 @@ class TranscriptPanel(QWidget):
         self.summary_visibility_button = create_button(icons_dir / 'summarize.svg', lambda: self._panel_visibility(self.summary_panel), text="Summary", width=110)
         header.addWidget(self.summary_visibility_button)
 
-        self.record_button = create_button(icons_dir / 'red_dot.svg', self.record_clicked, text="Record", width=120)
+        self.record_button = create_button(icons_dir / 'red_dot.svg', self._on_record_button_clicked, text="Record", width=120)
         header.addWidget(self.record_button)
+
+        self.force_capture_button = create_button(icons_dir / 'scan.svg', self.force_capture_clicked, text="Capture Now", width=120)
+        self.force_capture_button.setVisible(False)
+        header.addWidget(self.force_capture_button)
 
         # Splitter Layout for content
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -103,6 +109,16 @@ class TranscriptPanel(QWidget):
         self.summary_shortcut.setEnabled(True)
 
         self._toggle_sync_scroll()
+
+    def _on_record_button_clicked(self) -> None:
+        if self.record_button.text() == "Recording":
+            self.stop_recording_clicked.emit()
+        else:
+            self.record_clicked.emit()
+
+    def set_recording_active(self, active: bool) -> None:
+        """Show/hide the force capture button based on recording state."""
+        self.force_capture_button.setVisible(active)
 
     def _on_capture_deleted(self, capture_id: int) -> None:
         """Remove the matching row from both panels and notify the controller."""

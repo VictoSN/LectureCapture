@@ -1,59 +1,83 @@
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel
-
+from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QGridLayout
+from PyQt6.QtCore import Qt
 from ui.styles import create_button, load_icon
-
 from qframelesswindow import TitleBar
+
 
 class ShortcutsDialog(QDialog):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Keyboard Shortcuts")
+        self.setMinimumWidth(380)
         layout = QVBoxLayout()
 
-        shortcuts = [
-            ("Ctrl+T", "New Session"),
-            ("Ctrl+S", "Settings"),
-            ("Ctrl+D", "Properties"),
-            ("Ctrl+F", "Start/Cancel Recording"),
-            ("Enter", "Stop Recording"),
-            ("Shift+1", "Toggle OCR Panel"),
-            ("Shift+2", "Toggle Speech Panel"),
-            ("Shift+3", "Toggle Summary Panel"),
+        # Group: General
+        layout.addWidget(self._section("General"))
+        general = [
+            ("Ctrl+T",  "New Session Panel"),
+            ("Ctrl+S",  "Settings Panel"),
+            ("Ctrl+D",  "Properties Panel"),
+            ("Ctrl+F",  "Recording Panel"),
+            ("Esc",     "Close Panel"),
         ]
+        layout.addLayout(self._grid(general))
 
-        for key, desc in shortcuts:
-            layout.addWidget(QLabel(f"{key}  —  {desc}"))
+        # Group: Recording
+        layout.addWidget(self._section("During Recording"))
+        recording = [
+            ("Return",       "Stop Recording (with confirmation)"),
+            ("Ctrl+Return", "Force Capture Now"),
+            ("Shift+1",           "Toggle OCR Panel"),
+            ("Shift+2",           "Toggle Speech Panel"),
+            ("Shift+3",           "Toggle Summary Panel"),
+        ]
+        layout.addLayout(self._grid(recording))
 
         self.setLayout(layout)
+
+    @staticmethod
+    def _section(title: str) -> QLabel:
+        label = QLabel(f"<b>{title}</b>")
+        label.setContentsMargins(0, 8, 0, 2)
+        return label
+
+    @staticmethod
+    def _grid(rows: list[tuple[str, str]]) -> QGridLayout:
+        grid = QGridLayout()
+        grid.setColumnMinimumWidth(0, 170)
+        for i, (key, desc) in enumerate(rows):
+            key_label = QLabel(key)
+            key_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            grid.addWidget(key_label, i, 0)
+            grid.addWidget(QLabel("—"), i, 1)
+            grid.addWidget(QLabel(desc), i, 2)
+        return grid
+
 
 class CustomTitleBar(TitleBar):
     def __init__(self, parent, icons_dir) -> None:
         super().__init__(parent)
-
         self.title_logo = QLabel()
         self.title_logo._icon_path = icons_dir / "logo.png"
         self.title_logo.setPixmap(
             load_icon(icons_dir / "logo.png").pixmap(24, 24)
         )
         self.title_logo.setContentsMargins(10, 0, 0, 0)
-
         self.title_label = QLabel("LectureCapture")
-        
+
         self.new_session_button = create_button(icons_dir / 'plus.svg')
-
         self.settings_button = create_button(icons_dir / 'settings.svg')
-
         self.help_button = create_button(icons_dir / 'question.svg', self._show_shortcuts, icon_size=22)
-        
+
         # Insert before the min/max/close buttons
         self.hBoxLayout.insertWidget(0, self.title_logo)
         self.hBoxLayout.insertWidget(1, self.title_label)
         self.hBoxLayout.insertWidget(self.hBoxLayout.count() - 3, self.new_session_button)
         self.hBoxLayout.insertWidget(self.hBoxLayout.count() - 3, self.settings_button)
         self.hBoxLayout.insertWidget(self.hBoxLayout.count() - 3, self.help_button)
-        
-        self.hBoxLayout.setSpacing(10)  
-        
+
+        self.hBoxLayout.setSpacing(10)
+
     def _show_shortcuts(self) -> None:
         dialog = ShortcutsDialog(self.window())
         dialog.exec()

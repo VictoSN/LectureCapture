@@ -213,15 +213,21 @@ class OCRWorker(QThread):
         return pil_img
     
     def run(self) -> None:
+        self._force = False
         while self._running:
             self.screenshot()
             
             # Due to using '.wait' in MainWindow, the thread will only close at interval time
             # Make interval 1/10th as fast, to be able to close it in time.
             for _ in range(self.interval * 10):
-                if not self._running:
+                if not self._running or self._force:
                     break
                 time.sleep(0.1)
+            self._force = False
+
+    def force_capture(self) -> None:
+        """Trigger an immediate screenshot and reset the interval countdown."""
+        self._force = True
         
     def stop(self) -> None:
         self._running = False

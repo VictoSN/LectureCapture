@@ -125,6 +125,8 @@ class MainWindow(FramelessMainWindow):
         self.transcript_panel = TranscriptPanel(self.storage.base_dir, ICONS_DIR)
         self.transcript_panel.properties_clicked.connect(self.on_properties_clicked)
         self.transcript_panel.record_clicked.connect(self.on_record_clicked)
+        self.transcript_panel.stop_recording_clicked.connect(self.on_stop_recording_confirmation)
+        self.transcript_panel.force_capture_clicked.connect(self.on_force_capture_clicked)
         self.transcript_panel.summary_panel.summarize_clicked.connect(self.on_summarize_clicked)
         self.transcript_panel.capture_deleted.connect(self.storage.delete_capture)
         
@@ -161,31 +163,53 @@ class MainWindow(FramelessMainWindow):
         self._refresh_engine_labels()
         
         # Shortcuts
+        # Ctrl+T — New Session
         self.create_session_shortcut = QShortcut(QKeySequence("Ctrl+T"), self)
         self.create_session_shortcut.activated.connect(self.on_new_session_clicked)
         self.create_session_shortcut.setEnabled(True)
         
+        # Ctrl+S — Settings
         self.settings_shortcut = QShortcut(QKeySequence("Ctrl+S"), self)
         self.settings_shortcut.activated.connect(self.on_settings_clicked)
         self.settings_shortcut.setEnabled(True)
         
+        # Ctrl+D — Properties
         self.properties_shortcut = QShortcut(QKeySequence("Ctrl+D"), self)
         self.properties_shortcut.activated.connect(self.on_properties_clicked)
         self.properties_shortcut.setEnabled(False)
         
-        self.start_recording_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
-        self.start_recording_shortcut.activated.connect(self.handle_record_shortcut)
-        self.start_recording_shortcut.setEnabled(False)
-        
-        self.end_recording_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Return), self)
-        self.end_recording_shortcut.activated.connect(self.on_record_clicked)
-        self.end_recording_shortcut.setEnabled(False)
+        # Ctrl+F — Recording panel
+        self.recording_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
+        self.recording_shortcut.activated.connect(self.handle_record_shortcut)
+        self.recording_shortcut.setEnabled(False)
 
-    def handle_record_shortcut(self):
-        if not self.is_recording_open:
-            self.on_record_clicked()
-        else:
+        # Ctrl+Return — Stop recording (with confirmation), only active while recording
+        self.stop_recording_shortcut = QShortcut(QKeySequence("Return"), self)
+        self.stop_recording_shortcut.activated.connect(self.on_stop_recording_confirmation)
+        self.stop_recording_shortcut.setEnabled(False)
+
+        # Ctrl+Shift+Return — Force capture now, only active while recording
+        self.capture_now_shortcut = QShortcut(QKeySequence("Ctrl+Return"), self)
+        self.capture_now_shortcut.activated.connect(self.on_force_capture_clicked)
+        self.capture_now_shortcut.setEnabled(False)
+
+    def handle_record_shortcut(self) -> None:
+        # Used by Ctrl + F
+        if self.is_recording_open:
             self.on_record_cancelled()
+        elif not self.is_recording:
+            self.on_record_clicked()
+
+    def on_stop_recording_confirmation(self) -> None:
+        if not self.is_recording:
+            return
+        reply = QMessageBox.question(
+            self,
+            "Stop Recording",
+            "Stop the current recording?"
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self.stop_recording()
 
     def on_new_session_clicked(self) -> None:
         if self.is_new_session_open:
@@ -248,7 +272,7 @@ class MainWindow(FramelessMainWindow):
             self.show_panel("transcript")
         
         self.properties_shortcut.setEnabled(True)
-        self.start_recording_shortcut.setEnabled(True)
+        self.recording_shortcut.setEnabled(True)
         
     def start_recording(self, interval, region, monitor, device, hwnd=None) -> None:
         start_time = time.time()
@@ -282,12 +306,13 @@ class MainWindow(FramelessMainWindow):
         # Que sound effect
         self.start_audio.play()
         
-        # Shortcut
+        # Enable recording-only shortcuts, disable the rest
         self.create_session_shortcut.setEnabled(False)
         self.settings_shortcut.setEnabled(False)
         self.properties_shortcut.setEnabled(False)
-        self.start_recording_shortcut.setEnabled(False)
-        self.end_recording_shortcut.setEnabled(True)
+        self.recording_shortcut.setEnabled(False)
+        self.stop_recording_shortcut.setEnabled(True)
+        self.capture_now_shortcut.setEnabled(True)
 
     def update_timer(self) -> None:
         if self.is_recording:
@@ -305,6 +330,7 @@ class MainWindow(FramelessMainWindow):
         # Reset Text
         self.transcript_panel.recording_time_label.setText("00:00")
         self.transcript_panel.record_button.setText("Record")
+        self.transcript_panel.set_recording_active(False)
         
         # Unlock Buttons
         self.sidebar.set_recording_locked(False)
@@ -339,6 +365,7 @@ class MainWindow(FramelessMainWindow):
         self.show_panel("transcript")
 
     def on_record_clicked(self) -> None:
+        # Opens the recording panel. Does NOT stop recording — that goes through confirmation
         if not self.current_session:
             print('Need to select session first')
             return
@@ -350,8 +377,6 @@ class MainWindow(FramelessMainWindow):
             self.recording_panel.reload_state()
             self.recording_panel.load_preferences()
             self.is_properties_open = False # Close Properties when opening recording
-        else:
-            self.stop_recording()
 
     def on_recording_confirmed(self, data) -> None:
         if not self.recording_panel.validate():
@@ -362,6 +387,7 @@ class MainWindow(FramelessMainWindow):
         self.is_recording = True
         self.is_recording_open = False
         self.transcript_panel.record_button.setText("Recording") # Update Label
+        self.transcript_panel.set_recording_active(True)
         
         # Lock Buttons
         self.sidebar.set_recording_locked(True)
@@ -391,6 +417,7 @@ class MainWindow(FramelessMainWindow):
         # Update labels
         self.transcript_panel.recording_time_label.setText("00:00")
         self.transcript_panel.record_button.setText("Record")
+        self.transcript_panel.set_recording_active(False)
         
         # Unlock inputs
         self.sidebar.set_recording_locked(False)
@@ -417,9 +444,14 @@ class MainWindow(FramelessMainWindow):
         self.create_session_shortcut.setEnabled(True)
         self.settings_shortcut.setEnabled(True)
         self.properties_shortcut.setEnabled(True)
-        self.start_recording_shortcut.setEnabled(True)
-        self.end_recording_shortcut.setEnabled(False)
+        self.recording_shortcut.setEnabled(True)
+        self.stop_recording_shortcut.setEnabled(False)
+        self.capture_now_shortcut.setEnabled(False)
         
+    def on_force_capture_clicked(self) -> None:
+        if self.is_recording and hasattr(self, 'ocr_worker'):
+            self.ocr_worker.force_capture()
+
     def on_record_cancelled(self) -> None:
         self.show_panel("transcript")
         self.is_recording_open = False
