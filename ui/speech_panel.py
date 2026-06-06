@@ -4,17 +4,19 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 
 from models.lecture import OCRCapture
-from ui.styles import create_label
+from ui.styles import create_label, create_button
 
 class SpeechPanel(QWidget):
     speech_text_changed = pyqtSignal(int, str)
     immediate_change = pyqtSignal()
+    capture_deleted = pyqtSignal(int)  # capture_id
     
     def __init__(self, base_dir, icons_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         header = QHBoxLayout()
         self.base_dir = base_dir
+        self.icons_dir = icons_dir
         self.is_locked = True
 
         # Header Layout
@@ -42,8 +44,16 @@ class SpeechPanel(QWidget):
         capture_widget = QWidget()
         capture_layout = QVBoxLayout()
         
+        # Timestamp row with delete button
+        timestamp_row = QHBoxLayout()
         capture_timestamp = QLabel(f"{capture.timestamp:.2f}s")
-        capture_layout.addWidget(capture_timestamp)
+        timestamp_row.addWidget(capture_timestamp)
+        timestamp_row.addStretch()
+
+        delete_button = create_button(self.icons_dir / 'delete.svg', lambda: self._delete_capture(capture.id, capture_widget))
+        timestamp_row.addWidget(delete_button)
+
+        capture_layout.addLayout(timestamp_row)
         
         speech_text = QTextEdit()
         speech_text.blockSignals(True)
@@ -65,6 +75,12 @@ class SpeechPanel(QWidget):
         capture_widget.setProperty("capture_id", capture.id)
         capture_widget.setLayout(capture_layout)
         return capture_widget
+
+    def _delete_capture(self, capture_id: int, widget: QWidget) -> None:
+        self.feed_layout.removeWidget(widget)
+        widget.deleteLater()
+        self.capture_deleted.emit(capture_id)
+        self.speech_button.setDisabled(not self.has_content())
 
     def clear_captures(self) -> None:
         while self.feed_layout.count():

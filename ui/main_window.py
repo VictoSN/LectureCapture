@@ -3,7 +3,7 @@ import zipfile, json
 
 from qframelesswindow import FramelessMainWindow
 from PyQt6.QtWidgets import QSplitter, QMessageBox, QFileDialog
-from PyQt6.QtGui import QIcon, QShortcut, QKeySequence, QGuiApplication
+from PyQt6.QtGui import QShortcut, QKeySequence, QGuiApplication
 from PyQt6.QtCore import Qt, QTimer, QUrl, QSettings
 from PyQt6.QtMultimedia import QSoundEffect
 
@@ -126,6 +126,7 @@ class MainWindow(FramelessMainWindow):
         self.transcript_panel.properties_clicked.connect(self.on_properties_clicked)
         self.transcript_panel.record_clicked.connect(self.on_record_clicked)
         self.transcript_panel.summary_panel.summarize_clicked.connect(self.on_summarize_clicked)
+        self.transcript_panel.capture_deleted.connect(self.storage.delete_capture)
         
         ## When any content is changed
         self.transcript_panel.ocr_panel.immediate_change.connect(self.unsaved_changes)

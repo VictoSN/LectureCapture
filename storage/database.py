@@ -168,6 +168,19 @@ class Storage:
         self.cursor.execute("SELECT id, timestamp, image_path, extracted_text, speech_text, session_id FROM ocrcapture WHERE session_id = ?", (session_id,))
         return [self._row_to_ocrcapture(captures) for captures in self.cursor.fetchall()]        
 
+    def delete_capture(self, capture_id: int) -> None:
+        # Fetch image path before deleting so we can remove the file
+        self.cursor.execute("SELECT image_path, session_id FROM ocrcapture WHERE id = ?", (capture_id,))
+        row = self.cursor.fetchone()
+        if row:
+            image_path, session_id = row
+            file_path = Path(self.base_dir) / 'sessions' / str(session_id) / 'captures' / image_path
+            if file_path.exists():
+                file_path.unlink()
+
+        self.cursor.execute("DELETE FROM ocrcapture WHERE id = ?", (capture_id,))
+        self.conn.commit()
+
     def update_extracted_text(self, capture_id, extracted_text) -> None:
         self.cursor.execute(
             "UPDATE ocrcapture SET extracted_text = ? WHERE id = ?", (extracted_text, capture_id)

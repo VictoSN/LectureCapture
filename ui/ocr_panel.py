@@ -6,7 +6,7 @@ from PyQt6.QtGui import QPixmap, QGuiApplication
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 
 from models.lecture import OCRCapture
-from ui.styles import create_label
+from ui.styles import create_label, create_button
 from ui.scalable_image_label import ScalableImageLabel
 
 from pathlib import Path
@@ -15,12 +15,14 @@ class OCRPanel(QWidget):
     ocr_text_changed = pyqtSignal(int, str) # capture_id & new text
     immediate_change = pyqtSignal()
     capture_added = pyqtSignal()  # emitted after add_capture so parent can sync heights
+    capture_deleted = pyqtSignal(int)  # capture_id
     
     def __init__(self, base_dir, icons_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         header = QHBoxLayout()
         self.base_dir = base_dir
+        self.icons_dir = icons_dir
         self.is_locked = True
 
         # Header Layout
@@ -50,9 +52,16 @@ class OCRPanel(QWidget):
         capture_layout.setContentsMargins(0, 0, 0, 0)
         # No fixed height — height is controlled externally by sync_row_heights
 
-        # Timestamp
+        # Timestamp row with delete button
+        timestamp_row = QHBoxLayout()
         capture_timestamp = QLabel(f"{capture.timestamp:.2f}s")
-        capture_layout.addWidget(capture_timestamp)
+        timestamp_row.addWidget(capture_timestamp)
+        timestamp_row.addStretch()
+
+        delete_button = create_button(self.icons_dir / 'delete.svg', lambda: self._delete_capture(capture.id, capture_widget))
+        timestamp_row.addWidget(delete_button)
+
+        capture_layout.addLayout(timestamp_row)
 
         # Vertical splitter
         splitter = QSplitter(Qt.Orientation.Vertical)
@@ -98,6 +107,12 @@ class OCRPanel(QWidget):
 
         capture_widget.setProperty("capture_id", capture.id)
         return capture_widget
+
+    def _delete_capture(self, capture_id: int, widget: QWidget) -> None:
+        self.feed_layout.removeWidget(widget)
+        widget.deleteLater()
+        self.capture_deleted.emit(capture_id)
+        self.ocr_button.setDisabled(not self.has_content())
 
     def _show_full_image(self, pixmap: QPixmap) -> None:
         dialog = QDialog(self)
