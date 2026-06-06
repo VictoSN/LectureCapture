@@ -19,6 +19,7 @@ class RecordingPanel(QWidget):
         action_layout = QHBoxLayout()
         
         self.settings = QSettings("LectureCapture", "LectureCapture")
+        self.icons_dir = icons_dir
         self.reload_state()
 
         # Panel Label
@@ -109,12 +110,22 @@ class RecordingPanel(QWidget):
         QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self._on_cancel)
         QShortcut(QKeySequence(Qt.Key.Key_Return), self, activated=self.try_record)
 
+    def reload_sources(self) -> None:
+        # Re-enumerate monitors/windows and audio devices so the dropdowns reflect
+        # what's open right now (called each time the panel is shown).
+        setup_source(self.source_dropdown, self.icons_dir)
+        setup_audio(self.audio_dropdown, self.icons_dir)
+
     def load_preferences(self) -> None:
         self.session_interval.setValue(int(self.interval))
         self.capture_method_dropdown.setCurrentText(self.capture_method)
 
         idx = self.source_dropdown.findText(self.saved_source)
         self.source_dropdown.setCurrentIndex(idx if idx >= 0 else 0)
+
+        audio_idx = self.audio_dropdown.findText(self.saved_audio)
+        if audio_idx >= 0:
+            self.audio_dropdown.setCurrentIndex(audio_idx)
 
         self.x_coords.setValue(int(self.region["left"]))
         self.y_coords.setValue(int(self.region["top"]))
@@ -157,6 +168,7 @@ class RecordingPanel(QWidget):
         elif self.capture_method == "Full Window":
             self.region = None
 
+        self.settings.sync()  # persist last-used choices so they survive a restart
         self.record_clicked.emit({
             "interval": self.session_interval.value(),
             "region": self.region,

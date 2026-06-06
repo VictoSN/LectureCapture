@@ -51,6 +51,13 @@ class Storage:
                                 FOREIGN KEY(session_id) REFERENCES session(id) ON DELETE CASCADE
                             )
                             """)
+
+        # Turns capture lookups by session (and the timestamp-ordered query used
+        # to attach speech to the right slide) from a full scan into an index seek.
+        self.cursor.execute("""
+                            CREATE INDEX IF NOT EXISTS idx_ocrcapture_session
+                            ON ocrcapture(session_id, timestamp)
+                            """)
         self.conn.commit()
 
     def create_session(self, session: Session) -> int:
@@ -168,6 +175,18 @@ class Storage:
         self.cursor.execute("SELECT id, timestamp, image_path, extracted_text, speech_text, session_id FROM ocrcapture WHERE session_id = ?", (session_id,))
         return [self._row_to_ocrcapture(captures) for captures in self.cursor.fetchall()]        
 
+    def get_latest_capture_before(self, session_id: int, timestamp: float) -> OCRCapture | None:
+        # Most recent capture at or before `timestamp` — used to attach a speech
+        # chunk to the slide that was on screen when it was spoken. Indexed, O(log n).
+        self.cursor.execute(
+            "SELECT id, timestamp, image_path, extracted_text, speech_text, session_id "
+            "FROM ocrcapture WHERE session_id = ? AND timestamp <= ? "
+            "ORDER BY timestamp DESC LIMIT 1",
+            (session_id, timestamp)
+        )
+        row = self.cursor.fetchone()
+        return self._row_to_ocrcapture(row) if row else None
+
     def delete_capture(self, capture_id: int) -> None:
         # Fetch image path before deleting so we can remove the file
         self.cursor.execute("SELECT image_path, session_id FROM ocrcapture WHERE id = ?", (capture_id,))
@@ -175,7 +194,9 @@ class Storage:
         if row:
             image_path, session_id = row
             file_path = Path(self.base_dir) / 'sessions' / str(session_id) / 'captures' / image_path
-            if file_path.exists():
+            # Guard speech-only captures (empty image_path -> the captures folder
+            # itself); unlinking a directory raises PermissionError on Windows.
+            if image_path and file_path.is_file():
                 file_path.unlink()
 
         self.cursor.execute("DELETE FROM ocrcapture WHERE id = ?", (capture_id,))

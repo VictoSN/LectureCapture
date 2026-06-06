@@ -202,14 +202,9 @@ class TranscriptPanel(QWidget):
         self.summary_panel.summary.setReadOnly(not has_content)
         
         if session.summary:
-            # Assign the summary text, while blocking signal to prevent triggering on_text_changed
-            summary_widget = self.summary_panel.summary
-            summary_widget.blockSignals(True)
-            summary_widget.setPlainText(session.summary)
-            summary_widget.blockSignals(False)
+            self.summary_panel.set_summary(session.summary)
         else:
-            self.summary_panel.summary.clear()
-            self.summary_panel.summary.setPlaceholderText('Press "Summarize" to generate a summary.')
+            self.summary_panel.clear_summary()
             
     def set_session_locked(self, locked: bool) -> None:
         self.properties_button.setDisabled(locked)
@@ -235,7 +230,7 @@ class TranscriptPanel(QWidget):
         self.set_session_locked(True)
         self.ocr_panel.clear_captures()
         self.speech_panel.clear_captures()
-        self.summary_panel.summary.clear()
+        self.summary_panel.clear_summary()
 
     def update_engine_labels(self, ocr_engine: str, speech_engine: str, summarize_engine: str) -> None:
         self.ocr_engine_label.setText(ocr_engine)

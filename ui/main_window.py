@@ -2,7 +2,7 @@ import time
 import zipfile, json
 
 from qframelesswindow import FramelessMainWindow
-from PyQt6.QtWidgets import QSplitter, QMessageBox, QFileDialog
+from PyQt6.QtWidgets import QSplitter, QMessageBox, QFileDialog, QApplication
 from PyQt6.QtGui import QShortcut, QKeySequence, QGuiApplication
 from PyQt6.QtCore import Qt, QTimer, QUrl, QSettings
 from PyQt6.QtMultimedia import QSoundEffect
@@ -41,6 +41,10 @@ class MainWindow(FramelessMainWindow):
         self.is_settings_open = False
         self.is_properties_open = False
         self.is_recording_open = False
+
+        # Speech that arrived before any slide was captured, held until the first
+        # capture exists so early narration isn't lost (see on_chunk_ready).
+        self._pending_speech = ""
 
         # Window details
         self.setWindowIcon(load_icon(ICONS_DIR / 'logo.png'))
@@ -92,6 +96,10 @@ class MainWindow(FramelessMainWindow):
         self.sidebar.new_session_clicked.connect(self.on_new_session_clicked)
         self.sidebar.settings_clicked.connect(self.on_settings_clicked)
         self.splitter.addWidget(self.sidebar)
+        # Keep the sidebar in a sane width range so toggling panels can't make the
+        # splitter blow it up or collapse it to a sliver.
+        self.sidebar.setMinimumWidth(200)
+        self.sidebar.setMaximumWidth(380)
         
         self.sidebar.search_changed.connect(self.on_search_changed)
         self.sidebar.category_filter_changed.connect(self.on_category_filter_changed)
@@ -154,7 +162,12 @@ class MainWindow(FramelessMainWindow):
         self.recording_panel.setVisible(False)         
         
         # Wait until the other widgets are added
-        self.splitter.setSizes([100, 400, 400, 400, 400, 400]) # 1 : 4 ratio
+        self.splitter.setSizes([260, 400, 400, 400, 400, 400]) # 1 : 4 ratio
+        # The sidebar holds its width; the content panels absorb window resizing
+        # and the space freed when other panels are hidden/shown.
+        self.splitter.setStretchFactor(0, 0)
+        for i in range(1, self.splitter.count()):
+            self.splitter.setStretchFactor(i, 1)
         self.transcript_panel.set_session_locked(True) # Locked buttons initially
 
         # Load API keys and processing mode from saved settings
@@ -228,7 +241,10 @@ class MainWindow(FramelessMainWindow):
         self.storage.create_session(new_session)
         self.sidebar.refresh(self.storage.get_all_sessions())
         self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
-        
+
+        # Clear the form so the next new session starts blank.
+        self.new_session_panel.reset_form()
+
         self.is_new_session_open = not self.is_new_session_open
         self.show_panel("transcript")
         
@@ -250,6 +266,7 @@ class MainWindow(FramelessMainWindow):
         )
         self.properties_panel.cancel_clicked.connect(self.on_properties_cancelled)
         self.splitter.addWidget(self.properties_panel)
+        self.splitter.setStretchFactor(self.splitter.indexOf(self.properties_panel), 1)
     
     def on_session_selected(self, session: Session) -> None:
         self.current_session = session
@@ -277,7 +294,14 @@ class MainWindow(FramelessMainWindow):
     def start_recording(self, interval, region, monitor, device, hwnd=None) -> None:
         start_time = time.time()
         self.recording_start_time = start_time
-        
+        self._pending_speech = ""
+
+        # Start the timer only now — when capture actually begins — so the time
+        # spent in the Mouse Select overlay isn't counted as recording time.
+        self.elapse_s = 0
+        self.transcript_panel.recording_time_label.setText("00:00")
+        self.timer.start(1000)
+
         # Create ocr worker thread
         self.ocr_worker = OCRWorker(
             self.current_session.id, self.storage.base_dir, interval, region, monitor, start_time, self.current_session.length, hwnd=hwnd,
@@ -375,14 +399,13 @@ class MainWindow(FramelessMainWindow):
             
             # Reset the values
             self.recording_panel.reload_state()
+            self.recording_panel.reload_sources()  # pick up newly-opened windows/devices
             self.recording_panel.load_preferences()
             self.is_properties_open = False # Close Properties when opening recording
 
     def on_recording_confirmed(self, data) -> None:
         if not self.recording_panel.validate():
             return
-        
-        self.timer.start(1000) # Start Timer
         
         self.is_recording = True
         self.is_recording_open = False
@@ -430,7 +453,17 @@ class MainWindow(FramelessMainWindow):
         self.audio_worker.stop()
         self.ocr_worker.wait()
         self.audio_worker.wait()
-        
+
+        # Drain capture/speech signals queued while the workers shut down, then
+        # rescue any speech that never found a slide to attach to.
+        QApplication.processEvents()
+        if self._pending_speech:
+            orphan = OCRCapture(0.0, "", "", None, self.current_session.id, self._pending_speech)
+            self.storage.create_ocr_capture(orphan)
+            self.transcript_panel.ocr_panel.add_capture(orphan)
+            self.transcript_panel.speech_panel.add_capture(orphan)
+            self._pending_speech = ""
+
         # save total length
         self.current_session.length += int(time.time() - self.recording_start_time)
         self.storage.update_session(self.current_session)
@@ -458,21 +491,25 @@ class MainWindow(FramelessMainWindow):
     
     def on_capture_ready(self, capture: OCRCapture) -> None:
         self.storage.create_ocr_capture(capture)
+        # Attach any speech that arrived before this slide was captured.
+        if self._pending_speech:
+            self.storage.append_speech_text(capture.id, self._pending_speech)
+            capture.speech_text = (capture.speech_text or "") + self._pending_speech
+            self._pending_speech = ""
         self.transcript_panel.ocr_panel.add_capture(capture)
         self.transcript_panel.speech_panel.add_capture(capture)
 
     def on_chunk_ready(self, timestamp, text) -> None:
-        captures = self.storage.get_captures_by_session(self.current_session.id)
-        recent = None
-        for capture in captures:
-            if capture.timestamp <= timestamp:
-                recent = capture
-            else:
-                break
-        
+        if not text or not self.current_session:
+            return
+        recent = self.storage.get_latest_capture_before(self.current_session.id, timestamp)
         if recent:
             self.storage.append_speech_text(recent.id, text)
             self.transcript_panel.speech_panel.update_capture_speech(recent.id, text)
+        else:
+            # No slide captured yet — hold the speech and flush it onto the first
+            # capture (see on_capture_ready) so early narration isn't lost.
+            self._pending_speech += text
     
     def on_summarize_clicked(self) -> None:
         if not self.current_session:
@@ -493,7 +530,7 @@ class MainWindow(FramelessMainWindow):
             self.transcript_panel.speech_engine_label.text(),
             engine
         )
-        current = self.transcript_panel.summary_panel.summary.toPlainText()
+        current = self.transcript_panel.summary_panel.current_source()
         
         # If the user has modified the summary, double confirm
         if current and summarized_text != current:
@@ -508,11 +545,8 @@ class MainWindow(FramelessMainWindow):
         elif summarized_text == current:
             return        
         
-        # Assign while blocking the signal to avoid triggering on_text_changed
-        summary_widget = self.transcript_panel.summary_panel.summary
-        summary_widget.blockSignals(True)
-        summary_widget.setPlainText(summarized_text)
-        summary_widget.blockSignals(False)
+        # Show the new markdown source (Preview button renders it).
+        self.transcript_panel.summary_panel.set_summary(summarized_text)
         
         self.current_session.summary = summarized_text
         current_time = datetime.now()
@@ -586,8 +620,9 @@ class MainWindow(FramelessMainWindow):
             self.current_session.summary = text
 
         self.storage.update_session(self.current_session)
-        self.sidebar.refresh(self.storage.get_all_sessions())
-        self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
+        # Note: the sidebar/settings session lists are intentionally NOT rebuilt
+        # here. Doing so on every debounced keystroke recreated every session card
+        # and stuttered badly; the "modified" time refreshes on next navigation.
         self.transcript_panel.saved_label.setText("Saved")
 
     def on_settings_clicked(self) -> None:
@@ -596,6 +631,11 @@ class MainWindow(FramelessMainWindow):
         
         self.is_settings_open = not self.is_settings_open
         self.is_properties_open = False # Close Properties when opening settings
+        if self.is_settings_open:
+            # Re-enumerate windows/devices, then restore the saved default selection.
+            self.settings_panel.reload_sources()
+            self.settings_panel.load_settings()
+            self.settings_panel.update_ui()
         self.show_panel("settings" if self.is_settings_open else "transcript")
     
     def _load_api_keys(self) -> None:
@@ -687,6 +727,8 @@ class MainWindow(FramelessMainWindow):
         with zipfile.ZipFile(path, 'w') as zf:
             zf.writestr("session.json", json.dumps(session_data, indent=2))
             for capture in captures:
+                if not capture.image_path:
+                    continue  # speech-only capture with no screenshot
                 img = captures_dir / capture.image_path
                 if img.exists():
                     zf.write(img, f"captures/{capture.image_path}")
@@ -769,8 +811,10 @@ class MainWindow(FramelessMainWindow):
                 self.audio_worker.stop()
                 self.ocr_worker.wait()
                 self.audio_worker.wait()
+                self.storage.close()
                 event.accept()
             else:
                 event.ignore()
         else:
+            self.storage.close()
             event.accept()

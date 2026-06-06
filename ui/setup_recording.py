@@ -6,7 +6,26 @@ import pathlib as Path
 from PyQt6.QtWidgets import QComboBox, QSpinBox
 from PyQt6.QtGui import QIcon
 
+def _app_name(title: str) -> str:
+    # Most apps put their display name last, after a dash. Keep just that, e.g.
+    # "main.py - LectureCapture - Visual Studio Code" -> "Visual Studio Code".
+    for sep in (" - ", " — ", " – ", " | "):
+        if sep in title:
+            return title.rsplit(sep, 1)[-1].strip()
+    return title.strip()
+
+
+def _window_detail(title: str) -> str:
+    # The part before the app name, used only to tell apart several windows of
+    # the same app.
+    for sep in (" - ", " — ", " – ", " | "):
+        if sep in title:
+            return title.rsplit(sep, 1)[0].strip()
+    return title.strip()
+
+
 def setup_source(source_dropdown: QComboBox, icons_dir: Path) -> None:
+    from collections import Counter
     source_dropdown.clear()
 
     # Get monitors first
@@ -21,17 +40,26 @@ def setup_source(source_dropdown: QComboBox, icons_dir: Path) -> None:
                 f"Screen {display_num} | {m['width']}x{m['height']}",
                 {"type": "monitor", "index": mss_index}
             )
-            
-    # Get windows
-    def callback(hwnd, _):
-        if win32gui.IsWindowVisible(hwnd) and win32gui.GetWindowText(hwnd):
-            source_dropdown.addItem(
-                QIcon(str(icons_dir / "window.svg")),
-                f"{win32gui.GetWindowText(hwnd)}",
-                {"type": "window", "hwnd": hwnd}
-            )
-    
-    win32gui.EnumWindows(callback, None)
+
+    # Collect windows, then label them by application name. The full title is only
+    # used when several windows share an app, so the list stays easy to scan.
+    windows = []
+    def collect(hwnd, _):
+        if win32gui.IsWindowVisible(hwnd):
+            title = win32gui.GetWindowText(hwnd)
+            if title:
+                windows.append((hwnd, title))
+    win32gui.EnumWindows(collect, None)
+
+    counts = Counter(_app_name(title) for _, title in windows)
+    for hwnd, title in windows:
+        name = _app_name(title)
+        label = name if counts[name] == 1 else f"{name} — {_window_detail(title)}"
+        source_dropdown.addItem(
+            QIcon(str(icons_dir / "window.svg")),
+            label,
+            {"type": "window", "hwnd": hwnd}
+        )
     
 def setup_audio(audio_dropdown: QComboBox, icons_dir: Path) -> None:
     audio_dropdown.clear()

@@ -72,6 +72,7 @@ class SettingsPanel(QWidget):
         self.base_dir = base_dir
         self.bundled_sounds_dir = bundled_sounds_dir
         self.themes_dir = themes_dir
+        self.icons_dir = icons_dir
 
         # Header Layout
         self.settings_name = QLabel("Settings")
@@ -419,6 +420,12 @@ class SettingsPanel(QWidget):
         for session in sessions:
             self.export_dropdown.addItem(session.name, session.id)
     
+    def reload_sources(self) -> None:
+        # Re-enumerate monitors/windows and audio devices so the dropdowns reflect
+        # what's open right now (called each time the panel is shown).
+        setup_source(self.source_dropdown, self.icons_dir)
+        setup_audio(self.audio_dropdown, self.icons_dir)
+
     def load_settings(self) -> None:
         self.proc_mode = str(self.settings.value("processing_mode", "local")) # local, api
         self.revert_theme() # theme

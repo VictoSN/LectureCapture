@@ -11,6 +11,11 @@ from ui.scalable_image_label import ScalableImageLabel
 
 from pathlib import Path
 
+# Width of the thumbnail kept in memory per capture. The full-resolution image
+# is loaded from disk only when previewed, so long sessions stay bounded in RAM.
+THUMBNAIL_WIDTH = 640
+
+
 class OCRPanel(QWidget):
     ocr_text_changed = pyqtSignal(int, str) # capture_id & new text
     immediate_change = pyqtSignal()
@@ -66,17 +71,21 @@ class OCRPanel(QWidget):
         # Vertical splitter
         splitter = QSplitter(Qt.Orientation.Vertical)
 
-        # Image
+        # Image — keep only a downscaled thumbnail in memory. The full-resolution
+        # screenshot is loaded from disk on demand for preview; otherwise a long
+        # session would pin hundreds of full-size pixmaps in RAM and run out.
         image_path = str(Path(self.base_dir) / 'sessions' / str(capture.session_id) / 'captures' / capture.image_path)
-        pixmap = QPixmap(image_path)
+        source = QPixmap(image_path)
 
-        if pixmap.isNull():
+        if source.isNull():
             capture_image = QLabel("[No image]")
             capture_image.setAlignment(Qt.AlignmentFlag.AlignTop)
         else:
-            capture_image = ScalableImageLabel(pixmap)
+            thumb = source.scaledToWidth(THUMBNAIL_WIDTH, Qt.TransformationMode.SmoothTransformation) if source.width() > THUMBNAIL_WIDTH else source
+            capture_image = ScalableImageLabel(thumb)
             capture_image.setCursor(Qt.CursorShape.PointingHandCursor)
-            capture_image.mousePressEvent = lambda _: self._show_full_image(pixmap)
+            capture_image.mousePressEvent = lambda _e, p=image_path: self._show_full_image(p)
+        # `source` is released when this scope ends, freeing the full-res pixmap.
 
         splitter.addWidget(capture_image)
 
@@ -114,7 +123,10 @@ class OCRPanel(QWidget):
         self.capture_deleted.emit(capture_id)
         self.ocr_button.setDisabled(not self.has_content())
 
-    def _show_full_image(self, pixmap: QPixmap) -> None:
+    def _show_full_image(self, image_path: str) -> None:
+        pixmap = QPixmap(image_path)
+        if pixmap.isNull():
+            return
         dialog = QDialog(self)
         dialog.setWindowTitle("Image Preview")
         layout = QVBoxLayout(dialog)
