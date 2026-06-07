@@ -35,6 +35,9 @@ class SpeechPanel(QWidget):
         self.scroll = QScrollArea()
         self.scroll.setWidget(self.feed_widget)
         self.scroll.setWidgetResizable(True)
+        # Keep in lockstep with the OCR panel's always-on scrollbar so paired
+        # rows share the same viewport width and stay vertically aligned.
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
 
         main_layout.addLayout(header)
         main_layout.addWidget(self.scroll)

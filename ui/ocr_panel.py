@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (
     QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QScrollArea, QLabel,
-    QTextEdit, QSplitter, QDialog
+    QTextEdit, QDialog, QMessageBox
 )
 from PyQt6.QtGui import QPixmap, QGuiApplication
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
@@ -57,6 +57,10 @@ class OCRPanel(QWidget):
         self.scroll = QScrollArea()
         self.scroll.setWidget(self.feed_widget)
         self.scroll.setWidgetResizable(True)
+        # Reserve the vertical scrollbar permanently. If it toggled on/off as the
+        # content height changed, the viewport width would flip-flop and the
+        # aspect-ratio images would oscillate (resize loop -> freeze -> crash).
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
 
         main_layout.addLayout(header)
         main_layout.addWidget(self.scroll)
@@ -69,18 +73,21 @@ class OCRPanel(QWidget):
         capture_layout.setSpacing(0)
         # No fixed height — height is controlled externally by sync_row_heights
 
-        # Header row: [🗑] Panel N: H:MM:SS
+        # Header row: [🗑] [📷] Panel N: H:MM:SS
         timestamp_row = QHBoxLayout()
-        delete_button = create_button(self.icons_dir / 'delete.svg', lambda: self._delete_capture(capture.id, capture_widget))
+        delete_button = create_button(self.icons_dir / 'delete.svg', lambda: self._confirm_delete(capture.id, capture_widget))
         timestamp_row.addWidget(delete_button)
+
+        # Toggle image visibility — starts visible, click to collapse/expand
+        toggle_img_btn = create_button(self.icons_dir / 'minimize.svg', None)
+        toggle_img_btn.setToolTip("Hide image")
+        timestamp_row.addWidget(toggle_img_btn)
+
         capture_timestamp = QLabel(f"Panel {panel_number}: {_fmt_session_time(capture.timestamp)}")
         timestamp_row.addWidget(capture_timestamp)
         timestamp_row.addStretch()
 
         capture_layout.addLayout(timestamp_row)
-
-        # Vertical splitter
-        splitter = QSplitter(Qt.Orientation.Vertical)
 
         # Image — keep only a downscaled thumbnail in memory. The full-resolution
         # screenshot is loaded from disk on demand for preview; otherwise a long
@@ -98,23 +105,30 @@ class OCRPanel(QWidget):
             capture_image.mousePressEvent = lambda _e, p=image_path: self._show_full_image(p)
         # `source` is released when this scope ends, freeing the full-res pixmap.
 
-        splitter.addWidget(capture_image)
-
         # Text
         ocr_text = QTextEdit()
         ocr_text.blockSignals(True)
         ocr_text.setPlainText(capture.extracted_text or "")
         ocr_text.blockSignals(False)
         ocr_text.setReadOnly(self.is_locked)
-        splitter.addWidget(ocr_text)
 
-        splitter.setHandleWidth(0)
-        splitter.setStyleSheet("QSplitter::handle { height: 0px; }")
-        splitter.setSizes([200, 300])
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 1)
+        # Wire the toggle button now that capture_image exists.
+        def _toggle_image():
+            visible = not capture_image.isVisible()
+            capture_image.setVisible(visible)
+            toggle_img_btn.setToolTip("Hide image" if visible else "Show image")
 
-        capture_layout.addWidget(splitter, stretch=1)
+        toggle_img_btn.clicked.connect(_toggle_image)
+
+        # Stack image above text with a small breathing gap. ScalableImageLabel
+        # caps its own height to the aspect-ratio height for the current width,
+        # so the text below takes whatever vertical space is left over.
+        content_layout = QVBoxLayout()
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(4)
+        content_layout.addWidget(capture_image)
+        content_layout.addWidget(ocr_text, stretch=1)
+        capture_layout.addLayout(content_layout, stretch=1)
 
         # Timer
         timer = QTimer(ocr_text)
@@ -129,6 +143,15 @@ class OCRPanel(QWidget):
 
         capture_widget.setProperty("capture_id", capture.id)
         return capture_widget
+
+    def _confirm_delete(self, capture_id: int, widget: QWidget) -> None:
+        reply = QMessageBox.question(
+            self,
+            "Delete capture",
+            "Delete this capture? This cannot be undone.",
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self._delete_capture(capture_id, widget)
 
     def _delete_capture(self, capture_id: int, widget: QWidget) -> None:
         self.feed_layout.removeWidget(widget)
