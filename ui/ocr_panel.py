@@ -16,12 +16,22 @@ from pathlib import Path
 THUMBNAIL_WIDTH = 640
 
 
+def _fmt_session_time(seconds: float) -> str:
+    s = int(seconds)
+    h = s // 3600
+    m = (s % 3600) // 60
+    sec = s % 60
+    if h > 0:
+        return f"{h}:{m:02d}:{sec:02d}"
+    return f"{m}:{sec:02d}"
+
+
 class OCRPanel(QWidget):
     ocr_text_changed = pyqtSignal(int, str) # capture_id & new text
     immediate_change = pyqtSignal()
     capture_added = pyqtSignal()  # emitted after add_capture so parent can sync heights
     capture_deleted = pyqtSignal(int)  # capture_id
-    
+
     def __init__(self, base_dir, icons_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
@@ -29,6 +39,7 @@ class OCRPanel(QWidget):
         self.base_dir = base_dir
         self.icons_dir = icons_dir
         self.is_locked = True
+        self._panel_count = 0  # incremented for each capture widget added
 
         # Header Layout
         ocr_w, self.ocr_engine_label = create_label(icons_dir / 'scan.svg', 'Screen OCR')
@@ -51,20 +62,20 @@ class OCRPanel(QWidget):
         main_layout.addWidget(self.scroll)
         self.setLayout(main_layout)
 
-    def _create_capture_widget(self, capture: OCRCapture) -> QWidget:
+    def _create_capture_widget(self, capture: OCRCapture, panel_number: int) -> QWidget:
         capture_widget = QWidget()
         capture_layout = QVBoxLayout(capture_widget)
         capture_layout.setContentsMargins(0, 0, 0, 0)
+        capture_layout.setSpacing(0)
         # No fixed height — height is controlled externally by sync_row_heights
 
-        # Timestamp row with delete button
+        # Header row: [🗑] Panel N: H:MM:SS
         timestamp_row = QHBoxLayout()
-        capture_timestamp = QLabel(f"{capture.timestamp:.2f}s")
-        timestamp_row.addWidget(capture_timestamp)
-        timestamp_row.addStretch()
-
         delete_button = create_button(self.icons_dir / 'delete.svg', lambda: self._delete_capture(capture.id, capture_widget))
         timestamp_row.addWidget(delete_button)
+        capture_timestamp = QLabel(f"Panel {panel_number}: {_fmt_session_time(capture.timestamp)}")
+        timestamp_row.addWidget(capture_timestamp)
+        timestamp_row.addStretch()
 
         capture_layout.addLayout(timestamp_row)
 
@@ -97,6 +108,8 @@ class OCRPanel(QWidget):
         ocr_text.setReadOnly(self.is_locked)
         splitter.addWidget(ocr_text)
 
+        splitter.setHandleWidth(0)
+        splitter.setStyleSheet("QSplitter::handle { height: 0px; }")
         splitter.setSizes([200, 300])
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 1)
@@ -141,6 +154,7 @@ class OCRPanel(QWidget):
         dialog.exec()
     
     def clear_captures(self) -> None:
+        self._panel_count = 0
         while self.feed_layout.count():
             item = self.feed_layout.takeAt(0)
             if item.widget():
@@ -149,11 +163,13 @@ class OCRPanel(QWidget):
     def load_captures(self, captures: list[OCRCapture]) -> None:
         self.clear_captures()
         for capture in captures:
-            self.feed_layout.addWidget(self._create_capture_widget(capture))
+            self._panel_count += 1
+            self.feed_layout.addWidget(self._create_capture_widget(capture, self._panel_count))
         self.ocr_button.setDisabled(not self.has_content())
-            
+
     def add_capture(self, capture: OCRCapture) -> None:
-        self.feed_layout.addWidget(self._create_capture_widget(capture))
+        self._panel_count += 1
+        self.feed_layout.addWidget(self._create_capture_widget(capture, self._panel_count))
         self.ocr_button.setDisabled(False)
         self.capture_added.emit()
         

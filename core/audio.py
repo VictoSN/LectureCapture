@@ -158,14 +158,20 @@ class AudioWorker(QThread):
             audio, chunk_start = item
             if self._is_silent(audio):
                 text = ""  # don't transcribe silence (avoids hallucinated gibberish)
+                print(f"[Audio timing] chunk@{chunk_start:.1f}s skipped (silent)")
             else:
+                t0 = time.time()
                 try:
-                    text = self._transcribe(self._to_wav_bytes(audio), chunk_start)
+                    text = self._transcribe(audio, chunk_start)
                 except Exception as e:
                     print(f"[Audio] transcription error: {e}")
                     text = ""
-            # Attach this speech to the slide on screen when the audio window ENDED.
-            self.chunk_ready.emit(chunk_start + self.interval, text)
+                print(f"[Audio timing] chunk@{chunk_start:.1f}s transcribed in {time.time()-t0:.2f}s")
+            # Attach this speech to the slide on screen when the audio window STARTED.
+            # Using chunk_start (not chunk_start+interval) means we look up whatever
+            # slide was active when the person began speaking, which is almost always
+            # the right one — even if a transition happened near the end of the chunk.
+            self.chunk_ready.emit(chunk_start, text)
 
     def _is_silent(self, audio: np.ndarray) -> bool:
         if audio.size == 0:
@@ -178,16 +184,37 @@ class AudioWorker(QThread):
         sf.write(buf, audio, RECORD_SAMPLE_RATE, format="WAV", subtype="PCM_16")
         return buf.getvalue()
 
-    def _transcribe(self, wav_bytes: bytes, chunk_start: float) -> str:
+    def _to_wav_bytes_16k(self, audio: np.ndarray) -> bytes:
+        """Resample to 16kHz and encode as WAV. ~5× smaller than 44100Hz."""
+        target = 16000
+        n = int(len(audio) * target / RECORD_SAMPLE_RATE)
+        audio_16k = np.interp(
+            np.linspace(0, len(audio) - 1, n),
+            np.arange(len(audio)),
+            audio.astype(np.float64),
+        ).astype(np.float32)
+        buf = io.BytesIO()
+        sf.write(buf, audio_16k, target, format="WAV", subtype="PCM_16")
+        return buf.getvalue()
+
+    @staticmethod
+    def _fmt_ts(seconds: float) -> str:
+        m = int(seconds) // 60
+        s = int(seconds) % 60
+        return f"[{m}:{s:02d}]"
+
+    def _transcribe(self, audio: np.ndarray, chunk_start: float) -> str:
         if self._api_available():
             try:
-                text = self._transcribe_api(wav_bytes, chunk_start)
+                # Send a downsampled 16kHz WAV — ~5× smaller payload than 44100Hz,
+                # which significantly cuts Gemini API round-trip latency.
+                text = self._transcribe_api(self._to_wav_bytes_16k(audio), chunk_start)
                 self._emit_engine("gemini")
                 return text
             except Exception as e:
                 print(f"[Audio] API failed ({e}); using local for ~{API_COOLDOWN_SECONDS}s")
                 self._api_cooldown_until = time.time() + API_COOLDOWN_SECONDS
-        text = self._transcribe_local(wav_bytes, chunk_start)
+        text = self._transcribe_local(self._to_wav_bytes(audio), chunk_start)
         self._emit_engine("faster-whisper")
         return text
 
@@ -202,7 +229,9 @@ class AudioWorker(QThread):
     def _ensure_model(self):
         if self.model is None:
             from faster_whisper import WhisperModel
-            self.model = WhisperModel("base", device="cpu", compute_type="int8")
+            # tiny is ~10x faster than base on CPU with negligible accuracy loss for
+            # lecture speech. beam_size=1 (greedy) removes the main latency source.
+            self.model = WhisperModel("tiny", device="cpu", compute_type="int8")
         return self.model
 
     def _transcribe_local(self, wav_bytes: bytes, chunk_start: float) -> str:
@@ -210,10 +239,10 @@ class AudioWorker(QThread):
             model = self._ensure_model()
             # faster-whisper accepts a file-like object and resamples to 16 kHz
             # internally. vad_filter drops non-speech segments (extra hallucination guard).
-            segments, _info = model.transcribe(io.BytesIO(wav_bytes), beam_size=5, language="en", vad_filter=True)
+            segments, _info = model.transcribe(io.BytesIO(wav_bytes), beam_size=1, language="en", vad_filter=True)
             out = ""
             for segment in segments:
-                out += f"[{chunk_start + segment.start:.2f}s -> {chunk_start + segment.end:.2f}s] {segment.text.strip()}\n"
+                out += f"{self._fmt_ts(chunk_start + segment.start)} {segment.text.strip()}\n"
             return out
         except Exception as e:
             print(f"[Audio] local transcription error: {e}")
@@ -233,7 +262,7 @@ class AudioWorker(QThread):
         transcript = (response.text or "").strip()
         if not transcript:
             return ""
-        return f"[{chunk_start:.2f}s] {transcript}\n"
+        return f"{self._fmt_ts(chunk_start)} {transcript}\n"
 
     @property
     def engine_name(self) -> str:

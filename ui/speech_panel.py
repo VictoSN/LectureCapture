@@ -43,18 +43,7 @@ class SpeechPanel(QWidget):
     def _create_capture_widget(self, capture: OCRCapture) -> QWidget:
         capture_widget = QWidget()
         capture_layout = QVBoxLayout()
-        
-        # Timestamp row with delete button
-        timestamp_row = QHBoxLayout()
-        capture_timestamp = QLabel(f"{capture.timestamp:.2f}s")
-        timestamp_row.addWidget(capture_timestamp)
-        timestamp_row.addStretch()
 
-        delete_button = create_button(self.icons_dir / 'delete.svg', lambda: self._delete_capture(capture.id, capture_widget))
-        timestamp_row.addWidget(delete_button)
-
-        capture_layout.addLayout(timestamp_row)
-        
         speech_text = QTextEdit()
         speech_text.blockSignals(True)
         speech_text.setPlainText(capture.speech_text or "")

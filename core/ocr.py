@@ -29,6 +29,11 @@ AHASH_IDENTICAL = 1             # <= this many differing bits => same image, ski
 IMAGE_HAMMING_THRESHOLD = 12    # for text-less slides: new slide if more bits differ
 TEXT_SIMILARITY = 0.90          # new slide if normalized text similarity drops below this
 BLANK_STD_THRESHOLD = 8         # ignore near-uniform, text-less frames (e.g. a blank screen)
+# Only compare this fraction of tokens for slide identity. Dynamic elements like
+# live poll counts, timers, and vote tallies sit at the bottom of slides and
+# change every few seconds — comparing only the head (title + main content) stops
+# them from triggering duplicate captures.
+HEAD_FRACTION = 0.6
 
 # Set True to log why each frame was captured/skipped (helps diagnose/tune dedup).
 DEBUG_DEDUP = False
@@ -113,9 +118,12 @@ class OCRWorker(QThread):
     # ---- capture + slide-change detection ------------------------------
 
     def screenshot(self, force: bool = False) -> None:
+        t0 = time.time()
         pil_img = self._grab_pil()
         if pil_img is None:
             return
+        t1 = time.time()
+        print(f"[OCR timing] grab:    {t1-t0:.3f}s")
 
         gray = self._downscale_gray(pil_img)
         ahash = gray > gray.mean()
@@ -127,9 +135,12 @@ class OCRWorker(QThread):
         if not force and self.previous_ahash is not None and img_dist <= AHASH_IDENTICAL:
             if DEBUG_DEDUP:
                 print(f"[OCR dedup] img_dist={img_dist} -> SKIP (image identical)")
+            print(f"[OCR timing] skipped (identical image) total: {time.time()-t0:.3f}s")
             return
 
         raw_text = self._extract_text(pil_img)
+        t2 = time.time()
+        print(f"[OCR timing] tesseract: {t2-t1:.3f}s  chars={len(raw_text.strip())}")
         norm = self._normalize(raw_text)
 
         # Blank frame (e.g. screen blanked to black): no text + near-uniform image.
@@ -138,6 +149,7 @@ class OCRWorker(QThread):
         if not force and not norm and float(gray.std()) < BLANK_STD_THRESHOLD:
             if DEBUG_DEDUP:
                 print(f"[OCR dedup] std={gray.std():.1f} chars=0 -> SKIP (blank frame)")
+            print(f"[OCR timing] skipped (blank frame) total: {time.time()-t0:.3f}s")
             return
 
         # Decide whether the slide changed. Text is the authority when present;
@@ -145,7 +157,15 @@ class OCRWorker(QThread):
         if self.previous_ahash is None:
             text_ratio, is_new = 1.0, True
         elif norm:
-            text_ratio = SequenceMatcher(None, norm, self.previous_raw).ratio()
+            # Compare only the leading HEAD_FRACTION of tokens so that dynamic
+            # elements at the bottom (live poll counts, vote tallies, timers) don't
+            # make an otherwise-identical slide look new.
+            tokens_a = norm.split()
+            tokens_b = self.previous_raw.split()
+            n = max(20, int(max(len(tokens_a), len(tokens_b)) * HEAD_FRACTION))
+            head_a = " ".join(tokens_a[:n])
+            head_b = " ".join(tokens_b[:n])
+            text_ratio = SequenceMatcher(None, head_a, head_b).ratio()
             is_new = text_ratio < TEXT_SIMILARITY
         else:
             text_ratio, is_new = -1.0, img_dist > IMAGE_HAMMING_THRESHOLD
@@ -155,13 +175,17 @@ class OCRWorker(QThread):
                   f"chars={len(norm)} -> {'CAPTURE' if (force or is_new) else 'SKIP'} :: {norm[:60]!r}")
 
         if not force and not is_new:
+            print(f"[OCR timing] skipped (same slide) total: {time.time()-t0:.3f}s")
             return
 
         # New slide: clean the text (API, if enabled) only now, then save once.
         text = self._maybe_clean(raw_text)
+        t3 = time.time()
+        print(f"[OCR timing] cleanup: {t3-t2:.3f}s")
         self.previous_raw = norm
         self.previous_ahash = ahash
         self._save_capture(text, pil_img)
+        print(f"[OCR timing] save+emit: {time.time()-t3:.3f}s  TOTAL: {time.time()-t0:.3f}s")
 
     def _grab_pil(self):
         if self.hwnd:

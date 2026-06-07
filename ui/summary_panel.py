@@ -23,12 +23,12 @@ class SummaryPanel(QWidget):
         summary_w, self.summarize_engine_label = create_label(icons_dir / 'summarize.svg', 'AI summary')
         header.addWidget(summary_w)
 
-        self.preview_button = QPushButton("Preview")
-        self.preview_button.setFixedSize(110, 30)
+        self.preview_button = QPushButton("Edit")
+        self.preview_button.setFixedHeight(30)
         self.preview_button.clicked.connect(self._toggle_preview)
         header.addWidget(self.preview_button)
 
-        self.summary_button = create_button(icons_dir / 'sparkle.svg', self.summarize_clicked, text="Summarize", width=130, icon_size=14)
+        self.summary_button = create_button(icons_dir / 'sparkle.svg', self.summarize_clicked, text="Summarize", icon_size=14)
         header.addWidget(self.summary_button)
 
         # Summary
@@ -54,11 +54,11 @@ class SummaryPanel(QWidget):
         return self._markdown_source if self._is_preview else self.summary.toPlainText()
 
     def set_summary(self, source: str) -> None:
-        # Default to the rendered Markdown preview; the user clicks Edit to change it.
+        # Default to the rendered Markdown preview; the user clicks the button to edit.
         self._markdown_source = source or ""
         self._pre_preview_readonly = self.summary.isReadOnly()
         self._is_preview = True
-        self.preview_button.setText("Edit")
+        self.preview_button.setText("Preview")  # current mode = Preview
         self.summary.blockSignals(True)
         self.summary.setMarkdown(self._markdown_source)
         self.summary.blockSignals(False)
@@ -67,7 +67,7 @@ class SummaryPanel(QWidget):
     def clear_summary(self) -> None:
         self._markdown_source = ""
         self._is_preview = False
-        self.preview_button.setText("Preview")
+        self.preview_button.setText("Edit")  # current mode = Edit
         self.summary.blockSignals(True)
         self.summary.clear()
         self.summary.setPlaceholderText('Press "Summarize" to generate a summary.')
@@ -82,7 +82,7 @@ class SummaryPanel(QWidget):
             self.summary.setMarkdown(self._markdown_source)
             self.summary.blockSignals(False)
             self.summary.setReadOnly(True)
-            self.preview_button.setText("Edit")
+            self.preview_button.setText("Preview")  # current mode = Preview
             self._is_preview = True
         else:
             # Preview -> Edit: restore the editable source.
@@ -90,5 +90,5 @@ class SummaryPanel(QWidget):
             self.summary.setPlainText(self._markdown_source)
             self.summary.blockSignals(False)
             self.summary.setReadOnly(self._pre_preview_readonly)
-            self.preview_button.setText("Preview")
+            self.preview_button.setText("Edit")  # current mode = Edit
             self._is_preview = False

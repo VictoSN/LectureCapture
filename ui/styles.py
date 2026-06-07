@@ -93,7 +93,12 @@ def create_button(icon_path: str | Path, signal=None, size: int = 30, text: str 
     btn._icon_path = icon_path
     btn.setIcon(load_icon(icon_path))
     btn.setIconSize(QSize(icon_size, icon_size))
-    btn.setFixedSize(width or size, size)
+    if width:
+        btn.setFixedSize(width, size)   # explicit width → honour it
+    elif not text:
+        btn.setFixedSize(size, size)    # icon-only → square
+    else:
+        btn.setFixedHeight(size)        # text button → natural width, no min forced
     if signal:
         btn.clicked.connect(signal)
     return btn
