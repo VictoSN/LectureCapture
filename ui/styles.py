@@ -1,8 +1,48 @@
 from PyQt6.QtWidgets import (
-    QWidget, QLabel, QHBoxLayout, QSizePolicy, QPushButton, QToolButton, QApplication
+    QWidget, QLabel, QHBoxLayout, QSizePolicy, QPushButton, QToolButton, QApplication, QTextEdit
 )
-from PyQt6.QtCore import Qt, QSize, QSettings
+from PyQt6.QtCore import Qt, QSize, QSettings, QObject, QEvent
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QPalette
+
+
+class _EatWheelFilter(QObject):
+    """Swallows wheel events so they don't change the widget or propagate."""
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.Wheel:
+            event.accept()
+            return True
+        return False
+
+_eat_wheel_filter: _EatWheelFilter | None = None
+
+def no_wheel(widget) -> None:
+    """Prevent mouse-wheel from changing a ComboBox (or any widget)."""
+    global _eat_wheel_filter
+    if _eat_wheel_filter is None:
+        _eat_wheel_filter = _EatWheelFilter(QApplication.instance())
+    widget.installEventFilter(_eat_wheel_filter)
+
+
+class NoLeakTextEdit(QTextEdit):
+    """QTextEdit that only leaks wheel events to the parent when already at the boundary.
+
+    Scrolling mid-text is contained here. Scrolling past the top/bottom naturally
+    continues into the outer panel, so the outer panel is still reachable without
+    having to aim at the scrollbar.
+    """
+    def wheelEvent(self, event):
+        bar = self.verticalScrollBar()
+        delta = event.angleDelta().y()
+        at_top = bar.value() == bar.minimum()
+        at_bottom = bar.value() == bar.maximum()
+
+        # Already at the boundary in the scroll direction → let the outer panel scroll
+        if (delta > 0 and at_top) or (delta < 0 and at_bottom):
+            event.ignore()
+            return
+
+        super().wheelEvent(event)
+        event.accept()  # mid-content scroll: consume so it doesn't bleed to the outer panel
 
 from pathlib import Path
 
@@ -88,7 +128,7 @@ def create_label(icon_path: str | Path, text: str) -> tuple[QWidget, QLabel]:
     row.addWidget(label)
     return w, label
 
-def create_button(icon_path: str | Path, signal=None, size: int = 30, text: str = "", width: int = None, icon_size: int = 18) -> QPushButton:
+def create_button(icon_path: str | Path, signal=None, size: int = 34, text: str = "", width: int = None, icon_size: int = 18) -> QPushButton:
     btn = QPushButton(text)
     btn._icon_path = icon_path
     btn.setIcon(load_icon(icon_path))
@@ -103,7 +143,7 @@ def create_button(icon_path: str | Path, signal=None, size: int = 30, text: str 
         btn.clicked.connect(signal)
     return btn
 
-def create_button_label(icon_path: str | Path, text: str, signal=None, width: int = 100, height: int = 100, icon_size: int = 50) -> QToolButton:
+def create_button_label(icon_path: str | Path, text: str, signal=None, width: int = 130, height: int = 120, icon_size: int = 60) -> QToolButton:
     btn = QToolButton()
     btn._icon_path = icon_path
     btn.setIcon(load_icon(icon_path))

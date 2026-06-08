@@ -11,7 +11,10 @@ class SummaryPanel(QWidget):
     def __init__(self, icons_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(8, 8, 10, 8)
+        main_layout.setSpacing(10)
         header = QHBoxLayout()
+        header.setSpacing(8)
 
         # The summary is edited as raw Markdown *source*. Preview is opt-in via the
         # button below; rendering is read-only so the source is never lost.
@@ -22,13 +25,16 @@ class SummaryPanel(QWidget):
         # Header Layout
         summary_w, self.summarize_engine_label = create_label(icons_dir / 'summarize.svg', 'AI summary')
         header.addWidget(summary_w)
+        header.addStretch()
 
         self.preview_button = QPushButton("Edit")
         self.preview_button.setFixedHeight(30)
+        self.preview_button.setToolTip("Toggle Markdown preview")
         self.preview_button.clicked.connect(self._toggle_preview)
         header.addWidget(self.preview_button)
 
         self.summary_button = create_button(icons_dir / 'sparkle.svg', self.summarize_clicked, text="Summarize", icon_size=14)
+        self.summary_button.setToolTip("Generate AI summary from OCR and audio content")
         header.addWidget(self.summary_button)
 
         # Summary

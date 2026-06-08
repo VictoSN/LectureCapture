@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 
 from models.lecture import OCRCapture
-from ui.styles import create_label, create_button
+from ui.styles import create_label, create_button, NoLeakTextEdit
 
 class SpeechPanel(QWidget):
     speech_text_changed = pyqtSignal(int, str)
@@ -14,7 +14,10 @@ class SpeechPanel(QWidget):
     def __init__(self, base_dir, icons_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(8, 8, 8, 8)
+        main_layout.setSpacing(10)
         header = QHBoxLayout()
+        header.setSpacing(8)
         self.base_dir = base_dir
         self.icons_dir = icons_dir
         self.is_locked = True
@@ -22,8 +25,10 @@ class SpeechPanel(QWidget):
         # Header Layout
         speech_w, self.speech_engine_label = create_label(icons_dir / 'microphone.svg', 'Audio transcript')
         header.addWidget(speech_w)
-        
+        header.addStretch()
+
         self.speech_button = QPushButton("Locked")
+        self.speech_button.setToolTip("Toggle transcript editing")
         self.speech_button.clicked.connect(self.set_locked)
         header.addWidget(self.speech_button)
 
@@ -31,6 +36,8 @@ class SpeechPanel(QWidget):
         self.feed_widget = QWidget()
         self.feed_layout = QVBoxLayout(self.feed_widget)
         self.feed_layout.setAlignment(Qt.AlignmentFlag.AlignTop)  # fixes centering bug
+        self.feed_layout.setContentsMargins(2, 2, 6, 2)
+        self.feed_layout.setSpacing(10)
 
         self.scroll = QScrollArea()
         self.scroll.setWidget(self.feed_widget)
@@ -47,7 +54,7 @@ class SpeechPanel(QWidget):
         capture_widget = QWidget()
         capture_layout = QVBoxLayout()
 
-        speech_text = QTextEdit()
+        speech_text = NoLeakTextEdit()
         speech_text.blockSignals(True)
         speech_text.setPlainText(capture.speech_text or "")
         speech_text.blockSignals(False)

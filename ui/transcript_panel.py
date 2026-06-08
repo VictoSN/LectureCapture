@@ -1,11 +1,12 @@
 from PyQt6.QtWidgets import (
-    QWidget, QLabel, QSplitter, QVBoxLayout, QHBoxLayout
+    QWidget, QLabel, QVBoxLayout, QHBoxLayout, QFrame
 )
+from ui.grip_splitter import GripSplitter
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QShortcut, QKeySequence
 
 from models.lecture import Session, OCRCapture
-from ui.styles import create_label, create_button
+from ui.styles import create_label, create_button, load_icon
 from ui.ocr_panel import OCRPanel
 from ui.speech_panel import SpeechPanel
 from ui.summary_panel import SummaryPanel
@@ -20,43 +21,63 @@ class TranscriptPanel(QWidget):
     def __init__(self, base_dir, icons_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(14, 12, 14, 10)
+        main_layout.setSpacing(12)
         header = QHBoxLayout()
+        header.setSpacing(8)
         footer = QHBoxLayout()
         self.base_dir = base_dir
+        self._icons_dir = icons_dir
 
         self._sync_scroll_enabled = False
         self._sync_connection_ocr = None
         self._sync_connection_speech = None
 
-        # Header Layout
+        # Header Layout — label with a border-bottom separator for the underline effect
         self.session_name = QLabel()
         self.session_name.setText("Select a session")
-        header.addWidget(self.session_name)
+        self.session_name.setStyleSheet("font-weight: 600;")
+        self._name_sep = QFrame()
+        self._name_sep.setFrameShape(QFrame.Shape.HLine)
+        self._name_sep.setObjectName("sessionNameSep")
+        name_col = QVBoxLayout()
+        name_col.setSpacing(2)
+        name_col.setContentsMargins(0, 0, 12, 0)
+        name_col.addWidget(self.session_name)
+        name_col.addWidget(self._name_sep)
+        header.addLayout(name_col)
 
         self.properties_button = create_button(icons_dir / 'info.svg', self.properties_clicked, text="Properties", width=110)
+        self.properties_button.setToolTip("Session properties (Ctrl+D)")
         header.addWidget(self.properties_button)
 
-        self.sync_scroll_button = create_button(icons_dir / 'lock.svg', self._toggle_sync_scroll, text="Scroll Lock", width=110)
+        self.sync_scroll_button = create_button(icons_dir / 'unlock.svg', self._toggle_sync_scroll, text="Scroll Unsync", width=126)
+        self.sync_scroll_button.setToolTip("Sync OCR and Audio scroll positions")
         header.addWidget(self.sync_scroll_button)
 
         self.ocr_visibility_button = create_button(icons_dir / 'scan.svg', lambda: self._panel_visibility(self.ocr_panel), text="OCR", width=80)
+        self.ocr_visibility_button.setToolTip("Toggle OCR panel (Shift+1)")
         header.addWidget(self.ocr_visibility_button)
 
         self.speech_visibility_button = create_button(icons_dir / 'microphone.svg', lambda: self._panel_visibility(self.speech_panel), text="Audio", width=80)
+        self.speech_visibility_button.setToolTip("Toggle Audio panel (Shift+2)")
         header.addWidget(self.speech_visibility_button)
 
         self.summary_visibility_button = create_button(icons_dir / 'summarize.svg', lambda: self._panel_visibility(self.summary_panel), text="Summary", width=110)
+        self.summary_visibility_button.setToolTip("Toggle Summary panel (Shift+3)")
         header.addWidget(self.summary_visibility_button)
 
         self.force_capture_button = create_button(icons_dir / 'scan.svg', self.force_capture_clicked, text="Capture Now", width=120)
+        self.force_capture_button.setToolTip("Force a capture now (Ctrl+Return)")
         self.force_capture_button.setVisible(False)
         header.addWidget(self.force_capture_button)
 
         self.record_button = create_button(icons_dir / 'red_dot.svg', self._on_record_button_clicked, text="Record", width=120)
+        self.record_button.setToolTip("Open recording panel (Ctrl+F)")
         header.addWidget(self.record_button)
 
         # Splitter Layout for content
-        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.splitter = GripSplitter(Qt.Orientation.Horizontal)
         self.ocr_panel = OCRPanel(base_dir, icons_dir)
         self.speech_panel = SpeechPanel(base_dir, icons_dir)
         self.summary_panel = SummaryPanel(icons_dir)
@@ -64,7 +85,12 @@ class TranscriptPanel(QWidget):
         self.splitter.addWidget(self.ocr_panel)
         self.splitter.addWidget(self.speech_panel)
         self.splitter.addWidget(self.summary_panel)
-        self.splitter.setSizes([100, 100, 100]) # 1 : 4 ratio
+        self.splitter.setStretchFactor(0, 2)
+        self.splitter.setStretchFactor(1, 2)
+        self.splitter.setStretchFactor(2, 1)
+        # setSizes before the widget is shown has no effect (width=0).
+        # Defer so the splitter has its real pixel width on the first frame.
+        QTimer.singleShot(0, self._rebalance_splitter)
 
         # Sync row heights whenever a new capture is added during recording.
         # Defer via singleShot(0) so Qt finishes laying out the new widgets first.
@@ -181,9 +207,13 @@ class TranscriptPanel(QWidget):
         if self._sync_scroll_enabled:
             self._sync_connection_ocr = ocr_bar.valueChanged.connect(speech_bar.setValue)
             self._sync_connection_speech = speech_bar.valueChanged.connect(ocr_bar.setValue)
+            self.sync_scroll_button.setText("Scroll Sync")
+            self.sync_scroll_button.setIcon(load_icon(self._icons_dir / 'lock.svg'))
         else:
             ocr_bar.valueChanged.disconnect(speech_bar.setValue)
             speech_bar.valueChanged.disconnect(ocr_bar.setValue)
+            self.sync_scroll_button.setText("Scroll Unsync")
+            self.sync_scroll_button.setIcon(load_icon(self._icons_dir / 'unlock.svg'))
 
     def _panel_visibility(self, panel: QWidget):
         panel.setVisible(not panel.isVisible())
@@ -191,17 +221,18 @@ class TranscriptPanel(QWidget):
 
     def _rebalance_splitter(self):
         panels = [self.ocr_panel, self.speech_panel, self.summary_panel]
-        visible = [p for p in panels if p.isVisible()]
+        weights = [2, 2, 1]
+        visible = [(p, w) for p, w in zip(panels, weights) if p.isVisible()]
 
         if not visible:
             return
 
         total = self.splitter.width()
-        share = total // len(visible)
+        total_weight = sum(w for _, w in visible)
 
         sizes = []
-        for p in panels:
-            sizes.append(share if p.isVisible() else 0)
+        for p, w in zip(panels, weights):
+            sizes.append(int(total * w / total_weight) if p.isVisible() else 0)
 
         self.splitter.setSizes(sizes)
         # setSizes() doesn't emit splitterMoved, so resync row heights to the new

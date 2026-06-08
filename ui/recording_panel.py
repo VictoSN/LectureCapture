@@ -7,6 +7,7 @@ from PyQt6.QtCore import QSettings, Qt, pyqtSignal
 from PyQt6.QtGui import QShortcut, QKeySequence
 
 from ui.setup_recording import setup_source, setup_audio, update_coord_ranges
+from ui.styles import no_wheel
 
 class RecordingPanel(QWidget):
     record_clicked = pyqtSignal(dict)
@@ -15,15 +16,21 @@ class RecordingPanel(QWidget):
     def __init__(self, icons_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(24, 24, 24, 24)
+        main_layout.setSpacing(18)
         self.default_layout = QGridLayout()
+        self.default_layout.setHorizontalSpacing(14)
+        self.default_layout.setVerticalSpacing(12)
         action_layout = QHBoxLayout()
-        
+        action_layout.setSpacing(10)
+
         self.settings = QSettings("LectureCapture", "LectureCapture")
         self.icons_dir = icons_dir
         self.reload_state()
 
         # Panel Label
         self.recording_name = QLabel("Recording")
+        self.recording_name.setStyleSheet("font-size: 18px; font-weight: 600;")
         main_layout.addWidget(self.recording_name)
 
         # Input Fields
@@ -41,6 +48,7 @@ class RecordingPanel(QWidget):
         self.default_layout.addWidget(self.capture_method_label, 1, 0)
         
         self.capture_method_dropdown = QComboBox()
+        no_wheel(self.capture_method_dropdown)
         self.capture_method_dropdown.addItems(["Mouse Select", "Coordinates", "Full Window"])
         self.capture_method_dropdown.currentTextChanged.connect(self.set_user_option)
         self.default_layout.addWidget(self.capture_method_dropdown, 1, 1)
@@ -50,6 +58,7 @@ class RecordingPanel(QWidget):
         self.default_layout.addWidget(self.source_label, 2, 0)
 
         self.source_dropdown = QComboBox()
+        no_wheel(self.source_dropdown)
         setup_source(self.source_dropdown, icons_dir)
         self.default_layout.addWidget(self.source_dropdown, 2, 1)
 
@@ -86,6 +95,7 @@ class RecordingPanel(QWidget):
         self.default_layout.addWidget(self.audio_label, 7, 0)
 
         self.audio_dropdown = QComboBox()
+        no_wheel(self.audio_dropdown)
         setup_audio(self.audio_dropdown, icons_dir)
         self.default_layout.addWidget(self.audio_dropdown, 7, 1)        
 
@@ -94,12 +104,16 @@ class RecordingPanel(QWidget):
 
         # Actions Buttons
         cancel_button = QPushButton("Cancel")
+        cancel_button.setToolTip("Cancel (Esc)")
         cancel_button.clicked.connect(self._on_cancel)
         action_layout.addWidget(cancel_button)
-        
+
         start_button = QPushButton("Start Recording")
+        start_button.setToolTip("Start recording (Return)")
         start_button.clicked.connect(self.try_record)
         action_layout.addWidget(start_button)
+
+        action_layout.insertStretch(0)
 
         main_layout.addLayout(self.default_layout)
         main_layout.addStretch()
@@ -109,6 +123,14 @@ class RecordingPanel(QWidget):
         self.set_user_option()
         QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self._on_cancel)
         QShortcut(QKeySequence(Qt.Key.Key_Return), self, activated=self.try_record)
+
+    def _find_source_index(self, saved: str) -> int:
+        """Match by app_name stored in item data, falling back to label text."""
+        for i in range(self.source_dropdown.count()):
+            data = self.source_dropdown.itemData(i) or {}
+            if data.get("app_name") == saved:
+                return i
+        return self.source_dropdown.findText(saved)
 
     def reload_sources(self) -> None:
         # Re-enumerate monitors/windows and audio devices so the dropdowns reflect
@@ -120,7 +142,7 @@ class RecordingPanel(QWidget):
         self.session_interval.setValue(int(self.interval))
         self.capture_method_dropdown.setCurrentText(self.capture_method)
 
-        idx = self.source_dropdown.findText(self.saved_source)
+        idx = self._find_source_index(self.saved_source)
         self.source_dropdown.setCurrentIndex(idx if idx >= 0 else 0)
 
         audio_idx = self.audio_dropdown.findText(self.saved_audio)
@@ -152,7 +174,8 @@ class RecordingPanel(QWidget):
         source = self.source_dropdown.currentData()
         self.settings.setValue("interval", self.session_interval.value())
         self.settings.setValue("capture_method", self.capture_method)
-        self.settings.setValue("source", self.source_dropdown.currentText())
+        src_data = self.source_dropdown.currentData() or {}
+        self.settings.setValue("source", src_data.get("app_name", self.source_dropdown.currentText()))
         self.settings.setValue("audio", self.audio_dropdown.currentText())
 
         if self.capture_method == "Coordinates":

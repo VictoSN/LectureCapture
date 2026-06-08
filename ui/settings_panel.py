@@ -10,7 +10,7 @@ from PyQt6.QtGui import QShortcut, QKeySequence
 
 from models.lecture import Session
 from ui.setup_recording import setup_source, setup_audio, update_coord_ranges
-from ui.styles import apply_theme, create_button, create_button_label, get_system_theme
+from ui.styles import apply_theme, create_button, create_button_label, get_system_theme, no_wheel
 
 from pathlib import Path
 
@@ -37,36 +37,51 @@ class SettingsPanel(QWidget):
         content = QWidget()
         content.setMinimumWidth(400)
         main_layout = QVBoxLayout(content)
-        main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(24, 22, 24, 22)
+        main_layout.setSpacing(20)
 
         scroll.setWidget(content)
         outer_layout.addWidget(scroll)
         self.setLayout(outer_layout)
         
-        # Processing
-        processing_layout = QVBoxLayout()
-        processing_button_layout = QHBoxLayout()
-        self.api_layout = QGridLayout()
-        
-        # Themes
-        theme_layout = QVBoxLayout()
-        theme_buttons_layout = QHBoxLayout()
-        
-        # Preferences
-        preferences_layout = QVBoxLayout()
-        preferences_buttons_layout = QHBoxLayout()
-        self.default_layout = QGridLayout()
-        
-        # Sound Effects
-        sound_grid_layout = QGridLayout()
-        
-        # Exports & Import
-        export_layout = QHBoxLayout()
-        import_layout = QHBoxLayout()
+        # Section spacing: a section is a heading label stacked over its controls,
+        # with the control rows/grids sharing one consistent gap.
+        def _section(v: QVBoxLayout) -> QVBoxLayout:
+            v.setSpacing(10)
+            return v
 
-        delete_layout = QHBoxLayout()
-        action_layout = QHBoxLayout()
+        def _row(h: QHBoxLayout) -> QHBoxLayout:
+            h.setSpacing(12)
+            return h
+
+        def _grid(g: QGridLayout) -> QGridLayout:
+            g.setHorizontalSpacing(14)
+            g.setVerticalSpacing(10)
+            return g
+
+        # Processing
+        processing_layout = _section(QVBoxLayout())
+        processing_button_layout = _row(QHBoxLayout())
+        self.api_layout = _grid(QGridLayout())
+
+        # Themes
+        theme_layout = _section(QVBoxLayout())
+        theme_buttons_layout = _row(QHBoxLayout())
+
+        # Preferences
+        preferences_layout = _section(QVBoxLayout())
+        preferences_buttons_layout = _row(QHBoxLayout())
+        self.default_layout = _grid(QGridLayout())
+
+        # Sound Effects
+        sound_grid_layout = _grid(QGridLayout())
+
+        # Exports & Import
+        export_layout = _row(QHBoxLayout())
+        import_layout = _row(QHBoxLayout())
+
+        delete_layout = _row(QHBoxLayout())
+        action_layout = _row(QHBoxLayout())
 
         self.settings = QSettings("LectureCapture", "LectureCapture")
         self.base_dir = base_dir
@@ -76,6 +91,7 @@ class SettingsPanel(QWidget):
 
         # Header Layout
         self.settings_name = QLabel("Settings")
+        self.settings_name.setStyleSheet("font-size: 18px; font-weight: 600;")
         main_layout.addWidget(self.settings_name)
 
         # API vs Local
@@ -98,16 +114,17 @@ class SettingsPanel(QWidget):
 
         api_note = QLabel("Used for OCR cleanup, speech-to-text, and summarization. Get a free key at aistudio.google.com.")
         api_note.setWordWrap(True)
-        api_note.setStyleSheet("color: gray; font-size: 11px;")
+        api_note.setObjectName("muted")
         self.api_layout.addWidget(api_note, 1, 0, 1, 2)
 
         self.test_api_button = QPushButton("Test API Connection")
+        self.test_api_button.setToolTip("Test the Gemini API key")
         self.test_api_button.clicked.connect(self._test_api_connection)
         self.api_layout.addWidget(self.test_api_button, 2, 0, 1, 2)
 
         self.api_test_output = QTextEdit()
         self.api_test_output.setReadOnly(True)
-        self.api_test_output.setFixedHeight(80)
+        self.api_test_output.setMaximumHeight(400)
         self.api_test_output.setPlaceholderText("Test results will appear here...")
         self.api_test_output.setVisible(False)
         self.api_layout.addWidget(self.api_test_output, 3, 0, 1, 2)
@@ -158,6 +175,7 @@ class SettingsPanel(QWidget):
         self.default_layout.addWidget(self.capture_method_label, 1, 0)
 
         self.capture_method_dropdown = QComboBox()
+        no_wheel(self.capture_method_dropdown)
         self.capture_method_dropdown.addItems(["Mouse Select", "Coordinates", "Full Window"])
         self.capture_method_dropdown.currentTextChanged.connect(self.update_ui)
         self.default_layout.addWidget(self.capture_method_dropdown, 1, 1)
@@ -167,6 +185,7 @@ class SettingsPanel(QWidget):
         self.default_layout.addWidget(self.source_label, 2, 0)
 
         self.source_dropdown = QComboBox()
+        no_wheel(self.source_dropdown)
         setup_source(self.source_dropdown, icons_dir)
         self.default_layout.addWidget(self.source_dropdown, 2, 1)
 
@@ -200,6 +219,7 @@ class SettingsPanel(QWidget):
         self.default_layout.addWidget(self.audio_label, 7, 0)
 
         self.audio_dropdown = QComboBox()
+        no_wheel(self.audio_dropdown)
         setup_audio(self.audio_dropdown, icons_dir)
         self.default_layout.addWidget(self.audio_dropdown, 7, 1)
 
@@ -215,24 +235,29 @@ class SettingsPanel(QWidget):
         sound_grid_layout.addWidget(start_sound_label, 0, 0)
         
         self.start_sound_dropdown = QComboBox()
+        no_wheel(self.start_sound_dropdown)
         sound_grid_layout.addWidget(self.start_sound_dropdown, 0, 1)
         
         self.start_sound_button = create_button(icons_dir / "play.svg", lambda: self.play_sound(self.start_sound_dropdown), width=90)
+        self.start_sound_button.setToolTip("Preview start sound")
         sound_grid_layout.addWidget(self.start_sound_button, 0, 2)
 
         stop_sound_label = QLabel("Stop Recording Sound")
         sound_grid_layout.addWidget(stop_sound_label, 1, 0)
-        
+
         self.stop_sound_dropdown = QComboBox()
+        no_wheel(self.stop_sound_dropdown)
         sound_grid_layout.addWidget(self.stop_sound_dropdown, 1, 1)
-        
+
         self.stop_sound_button = create_button(icons_dir / "play.svg", lambda: self.play_sound(self.stop_sound_dropdown), width=90)
+        self.stop_sound_button.setToolTip("Preview stop sound")
         sound_grid_layout.addWidget(self.stop_sound_button, 1, 2)
 
         sound_import_label = QLabel("Import Sound")
         sound_grid_layout.addWidget(sound_import_label, 2, 0)
-        
+
         sound_import_button = create_button(icons_dir / "import.svg", self.import_sound, width=90)
+        sound_import_button.setToolTip("Import a custom sound file")
         sound_grid_layout.addWidget(sound_import_button, 2, 2)
         
         # Export & Import Sessions
@@ -240,44 +265,51 @@ class SettingsPanel(QWidget):
         export_layout.addWidget(export_label)
         
         self.export_dropdown = QComboBox()
+        no_wheel(self.export_dropdown)
         export_layout.addWidget(self.export_dropdown)
         
         self.export_button = create_button(icons_dir / "export.svg", lambda: self.export_clicked.emit(self.export_dropdown.currentData()), width=90)
+        self.export_button.setToolTip("Export selected session")
         export_layout.addWidget(self.export_button)
-        
+
         import_label = QLabel("Import Session")
         import_layout.addWidget(import_label)
-        
+
         self.import_button = create_button(icons_dir / "import.svg", self.import_clicked.emit, width=90)
+        self.import_button.setToolTip("Import a session file")
         import_layout.addWidget(self.import_button)
-        
+
         delete_label = QLabel("Delete All Session")
         delete_layout.addWidget(delete_label)
-        
+
         self.delete_button = QPushButton("Delete")
+        self.delete_button.setToolTip("Permanently delete all sessions")
         self.delete_button.clicked.connect(self.deleteEvent)
         self.delete_button.setStyleSheet("""
             QPushButton {
-                background-color: red;
-                color: white;
+                background-color: #b54b35;
+                color: #ffffff;
                 border: none;
-                padding: 6px;
-                border-radius: 4px;
+                padding: 7px 14px;
+                border-radius: 8px;
             }
             QPushButton:hover {
-                background-color: darkred;
+                background-color: #9c3f2c;
             }
         """)
         delete_layout.addWidget(self.delete_button)
         
         # Close & Save Buttons
         self.cancel_button = QPushButton("Close")
+        self.cancel_button.setToolTip("Close settings (Esc)")
         self.cancel_button.clicked.connect(self._on_cancel)
         action_layout.addWidget(self.cancel_button)
-        
+
         self.save_button = QPushButton("Save")
+        self.save_button.setToolTip("Save settings (Return)")
         action_layout.addWidget(self.save_button)
         self.save_button.clicked.connect(self._on_save)
+        action_layout.insertStretch(0)
 
         main_layout.addLayout(processing_layout)
         main_layout.addLayout(theme_layout)

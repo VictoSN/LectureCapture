@@ -2,7 +2,8 @@ import time
 import zipfile, json
 
 from qframelesswindow import FramelessMainWindow
-from PyQt6.QtWidgets import QSplitter, QMessageBox, QFileDialog, QApplication
+from PyQt6.QtWidgets import QMessageBox, QFileDialog, QApplication
+from ui.grip_splitter import GripSplitter
 from PyQt6.QtGui import QShortcut, QKeySequence, QGuiApplication
 from PyQt6.QtCore import Qt, QTimer, QUrl, QSettings
 from PyQt6.QtMultimedia import QSoundEffect
@@ -50,7 +51,7 @@ class MainWindow(FramelessMainWindow):
         self.setWindowIcon(load_icon(ICONS_DIR / 'logo.png'))
         self.setWindowTitle("LectureCapture")
         self.setMinimumSize(800, 600)
-        self.resize(1200, 800)
+        self.resize(1300, 800)
         
         # Move it to the middle
         screen = QGuiApplication.primaryScreen().availableGeometry()
@@ -81,9 +82,11 @@ class MainWindow(FramelessMainWindow):
         self.titleBar.raise_()
         self.titleBar.new_session_button.clicked.connect(self.on_new_session_clicked)
         self.titleBar.settings_button.clicked.connect(self.on_settings_clicked)
+        self.titleBar.sidebar_button.clicked.connect(self._toggle_sidebar)
+        self._sidebar_width = 260  # last known open width
 
         # Splitter Layout
-        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.splitter = GripSplitter(Qt.Orientation.Horizontal)
         self.setCentralWidget(self.splitter)
 
         self.timer = QTimer()
@@ -100,13 +103,16 @@ class MainWindow(FramelessMainWindow):
         # splitter blow it up or collapse it to a sliver.
         self.sidebar.setMinimumWidth(200)
         self.sidebar.setMaximumWidth(380)
+        # Prevent drag-collapsing to 0 — once at 0 there's no handle to grab.
+        # Programmatic toggle uses setVisible instead, which always restores properly.
+        self.splitter.setCollapsible(0, False)
         
         self.sidebar.search_changed.connect(self.on_search_changed)
         self.sidebar.category_filter_changed.connect(self.on_category_filter_changed)
         self.sidebar.group_filter_changed.connect(self.on_group_filter_changed)
 
         # New Session Panel
-        self.new_session_panel = NewSessionPanel()
+        self.new_session_panel = NewSessionPanel(self.storage.get_group_categories())
         self.new_session_panel.create_clicked.connect(
             lambda session_name, session_category, group_category: self.on_new_session_create(session_name, session_category, group_category)
         )
@@ -176,6 +182,11 @@ class MainWindow(FramelessMainWindow):
         self._refresh_engine_labels()
         
         # Shortcuts
+        # Shift+4 — Toggle sidebar (always active)
+        self.sidebar_shortcut = QShortcut(QKeySequence("Shift+4"), self)
+        self.sidebar_shortcut.activated.connect(self._toggle_sidebar)
+        self.sidebar_shortcut.setEnabled(True)
+
         # Ctrl+T — New Session
         self.create_session_shortcut = QShortcut(QKeySequence("Ctrl+T"), self)
         self.create_session_shortcut.activated.connect(self.on_new_session_clicked)
@@ -258,7 +269,7 @@ class MainWindow(FramelessMainWindow):
     def rebuild_properties_panel(self) -> None:
         if self.properties_panel:
             self.splitter.widget(self.splitter.indexOf(self.properties_panel)).setParent(None)
-        self.properties_panel = PropertiesPanel(self.current_session)
+        self.properties_panel = PropertiesPanel(self.current_session, self.storage.get_group_categories())
         self.properties_panel.delete_clicked.connect(self.on_properties_deleted)
         self.properties_panel.duplicate_clicked.connect(self.on_properties_duplicated)
         self.properties_panel.saved_clicked.connect(
@@ -785,18 +796,47 @@ class MainWindow(FramelessMainWindow):
         # Revert theme if leaving settings without saving
         if self.is_settings_open and panel != "settings":
             self.settings_panel.revert_theme()
-            
+
         # "transcript", "settings", "new_session", "recording", "properties"
         self.transcript_panel.setVisible(panel == "transcript")
         self.settings_panel.setVisible(panel == "settings")
         self.new_session_panel.setVisible(panel == "new_session")
         self.recording_panel.setVisible(panel == "recording")
-        
+
         if self.properties_panel:
             # Properties shows alongside transcript
             self.properties_panel.setVisible(panel == "properties")
             if panel == "properties":
                 self.transcript_panel.setVisible(True)
+
+        # Qt splitter sometimes leaves a newly-visible panel at 0 width if it was
+        # previously "collapsed". Defer one frame to check and fix if needed.
+        QTimer.singleShot(0, self._ensure_content_visible)
+
+    def _ensure_content_visible(self) -> None:
+        sizes = self.splitter.sizes()
+        # Index 0 is sidebar; everything else is content. If all content panels
+        # collapsed to 0, take the available space and give it to the first visible one.
+        content = sizes[1:]
+        if sum(content) == 0:
+            available = self.splitter.width() - sizes[0]
+            if available <= 0:
+                return
+            for i in range(1, self.splitter.count()):
+                if self.splitter.widget(i).isVisible():
+                    sizes[i] = available
+                    self.splitter.setSizes(sizes)
+                    return
+
+    def _toggle_sidebar(self) -> None:
+        if self.sidebar.isVisible():
+            self._sidebar_width = self.splitter.sizes()[0]
+            self.sidebar.setVisible(False)
+        else:
+            self.sidebar.setVisible(True)
+            sizes = self.splitter.sizes()
+            sizes[0] = self._sidebar_width
+            self.splitter.setSizes(sizes)
 
     def closeEvent(self, event) -> None:
         if self.is_recording:

@@ -6,7 +6,7 @@ from PyQt6.QtGui import QPixmap, QGuiApplication
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 
 from models.lecture import OCRCapture
-from ui.styles import create_label, create_button
+from ui.styles import create_label, create_button, NoLeakTextEdit
 from ui.scalable_image_label import ScalableImageLabel
 
 from pathlib import Path
@@ -35,7 +35,10 @@ class OCRPanel(QWidget):
     def __init__(self, base_dir, icons_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(10, 8, 8, 8)
+        main_layout.setSpacing(10)
         header = QHBoxLayout()
+        header.setSpacing(8)
         self.base_dir = base_dir
         self.icons_dir = icons_dir
         self.is_locked = True
@@ -44,8 +47,10 @@ class OCRPanel(QWidget):
         # Header Layout
         ocr_w, self.ocr_engine_label = create_label(icons_dir / 'scan.svg', 'Screen OCR')
         header.addWidget(ocr_w)
-        
+        header.addStretch()
+
         self.ocr_button = QPushButton("Locked")
+        self.ocr_button.setToolTip("Toggle OCR text editing")
         self.ocr_button.clicked.connect(self.set_locked)
         header.addWidget(self.ocr_button)
 
@@ -53,6 +58,8 @@ class OCRPanel(QWidget):
         self.feed_widget = QWidget()
         self.feed_layout = QVBoxLayout(self.feed_widget)
         self.feed_layout.setAlignment(Qt.AlignmentFlag.AlignTop)  # fixes centering bug
+        self.feed_layout.setContentsMargins(2, 2, 6, 2)
+        self.feed_layout.setSpacing(10)
 
         self.scroll = QScrollArea()
         self.scroll.setWidget(self.feed_widget)
@@ -75,7 +82,10 @@ class OCRPanel(QWidget):
 
         # Header row: [🗑] [📷] Panel N: H:MM:SS
         timestamp_row = QHBoxLayout()
+        timestamp_row.setContentsMargins(4, 6, 4, 4)
+        timestamp_row.setSpacing(6)
         delete_button = create_button(self.icons_dir / 'delete.svg', lambda: self._confirm_delete(capture.id, capture_widget))
+        delete_button.setToolTip("Delete this capture")
         timestamp_row.addWidget(delete_button)
 
         # Toggle image visibility — starts visible, click to collapse/expand
@@ -106,7 +116,7 @@ class OCRPanel(QWidget):
         # `source` is released when this scope ends, freeing the full-res pixmap.
 
         # Text
-        ocr_text = QTextEdit()
+        ocr_text = NoLeakTextEdit()
         ocr_text.blockSignals(True)
         ocr_text.setPlainText(capture.extracted_text or "")
         ocr_text.blockSignals(False)

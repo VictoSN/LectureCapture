@@ -6,6 +6,7 @@ from PyQt6.QtGui import QShortcut, QKeySequence
 
 from models.lecture import Session
 from ui.format_time import FormatDetailedTime
+from ui.styles import no_wheel
 
 class PropertiesPanel(QWidget):
     delete_clicked = pyqtSignal()
@@ -13,14 +14,22 @@ class PropertiesPanel(QWidget):
     saved_clicked = pyqtSignal(str, str, str)
     cancel_clicked = pyqtSignal()
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, group_categories: list[str] = None) -> None:
         super().__init__()
+        self.setObjectName("propertiesPanel")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(24, 24, 24, 24)
+        main_layout.setSpacing(18)
         grid_layout = QGridLayout()
+        grid_layout.setHorizontalSpacing(14)
+        grid_layout.setVerticalSpacing(12)
         button_layout = QHBoxLayout()
+        button_layout.setSpacing(10)
 
         # Panel Label
         self.properties_name = QLabel("Properties")
+        self.properties_name.setStyleSheet("font-size: 18px; font-weight: 600;")
         main_layout.addWidget(self.properties_name)
 
         # Input Fields
@@ -30,6 +39,7 @@ class PropertiesPanel(QWidget):
         
         self.session_name = QLineEdit()
         self.session_name.setPlaceholderText("Session name...")
+        self.session_name.setText(session.name or "")
         grid_layout.addWidget(self.session_name, 0, 1)
 
         ## Session Category
@@ -37,15 +47,31 @@ class PropertiesPanel(QWidget):
         grid_layout.addWidget(session_category_label, 1, 0)
 
         self.session_category = QComboBox()
+        no_wheel(self.session_category)
         self.session_category.addItems(["Lab", "Tutorial", "Lecture"])
+        if session.session_category:
+            self.session_category.setCurrentText(session.session_category)
         grid_layout.addWidget(self.session_category, 1, 1)
 
         ## Group Category
         group_category_label = QLabel("Group Category:")
         grid_layout.addWidget(group_category_label, 2, 0)
-        
-        self.group_category = QLineEdit()
-        self.group_category.setPlaceholderText("Group Category...")
+
+        self.group_category = QComboBox()
+        self.group_category.setEditable(True)
+        self.group_category.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.group_category.lineEdit().setPlaceholderText("Group category (or type a new one)...")
+        no_wheel(self.group_category)
+        self.group_category.addItem("")
+        for cat in (group_categories or []):
+            if cat:
+                self.group_category.addItem(cat)
+        current = session.group_category or ""
+        idx = self.group_category.findText(current)
+        if idx >= 0:
+            self.group_category.setCurrentIndex(idx)
+        else:
+            self.group_category.setCurrentText(current)
         grid_layout.addWidget(self.group_category, 2, 1)
 
         # Date Recorded
@@ -71,20 +97,26 @@ class PropertiesPanel(QWidget):
 
         # Actions Buttons
         self.cancel_button = QPushButton("Close")
+        self.cancel_button.setToolTip("Close properties (Esc)")
         self.cancel_button.clicked.connect(self.cancel_clicked)
         button_layout.addWidget(self.cancel_button)
 
         self.delete_button = QPushButton("Delete")
+        self.delete_button.setToolTip("Delete this session (Ctrl+1)")
         self.delete_button.clicked.connect(self.deleteEvent)
         button_layout.addWidget(self.delete_button)
-        
+
         self.duplicate_button = QPushButton("Duplicate")
-        self.duplicate_button.clicked.connect(self.duplicate_clicked)
+        self.duplicate_button.setToolTip("Duplicate this session (Ctrl+2)")
+        self.duplicate_button.clicked.connect(self.duplicateEvent)
         button_layout.addWidget(self.duplicate_button)
-        
+
         self.save_button = QPushButton("Save")
+        self.save_button.setToolTip("Save changes (Return)")
         self.save_button.clicked.connect(self._on_save)
         button_layout.addWidget(self.save_button)
+
+        button_layout.insertStretch(0)
 
         main_layout.addLayout(grid_layout)
         main_layout.addStretch()
@@ -95,8 +127,17 @@ class PropertiesPanel(QWidget):
         QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self.cancel_clicked.emit)
         QShortcut(QKeySequence(Qt.Key.Key_Return), self, activated=self._on_save)
         QShortcut(QKeySequence("Ctrl+1"), self, activated=self.deleteEvent)
-        QShortcut(QKeySequence("Ctrl+2"), self, activated=self.duplicate_clicked.emit)
+        QShortcut(QKeySequence("Ctrl+2"), self, activated=self.duplicateEvent)
         
+    def duplicateEvent(self) -> None:
+        reply = QMessageBox.question(
+            self,
+            "Duplicate Session",
+            "Duplicate the current session?"
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self.duplicate_clicked.emit()
+
     def deleteEvent(self) -> None:
         reply = QMessageBox.question(
             self, 
@@ -109,8 +150,9 @@ class PropertiesPanel(QWidget):
             self.delete_clicked.emit()
     
     def _on_save(self) -> None:
+        group = self.group_category.currentText().strip()
         self.saved_clicked.emit(
-            self.session_name.text(), 
-            self.session_category.currentText(), 
-            self.group_category.text() if self.group_category.text().strip() else ""
+            self.session_name.text(),
+            self.session_category.currentText(),
+            group,
         )
