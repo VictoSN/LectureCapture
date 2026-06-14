@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton
 from PyQt6.QtCore import pyqtSignal, QTimer
 
+from core.summarizer import strip_code_fence
 from ui.styles import create_label, create_button
 
 class SummaryPanel(QWidget):
@@ -61,7 +62,9 @@ class SummaryPanel(QWidget):
 
     def set_summary(self, source: str) -> None:
         # Default to the rendered Markdown preview; the user clicks the button to edit.
-        self._markdown_source = source or ""
+        # Strip any all-enclosing ```markdown fence first, or QTextEdit renders the whole
+        # summary as one literal code block (raw ## and ** instead of formatting).
+        self._markdown_source = strip_code_fence(source or "")
         self._pre_preview_readonly = self.summary.isReadOnly()
         self._is_preview = True
         self.preview_button.setText("Preview")  # current mode = Preview

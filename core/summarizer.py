@@ -1,3 +1,5 @@
+import re
+
 from sumy.parsers.plaintext import PlaintextParser
 from sumy.nlp.tokenizers import Tokenizer
 from sumy.summarizers.lsa import LsaSummarizer
@@ -6,6 +8,23 @@ from sumy.nlp.stemmers import Stemmer
 from PyQt6.QtCore import QThread, pyqtSignal
 
 LANGUAGE = "english"
+
+
+def strip_code_fence(text: str) -> str:
+    """Unwrap a Markdown code fence that surrounds the ENTIRE text. Models often wrap
+    their whole answer in ```markdown ... ``` despite being told not to; rendered as
+    Markdown that becomes one literal code block (every ## and ** shown raw), so strip
+    it. Only unwraps a single all-enclosing fence — content with inner code blocks is
+    left untouched."""
+    if not text:
+        return text
+    lines = text.strip().splitlines()
+    fences = [i for i, ln in enumerate(lines) if ln.strip().startswith("```")]
+    if (len(fences) == 2 and fences[0] == 0 and fences[1] == len(lines) - 1
+            and re.fullmatch(r"```[a-zA-Z0-9_+-]*", lines[0].strip())
+            and lines[-1].strip() == "```"):
+        return "\n".join(lines[1:-1]).strip()
+    return text
 
 def summarize_local(text: str, sentences: int = 5) -> str:
     summary = ""
@@ -29,7 +48,7 @@ def summarize_api(text: str, api_key: str) -> str:
             f"{text}"
         )
     )
-    return response.text
+    return strip_code_fence(response.text)
 
 def summarize(text: str, sentences: int = 5, api_key: str = "") -> tuple[str, str]:
     """
