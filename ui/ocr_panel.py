@@ -7,6 +7,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 
 from models.lecture import OCRCapture
 from ui.styles import create_label, create_button, NoLeakTextEdit
+from ui.mathtext import render_math
 from ui.scalable_image_label import ScalableImageLabel
 
 from pathlib import Path
@@ -115,10 +116,11 @@ class OCRPanel(QWidget):
             capture_image.mousePressEvent = lambda _e, p=image_path: self._show_full_image(p)
         # `source` is released when this scope ends, freeing the full-res pixmap.
 
-        # Text
+        # Text — render any LaTeX math spans to Unicode so symbols (∈, ℕ, ⊕ …)
+        # show instead of raw "\in \mathbb{N}". Prose outside $...$ is untouched.
         ocr_text = NoLeakTextEdit()
         ocr_text.blockSignals(True)
-        ocr_text.setPlainText(capture.extracted_text or "")
+        ocr_text.setPlainText(render_math(capture.extracted_text or ""))
         ocr_text.blockSignals(False)
         ocr_text.setReadOnly(self.is_locked)
 

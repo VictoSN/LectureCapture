@@ -178,8 +178,10 @@ class OCRWorker(QThread):
             print(f"[OCR timing] skipped (same slide) total: {time.time()-t0:.3f}s")
             return
 
-        # New slide: clean the text (API, if enabled) only now, then save once.
-        text = self._maybe_clean(raw_text)
+        # New slide: run vision OCR on the image (API, if enabled) only now, then
+        # save once. Tesseract's text above is only used for dedup; the saved text
+        # comes from the vision model so math notation is captured.
+        text = self._maybe_clean(raw_text, pil_img)
         t3 = time.time()
         print(f"[OCR timing] cleanup: {t3-t2:.3f}s")
         self.previous_raw = norm
@@ -229,16 +231,20 @@ class OCRWorker(QThread):
 
     # ---- API cleanup ---------------------------------------------------
 
-    def _maybe_clean(self, raw_text: str) -> str:
-        if not raw_text.strip():
-            return raw_text
+    def _maybe_clean(self, raw_text: str, pil_img) -> str:
+        # When the API is available, transcribe the IMAGE directly with the vision
+        # model so math notation (∈, ⊕, ℕ, etc.) is captured — Tesseract can't read
+        # it. Note: we deliberately don't early-return on empty raw_text, because a
+        # math-only slide can produce no Tesseract text yet still need OCR.
         if self._api_available():
             try:
-                cleaned = self._cleanup_with_api(raw_text)
-                self._emit_engine("tesseract + gemini")
-                return cleaned
+                text = self._ocr_with_api(pil_img)
+                if text.strip():
+                    self._emit_engine("gemini vision")
+                    return text
+                # Empty vision result — fall back to whatever Tesseract gave us.
             except Exception as e:
-                print(f"[OCR] API cleanup failed ({e}); using raw text, cooldown {API_COOLDOWN_SECONDS}s")
+                print(f"[OCR] API OCR failed ({e}); using raw text, cooldown {API_COOLDOWN_SECONDS}s")
                 self._api_cooldown_until = time.time() + API_COOLDOWN_SECONDS
                 self._emit_engine("pytesseract")
         return raw_text
@@ -251,24 +257,30 @@ class OCRWorker(QThread):
             self._last_engine = name
             self.engine_fallback.emit(name)
 
-    def _cleanup_with_api(self, raw_text: str) -> str:
+    def _ocr_with_api(self, pil_img) -> str:
         from google import genai
         client = genai.Client(api_key=self.ocr_api_key)
         response = client.models.generate_content(
             model="gemini-3.1-flash-lite-preview",
-            contents=(
-                "The following text was extracted from a lecture slide via OCR and may contain "
-                "errors, garbled characters, or broken formatting. Fix any OCR errors and clean up "
-                "the text while preserving ALL original content, structure, and meaning. "
-                "Return only the cleaned text with no commentary.\n\n"
-                f"{raw_text}"
-            )
+            contents=[
+                (
+                    "Transcribe ALL text from this lecture slide exactly as it appears, "
+                    "preserving the reading order, structure, and line breaks. "
+                    "Render every mathematical expression, symbol, equation, or formula in "
+                    "LaTeX: wrap inline math in $...$ and display equations in $$...$$. "
+                    "Use proper LaTeX commands for symbols (e.g. \\in, \\bigoplus, "
+                    "\\mathbb{N}, \\mathcal{AT}, subscripts G_n). "
+                    "Do not add commentary, headings, or explanations — return only the "
+                    "transcribed slide content."
+                ),
+                pil_img,
+            ],
         )
-        return response.text or raw_text
+        return response.text or ""
 
     @property
     def engine_name(self) -> str:
-        return "tesseract + gemini" if self.ocr_api_key else "pytesseract"
+        return "gemini vision" if self.ocr_api_key else "pytesseract"
 
     # ---- window screenshot --------------------------------------------
 

@@ -664,7 +664,7 @@ class MainWindow(FramelessMainWindow):
         return "gemini-flash" if self._effective_api_key() else "sumy"
 
     def _refresh_engine_labels(self) -> None:
-        ocr_engine = "tesseract + gemini" if self._effective_api_key() else "pytesseract"
+        ocr_engine = "gemini vision" if self._effective_api_key() else "pytesseract"
         speech_engine = "gemini" if self._effective_api_key() else "faster-whisper"
         self.transcript_panel.update_engine_labels(ocr_engine, speech_engine, self._summarize_engine_label())
 
