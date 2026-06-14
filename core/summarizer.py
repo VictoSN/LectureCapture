@@ -3,6 +3,8 @@ from sumy.nlp.tokenizers import Tokenizer
 from sumy.summarizers.lsa import LsaSummarizer
 from sumy.nlp.stemmers import Stemmer
 
+from PyQt6.QtCore import QThread, pyqtSignal
+
 LANGUAGE = "english"
 
 def summarize_local(text: str, sentences: int = 5) -> str:
@@ -40,3 +42,24 @@ def summarize(text: str, sentences: int = 5, api_key: str = "") -> tuple[str, st
         except Exception as e:
             print(f"[Summarizer] API failed, falling back to local: {e}")
     return summarize_local(text, sentences), "sumy"
+
+
+class SummarizeWorker(QThread):
+    """Runs summarize() off the GUI thread. The Gemini call can take several
+    seconds; doing it inline blocks Qt's event loop and freezes the whole app."""
+    done = pyqtSignal(str, str)   # (summary_text, engine_name)
+    failed = pyqtSignal(str)      # error message
+
+    def __init__(self, text: str, sentences: int = 5, api_key: str = "") -> None:
+        super().__init__()
+        self._text = text
+        self._sentences = sentences
+        self._api_key = api_key
+
+    def run(self) -> None:
+        try:
+            summary, engine = summarize(self._text, self._sentences, self._api_key)
+        except Exception as e:
+            self.failed.emit(str(e))
+            return
+        self.done.emit(summary or "", engine)

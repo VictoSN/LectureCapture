@@ -67,7 +67,7 @@ class TranscriptPanel(QWidget):
         self.summary_visibility_button.setToolTip("Toggle Summary panel (Shift+3)")
         header.addWidget(self.summary_visibility_button)
 
-        self.force_capture_button = create_button(icons_dir / 'scan.svg', self.force_capture_clicked, text="Capture Now", width=120)
+        self.force_capture_button = create_button(icons_dir / 'scan.svg', self.force_capture_clicked, text="Capture Now", width=132)
         self.force_capture_button.setToolTip("Force a capture now (Ctrl+Return)")
         self.force_capture_button.setVisible(False)
         header.addWidget(self.force_capture_button)
@@ -283,6 +283,21 @@ class TranscriptPanel(QWidget):
 
     def set_properties_locked(self, locked: bool) -> None:
         self.properties_button.setDisabled(locked)
+
+    def set_summary_lock(self, locked: bool) -> None:
+        """Lock the workspace while a summary is generating. Intentionally leaves the
+        panel collapse/expand buttons and per-capture image toggles enabled so the user
+        can still scroll, minimize the OCR image, and open/close panels — nothing else."""
+        self.properties_button.setDisabled(locked)
+        self.record_button.setDisabled(locked)
+        self.sync_scroll_button.setDisabled(locked)
+
+        # Edit-mode toggles (buttons + shortcuts) off; both feeds forced read-only.
+        self.ocr_shortcut.setEnabled(not locked)
+        self.speech_shortcut.setEnabled(not locked)
+        self.summary_shortcut.setEnabled(not locked)
+        self.ocr_panel.set_busy(locked)
+        self.speech_panel.set_busy(locked)
     
     def clear_panels(self) -> None:
         self.set_session_locked(True)

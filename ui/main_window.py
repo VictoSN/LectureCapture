@@ -15,7 +15,7 @@ from models.lecture import Session, OCRCapture
 from storage.database import Storage
 from core.ocr import OCRWorker
 from core.audio import AudioWorker
-from core.summarizer import summarize
+from core.summarizer import SummarizeWorker
 from ui.title_bar import CustomTitleBar
 from ui.capture_overlay import CaptureOverlay
 from ui.sidebar import Sidebar
@@ -46,6 +46,11 @@ class MainWindow(FramelessMainWindow):
         # Speech that arrived before any slide was captured, held until the first
         # capture exists so early narration isn't lost (see on_chunk_ready).
         self._pending_speech = ""
+
+        # Background summarization runs on a worker thread so the (often slow) API
+        # call doesn't freeze the UI. Held here so the QThread isn't garbage-collected
+        # mid-run, and to prevent overlapping summarize requests.
+        self._summarize_worker = None
 
         # Window details
         self.setWindowIcon(load_icon(ICONS_DIR / 'logo.png'))
@@ -526,23 +531,44 @@ class MainWindow(FramelessMainWindow):
         if not self.current_session:
             print('Need to select session first')
             return
-        
+        # Don't summarize mid-recording: the transcript is still growing, and it keeps
+        # summarizing and recording mutually exclusive so their locks never overlap.
+        if self.is_recording:
+            return
+        # Ignore re-clicks while a summary is already being generated.
+        if self._summarize_worker is not None:
+            return
+
         captures = self.storage.get_captures_by_session(self.current_session.id)
         total_text = ""
-        
+
         # Combine all the texts together
         for capture in captures:
             total_text += (capture.extracted_text or "") + (capture.speech_text or "")
-        
-        # Summarize then update the QTextEdit and current_session object
-        summarized_text, engine = summarize(total_text, api_key=self._effective_api_key("summarize"))
+
+        # Run summarization on a worker thread so the API call doesn't freeze the UI.
+        # Lock the app down + show progress; results land in _on_summarize_done.
+        button = self.transcript_panel.summary_panel.summary_button
+        button.setDisabled(True)
+        button.setText("Summarizing…")
+        self._set_summarizing(True)
+
+        self._summarize_worker = SummarizeWorker(
+            total_text, api_key=self._effective_api_key("summarize")
+        )
+        self._summarize_worker.done.connect(self._on_summarize_done)
+        self._summarize_worker.failed.connect(self._on_summarize_failed)
+        self._summarize_worker.finished.connect(self._on_summarize_finished)
+        self._summarize_worker.start()
+
+    def _on_summarize_done(self, summarized_text, engine) -> None:
         self.transcript_panel.update_engine_labels(
             self.transcript_panel.ocr_engine_label.text(),
             self.transcript_panel.speech_engine_label.text(),
             engine
         )
         current = self.transcript_panel.summary_panel.current_source()
-        
+
         # If the user has modified the summary, double confirm
         if current and summarized_text != current:
             reply = QMessageBox.question(
@@ -554,17 +580,60 @@ class MainWindow(FramelessMainWindow):
                 return
         # Ensure its not the same, to avoid updating the time period
         elif summarized_text == current:
-            return        
-        
+            return
+
         # Show the new markdown source (Preview button renders it).
         self.transcript_panel.summary_panel.set_summary(summarized_text)
-        
+
         self.current_session.summary = summarized_text
         current_time = datetime.now()
         self.current_session.summary_generated_at = current_time
         self.current_session.date_modified = current_time
         self.storage.update_session(self.current_session)
-        
+
+    def _on_summarize_failed(self, message) -> None:
+        print(f"[Summarize] failed: {message}")
+        QMessageBox.warning(self, "Summarize failed", f"Could not generate summary:\n{message}")
+
+    def _on_summarize_finished(self) -> None:
+        # Re-enable everything regardless of success/failure/cancel, and release the
+        # worker so the next request can run.
+        button = self.transcript_panel.summary_panel.summary_button
+        button.setDisabled(False)
+        button.setText("Summarize")
+        self._set_summarizing(False)
+        self._summarize_worker = None
+
+    def _set_summarizing(self, busy: bool) -> None:
+        """Lock the app down while a summary is generating so nothing can mutate the
+        session underneath the worker (switching sessions mid-summary was corrupting
+        state). The user can still scroll, toggle the per-capture image, and
+        collapse/expand panels — nothing else. Only ever called outside recording, so
+        unlocking restores the normal idle state."""
+        # Sidebar: session switching, search, filters.
+        self.sidebar.set_recording_locked(busy)
+        # Title bar: new session + settings.
+        self.titleBar.new_session_button.setDisabled(busy)
+        self.titleBar.settings_button.setDisabled(busy)
+        # Workspace: properties, record, sync-scroll, and both feeds (read-only + no delete).
+        self.transcript_panel.set_summary_lock(busy)
+        # Global shortcuts that create/open/record — save their prior state so unlocking
+        # restores it exactly (some depend on whether a session is loaded).
+        shortcuts = (
+            self.create_session_shortcut,
+            self.settings_shortcut,
+            self.properties_shortcut,
+            self.recording_shortcut,
+        )
+        if busy:
+            self._locked_shortcut_states = {sc: sc.isEnabled() for sc in shortcuts}
+            for sc in shortcuts:
+                sc.setEnabled(False)
+        else:
+            for sc, was_enabled in getattr(self, "_locked_shortcut_states", {}).items():
+                sc.setEnabled(was_enabled)
+            self._locked_shortcut_states = {}
+
     def on_search_changed(self, text) -> None:
         self.filter_name = text
         self.apply_filters()
@@ -839,6 +908,26 @@ class MainWindow(FramelessMainWindow):
             self.splitter.setSizes(sizes)
 
     def closeEvent(self, event) -> None:
+        if self._summarize_worker is not None:
+            reply = QMessageBox.question(
+                self,
+                "Summary in progress",
+                "A summary is still being generated. Closing now will cancel it. Close anyway?"
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                event.ignore()
+                return
+            # User chose to close mid-summary: detach the handlers so a late result
+            # can't fire against torn-down widgets. The worker only emits signals (no
+            # UI access), so it's safe to leave running as the process exits.
+            try:
+                self._summarize_worker.done.disconnect()
+                self._summarize_worker.failed.disconnect()
+                self._summarize_worker.finished.disconnect()
+            except TypeError:
+                pass
+            self._summarize_worker = None
+
         if self.is_recording:
             reply = QMessageBox.question(
                 self, 

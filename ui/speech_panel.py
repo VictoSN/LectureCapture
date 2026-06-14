@@ -21,6 +21,7 @@ class SpeechPanel(QWidget):
         self.base_dir = base_dir
         self.icons_dir = icons_dir
         self.is_locked = True
+        self._busy = False  # True while summarizing: editing locked, scroll still works
 
         # Header Layout
         speech_w, self.speech_engine_label = create_label(icons_dir / 'microphone.svg', 'Audio transcript')
@@ -58,7 +59,7 @@ class SpeechPanel(QWidget):
         speech_text.blockSignals(True)
         speech_text.setPlainText(capture.speech_text or "")
         speech_text.blockSignals(False)
-        speech_text.setReadOnly(self.is_locked)
+        speech_text.setReadOnly(self.is_locked or self._busy)
         
         timer = QTimer(speech_text)
         timer.setSingleShot(True)
@@ -115,6 +116,18 @@ class SpeechPanel(QWidget):
                 text_edit = widget.findChild(QTextEdit)
                 if text_edit:
                     text_edit.setReadOnly(self.is_locked)
+
+    def set_busy(self, busy: bool) -> None:
+        """Lock editing while a summary is generating; scrolling stays usable and the
+        lock/edit toggle is disabled so the transcript can't be edited mid-summary."""
+        self._busy = busy
+        self.speech_button.setDisabled(busy or not self.has_content())
+        for i in range(self.feed_layout.count()):
+            widget = self.feed_layout.itemAt(i).widget()
+            if widget:
+                text_edit = widget.findChild(QTextEdit)
+                if text_edit:
+                    text_edit.setReadOnly(busy or self.is_locked)
 
     def has_content(self) -> bool:
         return self.feed_layout.count() > 0

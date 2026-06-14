@@ -43,6 +43,7 @@ class OCRPanel(QWidget):
         self.base_dir = base_dir
         self.icons_dir = icons_dir
         self.is_locked = True
+        self._busy = False  # True while summarizing: edits/deletes locked, scroll/image-toggle still work
         self._panel_count = 0  # incremented for each capture widget added
 
         # Header Layout
@@ -87,6 +88,8 @@ class OCRPanel(QWidget):
         timestamp_row.setSpacing(6)
         delete_button = create_button(self.icons_dir / 'delete.svg', lambda: self._confirm_delete(capture.id, capture_widget))
         delete_button.setToolTip("Delete this capture")
+        delete_button.setProperty("role", "delete")  # tagged so set_busy() can disable it
+        delete_button.setDisabled(self._busy)
         timestamp_row.addWidget(delete_button)
 
         # Toggle image visibility — starts visible, click to collapse/expand
@@ -122,7 +125,7 @@ class OCRPanel(QWidget):
         ocr_text.blockSignals(True)
         ocr_text.setPlainText(render_math(capture.extracted_text or ""))
         ocr_text.blockSignals(False)
-        ocr_text.setReadOnly(self.is_locked)
+        ocr_text.setReadOnly(self.is_locked or self._busy)
 
         # Wire the toggle button now that capture_image exists.
         def _toggle_image():
@@ -217,6 +220,23 @@ class OCRPanel(QWidget):
                 text_edit = widget.findChild(QTextEdit)
                 if text_edit:
                     text_edit.setReadOnly(self.is_locked)
+
+    def set_busy(self, busy: bool) -> None:
+        """Lock editing and deletion while a summary is generating. Scrolling and the
+        per-capture image toggle stay usable; the lock/edit toggle is disabled so the
+        text can't be made editable mid-summary."""
+        self._busy = busy
+        self.ocr_button.setDisabled(busy or not self.has_content())
+        for i in range(self.feed_layout.count()):
+            widget = self.feed_layout.itemAt(i).widget()
+            if not widget:
+                continue
+            text_edit = widget.findChild(QTextEdit)
+            if text_edit:
+                text_edit.setReadOnly(busy or self.is_locked)
+            for button in widget.findChildren(QPushButton):
+                if button.property("role") == "delete":
+                    button.setDisabled(busy)
 
     def has_content(self) -> bool:
         return self.feed_layout.count() > 0
