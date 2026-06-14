@@ -58,8 +58,11 @@ class OCRWorker(QThread):
         self.hwnd = hwnd
         self.ocr_api_key = ocr_api_key
 
-        # Slide-change detection state — the last SAVED slide's text and image hash.
+        # Slide-change detection state — the last SAVED slide's image hash, the last
+        # frame's Tesseract text (cheap pre-filter), and the last SAVED vision text
+        # (authoritative post-filter: the text we actually show the user).
         self.previous_raw = ""
+        self.previous_saved = ""
         self.previous_ahash = None
 
         # API fallback state — cooldown-based instead of permanently sticky.
@@ -157,15 +160,7 @@ class OCRWorker(QThread):
         if self.previous_ahash is None:
             text_ratio, is_new = 1.0, True
         elif norm:
-            # Compare only the leading HEAD_FRACTION of tokens so that dynamic
-            # elements at the bottom (live poll counts, vote tallies, timers) don't
-            # make an otherwise-identical slide look new.
-            tokens_a = norm.split()
-            tokens_b = self.previous_raw.split()
-            n = max(20, int(max(len(tokens_a), len(tokens_b)) * HEAD_FRACTION))
-            head_a = " ".join(tokens_a[:n])
-            head_b = " ".join(tokens_b[:n])
-            text_ratio = SequenceMatcher(None, head_a, head_b).ratio()
+            text_ratio = self._text_similarity(norm, self.previous_raw)
             is_new = text_ratio < TEXT_SIMILARITY
         else:
             text_ratio, is_new = -1.0, img_dist > IMAGE_HAMMING_THRESHOLD
@@ -178,14 +173,30 @@ class OCRWorker(QThread):
             print(f"[OCR timing] skipped (same slide) total: {time.time()-t0:.3f}s")
             return
 
-        # New slide: run vision OCR on the image (API, if enabled) only now, then
-        # save once. Tesseract's text above is only used for dedup; the saved text
-        # comes from the vision model so math notation is captured.
+        # New slide *by the cheap Tesseract/image signal*. Run vision OCR (the text we
+        # actually save) only now. Tesseract's text above is only used for dedup; the
+        # saved text comes from the vision model so math notation is captured.
         text = self._maybe_clean(raw_text, pil_img)
         t3 = time.time()
         print(f"[OCR timing] cleanup: {t3-t2:.3f}s")
+
+        # Mark this frame as seen so the image fast-path can skip its repeats.
         self.previous_raw = norm
         self.previous_ahash = ahash
+
+        # Second safeguard, on the AUTHORITATIVE saved text: Tesseract jitters on noisy
+        # frames (animated social embeds, video) and can flag a "new slide" that the
+        # vision model transcribes identically to the last save. The vision text is what
+        # the user sees, so identical wording must skip here even if Tesseract disagreed.
+        saved_norm = self._normalize(text)
+        if (not force and self.previous_saved and saved_norm
+                and self._text_similarity(saved_norm, self.previous_saved) >= TEXT_SIMILARITY):
+            if DEBUG_DEDUP:
+                print(f"[OCR dedup] vision text == last save -> SKIP :: {saved_norm[:60]!r}")
+            print(f"[OCR timing] skipped (same saved text) total: {time.time()-t0:.3f}s")
+            return
+
+        self.previous_saved = saved_norm
         self._save_capture(text, pil_img)
         print(f"[OCR timing] save+emit: {time.time()-t3:.3f}s  TOTAL: {time.time()-t0:.3f}s")
 
@@ -205,6 +216,16 @@ class OCRWorker(QThread):
         # Lowercase, keep only alphanumeric tokens separated by single spaces.
         # Makes the comparison robust to OCR flicker in punctuation/whitespace.
         return " ".join(re.sub(r"[^a-z0-9]+", " ", text.lower()).split())
+
+    def _text_similarity(self, a: str, b: str) -> float:
+        # Compare only the leading HEAD_FRACTION of tokens so dynamic elements at the
+        # bottom of a slide (live poll counts, vote tallies, timers, animated embeds)
+        # don't make an otherwise-identical slide look new. Inputs must be normalized.
+        tokens_a, tokens_b = a.split(), b.split()
+        n = max(20, int(max(len(tokens_a), len(tokens_b)) * HEAD_FRACTION))
+        head_a = " ".join(tokens_a[:n])
+        head_b = " ".join(tokens_b[:n])
+        return SequenceMatcher(None, head_a, head_b).ratio()
 
     def _downscale_gray(self, pil_img):
         small = pil_img.convert("L").resize((AHASH_SIZE, AHASH_SIZE), Image.BILINEAR)
