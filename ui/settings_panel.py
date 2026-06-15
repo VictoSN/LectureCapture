@@ -2,7 +2,7 @@ import shutil
 
 from PyQt6.QtWidgets import (
     QWidget, QLabel, QPushButton, QComboBox, QVBoxLayout, QHBoxLayout, QGridLayout, QSpinBox,
-    QFileDialog, QLineEdit, QMessageBox, QScrollArea, QTextEdit, QCheckBox
+    QFileDialog, QLineEdit, QMessageBox, QScrollArea, QTextEdit, QCheckBox, QFrame
 )
 from PyQt6.QtCore import pyqtSignal, QSettings, QUrl, Qt
 from PyQt6.QtMultimedia import QSoundEffect
@@ -95,7 +95,8 @@ class SettingsPanel(QWidget):
         main_layout.addWidget(self.settings_name)
 
         # API vs Local
-        processing_label = QLabel("Processing Location")
+        processing_label = QLabel("Processing")
+        processing_label.setObjectName("sectionHeader")
         processing_layout.addWidget(processing_label)
         
         self.local_button = create_button_label(icons_dir / "local.svg", "Local", lambda: self.set_proc_mode("local"))
@@ -181,7 +182,8 @@ class SettingsPanel(QWidget):
         processing_layout.addWidget(self.api_container)
 
         # Dark, Light, Auto?
-        theme_label = QLabel("Application Theme")
+        theme_label = QLabel("Appearance")
+        theme_label.setObjectName("sectionHeader")
         theme_layout.addWidget(theme_label)
         
         theme = get_system_theme()
@@ -196,7 +198,8 @@ class SettingsPanel(QWidget):
         theme_layout.addLayout(theme_buttons_layout)
         
         # Last used, Set Default, Empty
-        preferences_label = QLabel("Recording Preferences")
+        preferences_label = QLabel("Recording")
+        preferences_label.setObjectName("sectionHeader")
         preferences_layout.addWidget(preferences_label)
         
         self.last_button = create_button_label(icons_dir / "history.svg", "Last Used", lambda: self.set_pref_mode("last"))
@@ -326,7 +329,8 @@ class SettingsPanel(QWidget):
         self.import_button.setToolTip("Import a session file")
         import_layout.addWidget(self.import_button)
 
-        delete_label = QLabel("Delete All Session")
+        delete_label = QLabel("Delete all sessions. This cannot be undone.")
+        delete_label.setObjectName("muted")
         delete_layout.addWidget(delete_label)
 
         self.delete_button = QPushButton("Delete")
@@ -358,12 +362,23 @@ class SettingsPanel(QWidget):
         self.save_button.clicked.connect(self._on_save)
         action_layout.insertStretch(0)
 
+        # Assemble sections, each separated by a divider so they read as distinct
+        # groups. The Processing / Appearance / Recording layouts carry their own
+        # section headers; the rest get one here.
         main_layout.addLayout(processing_layout)
+        main_layout.addWidget(self._divider())
         main_layout.addLayout(theme_layout)
+        main_layout.addWidget(self._divider())
         main_layout.addLayout(preferences_layout)
+        main_layout.addWidget(self._divider())
+        main_layout.addWidget(self._section_header("Sound Effects"))
         main_layout.addLayout(sound_grid_layout)
+        main_layout.addWidget(self._divider())
+        main_layout.addWidget(self._section_header("Sessions"))
         main_layout.addLayout(export_layout)
         main_layout.addLayout(import_layout)
+        main_layout.addWidget(self._divider())
+        main_layout.addWidget(self._section_header("Danger Zone", danger=True))
         main_layout.addLayout(delete_layout)
         main_layout.addStretch()
         main_layout.addLayout(action_layout)
@@ -376,10 +391,40 @@ class SettingsPanel(QWidget):
         QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self._on_cancel)
         QShortcut(QKeySequence(Qt.Key.Key_Return), self, activated=self._on_save)
 
+    def _section_header(self, text: str, danger: bool = False) -> QLabel:
+        label = QLabel(text)
+        label.setObjectName("dangerHeader" if danger else "sectionHeader")
+        return label
+
+    def _divider(self) -> QFrame:
+        line = QFrame()
+        line.setObjectName("sectionDivider")
+        line.setFrameShape(QFrame.Shape.HLine)
+        return line
+
+    def _set_selected(self, btn, selected: bool) -> None:
+        # Toggle the [selected] property the QSS keys off, then repolish so the new
+        # style applies immediately (Qt doesn't re-evaluate property selectors on its own).
+        btn.setProperty("selected", selected)
+        btn.style().unpolish(btn)
+        btn.style().polish(btn)
+
+    def _refresh_active_buttons(self) -> None:
+        # Highlight the active choice in each toggle group. getattr guards calls that
+        # happen mid-construction before every mode attribute is set.
+        for mapping, active in (
+            ({"local": self.local_button, "api": self.api_button}, getattr(self, "proc_mode", None)),
+            ({"auto": self.auto_button, "light": self.light_button, "dark": self.dark_button}, getattr(self, "theme", None)),
+            ({"last": self.last_button, "default": self.default_button, "empty": self.clear_button}, getattr(self, "pref_mode", None)),
+        ):
+            for key, btn in mapping.items():
+                self._set_selected(btn, key == active)
+
     def update_ui(self) -> None:
         # Processing Visibility
         self.api_container.setVisible(self.proc_mode == "api")
         self.default_container.setVisible(self.pref_mode == "default")
+        self._refresh_active_buttons()
 
         # Coordinates Visibility
         method = self.capture_method_dropdown.currentText()
@@ -551,6 +596,7 @@ class SettingsPanel(QWidget):
     def set_theme(self, theme: str) -> None:
         self.theme = theme
         apply_theme(theme, self.themes_dir)
+        self._refresh_active_buttons()
         self.theme_changed.emit(theme)
 
     def _set_dropdown(self, dropdown: QComboBox, path: str, default: str) -> None:

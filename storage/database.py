@@ -187,6 +187,17 @@ class Storage:
         row = self.cursor.fetchone()
         return self._row_to_ocrcapture(row) if row else None
 
+    def get_earliest_capture(self, session_id: int) -> OCRCapture | None:
+        # First slide captured in the session. Speech that predates every slide
+        # (e.g. narration before the first slide finished processing) attaches here.
+        self.cursor.execute(
+            "SELECT id, timestamp, image_path, extracted_text, speech_text, session_id "
+            "FROM ocrcapture WHERE session_id = ? ORDER BY timestamp ASC LIMIT 1",
+            (session_id,)
+        )
+        row = self.cursor.fetchone()
+        return self._row_to_ocrcapture(row) if row else None
+
     def delete_capture(self, capture_id: int) -> None:
         # Fetch image path before deleting so we can remove the file
         self.cursor.execute("SELECT image_path, session_id FROM ocrcapture WHERE id = ?", (capture_id,))

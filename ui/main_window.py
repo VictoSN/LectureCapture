@@ -46,6 +46,9 @@ class MainWindow(FramelessMainWindow):
         # Speech that arrived before any slide was captured, held until the first
         # capture exists so early narration isn't lost (see on_chunk_ready).
         self._pending_speech = ""
+        # Capture currently showing the "transcribing…" placeholder (one chunk is in
+        # flight at a time). Tracked so we clear exactly the one we showed.
+        self._pending_capture_id = None
 
         # Background summarization runs on a worker thread so the (often slow) API
         # call doesn't freeze the UI. Held here so the QThread isn't garbage-collected
@@ -311,6 +314,7 @@ class MainWindow(FramelessMainWindow):
         start_time = time.time()
         self.recording_start_time = start_time
         self._pending_speech = ""
+        self._pending_capture_id = None
 
         # Start the timer only now — when capture actually begins — so the time
         # spent in the Mouse Select overlay isn't counted as recording time.
@@ -517,28 +521,38 @@ class MainWindow(FramelessMainWindow):
         self.transcript_panel.ocr_panel.add_capture(capture)
         self.transcript_panel.speech_panel.add_capture(capture)
 
+    def _resolve_speech_target(self, timestamp):
+        """The capture a speech chunk should attach to: the latest slide at or before
+        the speech, or — for speech that predates every slide (e.g. narration before
+        the first slide finished its OCR) — the earliest slide. Returns None only when
+        no slide has been captured at all yet, in which case the speech is buffered."""
+        recent = self.storage.get_latest_capture_before(self.current_session.id, timestamp)
+        return recent or self.storage.get_earliest_capture(self.current_session.id)
+
     def on_chunk_pending(self, timestamp) -> None:
         # A chunk is being transcribed; show the placeholder on the slide it will
-        # attach to (the same lookup on_chunk_ready uses), if one exists yet.
+        # attach to, if one exists yet.
         if not self.current_session:
             return
-        recent = self.storage.get_latest_capture_before(self.current_session.id, timestamp)
-        if recent:
-            self.transcript_panel.speech_panel.show_pending(recent.id)
+        target = self._resolve_speech_target(timestamp)
+        if target:
+            self._pending_capture_id = target.id
+            self.transcript_panel.speech_panel.show_pending(target.id)
 
     def on_chunk_ready(self, timestamp, text) -> None:
         if not self.current_session:
             return
-        recent = self.storage.get_latest_capture_before(self.current_session.id, timestamp)
-        # Clear the placeholder regardless of whether there's text (a chunk can
-        # transcribe to nothing), so it never gets stuck on screen.
-        if recent:
-            self.transcript_panel.speech_panel.clear_pending(recent.id)
+        # Clear the placeholder we actually showed (the target can drift between
+        # pending and ready, so clear by the recorded id, not a fresh lookup).
+        if self._pending_capture_id is not None:
+            self.transcript_panel.speech_panel.clear_pending(self._pending_capture_id)
+            self._pending_capture_id = None
         if not text:
             return
-        if recent:
-            self.storage.append_speech_text(recent.id, text)
-            self.transcript_panel.speech_panel.update_capture_speech(recent.id, text)
+        target = self._resolve_speech_target(timestamp)
+        if target:
+            self.storage.append_speech_text(target.id, text)
+            self.transcript_panel.speech_panel.update_capture_speech(target.id, text)
         else:
             # No slide captured yet — hold the speech and flush it onto the first
             # capture (see on_capture_ready) so early narration isn't lost.

@@ -122,6 +122,10 @@ class OCRWorker(QThread):
 
     def screenshot(self, force: bool = False) -> None:
         t0 = time.time()
+        # Stamp the capture at GRAB time, not save time. API OCR cleanup can take
+        # several seconds; stamping after it would push the slide's timestamp past the
+        # speech spoken while it was on screen, mis-attaching (or orphaning) that speech.
+        grab_ts = t0 - self.start_time + self.offset
         pil_img = self._grab_pil()
         if pil_img is None:
             return
@@ -197,7 +201,7 @@ class OCRWorker(QThread):
             return
 
         self.previous_saved = saved_norm
-        self._save_capture(text, pil_img)
+        self._save_capture(text, pil_img, grab_ts)
         print(f"[OCR timing] save+emit: {time.time()-t3:.3f}s  TOTAL: {time.time()-t0:.3f}s")
 
     def _grab_pil(self):
@@ -242,8 +246,7 @@ class OCRWorker(QThread):
         gray = gray.filter(ImageFilter.SHARPEN)
         return pytesseract.image_to_string(gray, config="--psm 6 --oem 3")
 
-    def _save_capture(self, text: str, pil_img) -> None:
-        timestamp = time.time() - self.start_time + self.offset
+    def _save_capture(self, text: str, pil_img, timestamp: float) -> None:
         name = "OCR_" + datetime.now().strftime('%y%m%d_%H%M%S.%f')[:-3]
         full_path = str(Path(self.base_dir) / 'sessions' / str(self.session_id) / 'captures' / f"{name}.png")
         pil_img.save(full_path)

@@ -67,6 +67,12 @@ class TranscriptPanel(QWidget):
         self.summary_visibility_button.setToolTip("Toggle Summary panel (Shift+3)")
         header.addWidget(self.summary_visibility_button)
 
+        # These are toggles driven by click or Shift+1/2/3, so they don't need to keep
+        # keyboard focus — and the focus border (coral) would otherwise look identical
+        # to the "panel open" highlight, hiding the open/closed state.
+        for _b in (self.ocr_visibility_button, self.speech_visibility_button, self.summary_visibility_button):
+            _b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+
         self.force_capture_button = create_button(icons_dir / 'scan.svg', self.force_capture_clicked, text="Capture Now", width=132)
         self.force_capture_button.setToolTip("Force a capture now (Ctrl+Return)")
         self.force_capture_button.setVisible(False)
@@ -145,6 +151,7 @@ class TranscriptPanel(QWidget):
         self.summary_shortcut.setEnabled(True)
 
         self._toggle_sync_scroll()
+        self._refresh_panel_buttons()  # reflect the initial (all-open) panel state
 
     def _on_record_button_clicked(self) -> None:
         if self.record_button.text() == "Recording":
@@ -162,6 +169,12 @@ class TranscriptPanel(QWidget):
         # ideal row heights) changed too. Debounce so we recompute once the
         # resize/drag settles rather than on every intermediate event.
         self._resync_timer.start()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        # A child's isVisible() only reads true once this panel is itself shown, so
+        # refresh the toggle highlights after the show propagates (one frame later).
+        QTimer.singleShot(0, self._refresh_panel_buttons)
 
     def _on_capture_deleted(self, capture_id: int) -> None:
         """Remove the matching row from both panels and notify the controller."""
@@ -218,6 +231,20 @@ class TranscriptPanel(QWidget):
     def _panel_visibility(self, panel: QWidget):
         panel.setVisible(not panel.isVisible())
         self._rebalance_splitter()
+        self._refresh_panel_buttons()
+
+    def _refresh_panel_buttons(self) -> None:
+        # Reflect each panel's open/closed state on its toggle button: the QSS lights
+        # the button (coral) when the panel is shown and mutes it when hidden, so the
+        # button itself tells you what's collapsed. Repolish so the change applies now.
+        for btn, panel in (
+            (self.ocr_visibility_button, self.ocr_panel),
+            (self.speech_visibility_button, self.speech_panel),
+            (self.summary_visibility_button, self.summary_panel),
+        ):
+            btn.setProperty("panelOpen", panel.isVisible())
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
 
     def _rebalance_splitter(self):
         panels = [self.ocr_panel, self.speech_panel, self.summary_panel]

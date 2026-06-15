@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QGridLayout
+from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QGridLayout, QWidget
 from PyQt6.QtCore import Qt
 from ui.styles import create_button, load_icon
 from qframelesswindow import TitleBar
@@ -6,54 +6,76 @@ from qframelesswindow import TitleBar
 
 
 class ShortcutsDialog(QDialog):
+    # (group title, [(key combo, description), ...]) — panel toggles work whenever a
+    # session is open, so they're their own group, not lumped under "recording".
+    SECTIONS = [
+        ("General", [
+            ("Ctrl+T",  "New session"),
+            ("Ctrl+S",  "Settings"),
+            ("Ctrl+D",  "Session properties"),
+            ("Ctrl+F",  "Recording panel"),
+            ("Shift+4", "Toggle sidebar"),
+            ("Esc",     "Close current panel"),
+        ]),
+        ("Panels", [
+            ("Shift+1", "Toggle OCR panel"),
+            ("Shift+2", "Toggle Audio panel"),
+            ("Shift+3", "Toggle Summary panel"),
+        ]),
+        ("During Recording", [
+            ("Return",      "Stop recording (with confirmation)"),
+            ("Ctrl+Return", "Capture now"),
+        ]),
+    ]
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Keyboard Shortcuts")
-        self.setMinimumWidth(380)
+        self.setMinimumWidth(420)
+
         layout = QVBoxLayout()
+        layout.setContentsMargins(22, 20, 22, 22)
+        layout.setSpacing(8)
 
-        # Group: General
-        layout.addWidget(self._section("General"))
-        general = [
-            ("Ctrl+T",  "New Session Panel"),
-            ("Ctrl+S",  "Settings Panel"),
-            ("Ctrl+D",  "Properties Panel"),
-            ("Ctrl+F",  "Recording Panel"),
-            ("Shift+4", "Toggle Sidebar"),
-            ("Esc",     "Close Panel"),
-        ]
-        layout.addLayout(self._grid(general))
+        for idx, (title, rows) in enumerate(self.SECTIONS):
+            header = QLabel(title)
+            header.setObjectName("sectionHeader")
+            # A little extra air above every group except the first.
+            header.setContentsMargins(0, 14 if idx else 0, 0, 4)
+            layout.addWidget(header)
+            layout.addLayout(self._grid(rows))
 
-        # Group: Recording
-        layout.addWidget(self._section("During Recording"))
-        recording = [
-            ("Return",       "Stop Recording (with confirmation)"),
-            ("Ctrl+Return", "Force Capture Now"),
-            ("Shift+1",           "Toggle OCR Panel"),
-            ("Shift+2",           "Toggle Speech Panel"),
-            ("Shift+3",           "Toggle Summary Panel"),
-        ]
-        layout.addLayout(self._grid(recording))
-
+        layout.addStretch()
         self.setLayout(layout)
 
-    @staticmethod
-    def _section(title: str) -> QLabel:
-        label = QLabel(f"<b>{title}</b>")
-        label.setContentsMargins(0, 8, 0, 2)
-        return label
+    def _grid(self, rows: list[tuple[str, str]]) -> QGridLayout:
+        grid = QGridLayout()
+        grid.setColumnMinimumWidth(0, 150)
+        grid.setColumnStretch(1, 1)
+        grid.setHorizontalSpacing(16)
+        grid.setVerticalSpacing(9)
+        for i, (combo, desc) in enumerate(rows):
+            grid.addWidget(self._keycaps(combo), i, 0)
+            grid.addWidget(QLabel(desc), i, 1)
+        return grid
 
     @staticmethod
-    def _grid(rows: list[tuple[str, str]]) -> QGridLayout:
-        grid = QGridLayout()
-        grid.setColumnMinimumWidth(0, 170)
-        for i, (key, desc) in enumerate(rows):
-            key_label = QLabel(key)
-            key_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            grid.addWidget(key_label, i, 0)
-            grid.addWidget(QLabel("—"), i, 1)
-            grid.addWidget(QLabel(desc), i, 2)
-        return grid
+    def _keycaps(combo: str) -> QWidget:
+        """Render 'Ctrl+T' as separate key-cap chips joined by '+'."""
+        w = QWidget()
+        row = QHBoxLayout(w)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(5)
+        for i, key in enumerate(k.strip() for k in combo.split("+")):
+            if i:
+                plus = QLabel("+")
+                plus.setObjectName("muted")
+                row.addWidget(plus)
+            cap = QLabel(key)
+            cap.setObjectName("kbd")
+            row.addWidget(cap)
+        row.addStretch()
+        return w
 
 
 class CustomTitleBar(TitleBar):

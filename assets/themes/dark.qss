@@ -57,6 +57,26 @@ QPushButton:disabled {
     border-color: #2c2924;
 }
 
+/* Panel-visibility toggles (transcript header): lit when the panel is shown,
+   muted when it's collapsed — so the button itself signals the panel's state.
+   :enabled-scoped so it never overrides the disabled/locked look. */
+QPushButton[panelOpen="true"]:enabled {
+    border-color: #d97757;
+    background-color: #2f2a24;
+}
+QPushButton[panelOpen="true"]:enabled:hover {
+    border-color: #e28a6b;
+    background-color: #322e29;
+}
+QPushButton[panelOpen="false"]:enabled {
+    color: #8a8377;
+    background-color: #211f1c;
+}
+QPushButton[panelOpen="false"]:enabled:hover {
+    color: #ada695;
+    background-color: #2a2723;
+}
+
 /* Flat icon buttons in the title bar */
 QPushButton#titleBarButton {
     background: transparent;
@@ -84,6 +104,15 @@ QToolButton:hover {
 }
 QToolButton:pressed {
     background-color: #3b362f;
+}
+/* Active choice in a settings toggle group (Local/API, theme, prefs) */
+QToolButton[selected="true"] {
+    border: 2px solid #d97757;
+    background-color: #2f2a24;
+}
+QToolButton[selected="true"]:hover {
+    background-color: #322e29;
+    border-color: #e28a6b;
 }
 
 /* ---- Check boxes ---- */
@@ -261,6 +290,31 @@ QLabel {
 }
 QLabel#muted {
     color: #9a9387;
+    font-size: 12px;
+}
+QLabel#sectionHeader {
+    font-size: 15px;
+    font-weight: 600;
+    color: #ece7df;
+}
+QLabel#dangerHeader {
+    font-size: 15px;
+    font-weight: 600;
+    color: #e0795f;
+}
+QFrame#sectionDivider {
+    border: none;
+    border-top: 1px solid #36322b;
+    max-height: 1px;
+}
+/* Key-cap chips in the keyboard-shortcuts dialog */
+QLabel#kbd {
+    background-color: #272420;
+    color: #ece7df;
+    border: 1px solid #4a443b;
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-family: "Cascadia Code", "Consolas", monospace;
     font-size: 12px;
 }
 
