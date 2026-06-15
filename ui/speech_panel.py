@@ -72,9 +72,39 @@ class SpeechPanel(QWidget):
         )
         
         capture_layout.addWidget(speech_text)
+
+        # Transient "transcribing…" hint, shown while a chunk for this slide is in
+        # flight (see show_pending/clear_pending) and hidden once its text lands.
+        pending = QLabel("● transcribing…")
+        pending.setObjectName("pendingIndicator")
+        pending.setStyleSheet("color: #d97757; font-style: italic; padding: 0 4px;")
+        pending.setVisible(False)
+        capture_layout.addWidget(pending)
+
         capture_widget.setProperty("capture_id", capture.id)
         capture_widget.setLayout(capture_layout)
         return capture_widget
+
+    def _find_capture_widget(self, capture_id) -> QWidget | None:
+        for i in range(self.feed_layout.count()):
+            widget = self.feed_layout.itemAt(i).widget()
+            if widget and widget.property("capture_id") == capture_id:
+                return widget
+        return None
+
+    def show_pending(self, capture_id) -> None:
+        widget = self._find_capture_widget(capture_id)
+        if widget:
+            label = widget.findChild(QLabel, "pendingIndicator")
+            if label:
+                label.setVisible(True)
+
+    def clear_pending(self, capture_id) -> None:
+        widget = self._find_capture_widget(capture_id)
+        if widget:
+            label = widget.findChild(QLabel, "pendingIndicator")
+            if label:
+                label.setVisible(False)
 
     def _delete_capture(self, capture_id: int, widget: QWidget) -> None:
         self.feed_layout.removeWidget(widget)
@@ -99,13 +129,12 @@ class SpeechPanel(QWidget):
         self.speech_button.setDisabled(False)
     
     def update_capture_speech(self, capture_id, text) -> None:
-        for i in range(self.feed_layout.count()):
-            widget = self.feed_layout.itemAt(i).widget()
-            if widget and widget.property("capture_id") == capture_id:
-                text_field = widget.findChild(QTextEdit)
-                text_field.blockSignals(True)
-                text_field.setPlainText(text_field.toPlainText() + text)
-                text_field.blockSignals(False)
+        widget = self._find_capture_widget(capture_id)
+        if widget:
+            text_field = widget.findChild(QTextEdit)
+            text_field.blockSignals(True)
+            text_field.setPlainText(text_field.toPlainText() + text)
+            text_field.blockSignals(False)
 
     def set_locked(self) -> None:
         self.is_locked = not self.is_locked

@@ -86,6 +86,38 @@ QToolButton:pressed {
     background-color: #3b362f;
 }
 
+/* ---- Check boxes ---- */
+QCheckBox {
+    background: transparent;
+    color: #ece7df;
+    spacing: 8px;
+}
+QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    border: 1px solid #5c554a;      /* clearly visible against the near-black bg */
+    border-radius: 5px;
+    background-color: #211f1c;
+}
+QCheckBox::indicator:hover {
+    border-color: #d97757;
+}
+QCheckBox::indicator:checked {
+    background-color: #d97757;       /* coral fill = checked */
+    border-color: #d97757;
+}
+QCheckBox::indicator:checked:hover {
+    background-color: #e28a6b;
+    border-color: #e28a6b;
+}
+QCheckBox::indicator:disabled {
+    border-color: #2c2924;
+    background-color: #1d1b18;
+}
+QCheckBox:disabled {
+    color: #5f5a51;
+}
+
 /* ---- Text inputs ---- */
 QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QComboBox {
     background-color: #211f1c;

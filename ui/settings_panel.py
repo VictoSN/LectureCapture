@@ -2,7 +2,7 @@ import shutil
 
 from PyQt6.QtWidgets import (
     QWidget, QLabel, QPushButton, QComboBox, QVBoxLayout, QHBoxLayout, QGridLayout, QSpinBox,
-    QFileDialog, QLineEdit, QMessageBox, QScrollArea, QTextEdit
+    QFileDialog, QLineEdit, QMessageBox, QScrollArea, QTextEdit, QCheckBox
 )
 from PyQt6.QtCore import pyqtSignal, QSettings, QUrl, Qt
 from PyQt6.QtMultimedia import QSoundEffect
@@ -104,7 +104,32 @@ class SettingsPanel(QWidget):
         self.api_button = create_button_label(icons_dir / "server.svg", "API", lambda: self.set_proc_mode("api"))
         processing_button_layout.addWidget(self.api_button)
         processing_layout.addLayout(processing_button_layout)
-        
+
+        # Local speech model — applies whenever speech runs locally (the local engine,
+        # or an API fallback). Automatic picks distil-large-v3 on a GPU, tiny.en on CPU.
+        local_model_label = QLabel("Local Speech Model")
+        processing_layout.addWidget(local_model_label)
+
+        self.speech_model_dropdown = QComboBox()
+        no_wheel(self.speech_model_dropdown)
+        for label, value in [
+            ("Automatic (GPU: distil-large-v3 · CPU: tiny.en)", "auto"),
+            ("tiny.en — fastest, lowest accuracy", "tiny.en"),
+            ("base.en — fast", "base.en"),
+            ("small.en — balanced", "small.en"),
+            ("distil-small.en — fast, distilled", "distil-small.en"),
+            ("medium.en — accurate (GPU recommended)", "medium.en"),
+            ("distil-large-v3 — accurate + fast (GPU)", "distil-large-v3"),
+            ("large-v3 — most accurate (GPU)", "large-v3"),
+        ]:
+            self.speech_model_dropdown.addItem(label, value)
+        self.speech_model_dropdown.setToolTip(
+            "Whisper model used for local speech-to-text. Larger models are more "
+            "accurate but heavier; on this machine the GPU runs even large models "
+            "far faster than real time."
+        )
+        processing_layout.addWidget(self.speech_model_dropdown)
+
         gemini_label = QLabel("Google Gemini API Key")
         self.api_layout.addWidget(gemini_label, 0, 0)
         self.gemini_input = QLineEdit()
@@ -112,22 +137,44 @@ class SettingsPanel(QWidget):
         self.gemini_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.api_layout.addWidget(self.gemini_input, 0, 1)
 
-        api_note = QLabel("Used for OCR cleanup, speech-to-text, and summarization. Get a free key at aistudio.google.com.")
+        api_note = QLabel("Get a free key at aistudio.google.com. Choose below which steps use the API — the rest run locally.")
         api_note.setWordWrap(True)
         api_note.setObjectName("muted")
         self.api_layout.addWidget(api_note, 1, 0, 1, 2)
 
+        # Per-engine API selection: each step can independently use the API or the
+        # local engine. e.g. Gemini OCR for math slides + local speech for low latency.
+        use_label = QLabel("Use API for:")
+        self.api_layout.addWidget(use_label, 2, 0, 1, 2)
+
+        self.api_use_ocr = QCheckBox("OCR (slides)")
+        self.api_use_ocr.setToolTip("Use Gemini vision for slide OCR (captures math/symbols). Off = local Tesseract.")
+        self.api_use_speech = QCheckBox("Audio (speech)")
+        self.api_use_speech.setToolTip("Use Gemini for speech-to-text. Off = local faster-whisper (recommended for live transcription).")
+        self.api_use_summarize = QCheckBox("Summary")
+        self.api_use_summarize.setToolTip("Use Gemini to write the session summary. Off = local sumy.")
+
+        use_row = QHBoxLayout()
+        use_row.setSpacing(16)
+        use_row.addWidget(self.api_use_ocr)
+        use_row.addWidget(self.api_use_speech)
+        use_row.addWidget(self.api_use_summarize)
+        use_row.addStretch()
+        use_row_widget = QWidget()
+        use_row_widget.setLayout(use_row)
+        self.api_layout.addWidget(use_row_widget, 3, 0, 1, 2)
+
         self.test_api_button = QPushButton("Test API Connection")
         self.test_api_button.setToolTip("Test the Gemini API key")
         self.test_api_button.clicked.connect(self._test_api_connection)
-        self.api_layout.addWidget(self.test_api_button, 2, 0, 1, 2)
+        self.api_layout.addWidget(self.test_api_button, 4, 0, 1, 2)
 
         self.api_test_output = QTextEdit()
         self.api_test_output.setReadOnly(True)
         self.api_test_output.setMaximumHeight(400)
         self.api_test_output.setPlaceholderText("Test results will appear here...")
         self.api_test_output.setVisible(False)
-        self.api_layout.addWidget(self.api_test_output, 3, 0, 1, 2)
+        self.api_layout.addWidget(self.api_test_output, 5, 0, 1, 2)
 
         self.api_container = QWidget()
         self.api_container.setLayout(self.api_layout)
@@ -429,9 +476,13 @@ class SettingsPanel(QWidget):
         stop = self.stop_sound_dropdown.currentData() or ""
         self.sound_effects_changed.emit(start, stop)
 
-        # Save API key
+        # Save API key + per-engine API selection
         gemini_key = self.gemini_input.text().strip()
         self.settings.setValue("api_key_gemini", gemini_key)
+        self.settings.setValue("api_use_ocr", self.api_use_ocr.isChecked())
+        self.settings.setValue("api_use_speech", self.api_use_speech.isChecked())
+        self.settings.setValue("api_use_summarize", self.api_use_summarize.isChecked())
+        self.settings.setValue("speech_model", self.speech_model_dropdown.currentData())
         self.settings.sync()
         self.api_keys_changed.emit(gemini_key)
         self.processing_mode_changed.emit(self.proc_mode)
@@ -479,8 +530,14 @@ class SettingsPanel(QWidget):
         self._set_dropdown(self.start_sound_dropdown, self.settings.value("start_sound"), str(self.bundled_sounds_dir / 'Beep 1 (Default).wav'))
         self._set_dropdown(self.stop_sound_dropdown, self.settings.value("stop_sound"), str(self.bundled_sounds_dir / 'Chirp 1 (Default).wav'))
 
-        # Load API key
+        # Load API key + per-engine API selection (default: all on, = old behaviour)
         self.gemini_input.setText(self.settings.value("api_key_gemini", ""))
+        self.api_use_ocr.setChecked(self.settings.value("api_use_ocr", True, type=bool))
+        self.api_use_speech.setChecked(self.settings.value("api_use_speech", True, type=bool))
+        self.api_use_summarize.setChecked(self.settings.value("api_use_summarize", True, type=bool))
+        sm_idx = self.speech_model_dropdown.findData(self.settings.value("speech_model", "auto"))
+        if sm_idx >= 0:
+            self.speech_model_dropdown.setCurrentIndex(sm_idx)
         
     def revert_theme(self) -> None:
         self.set_theme(str(self.settings.value("theme", "auto")))

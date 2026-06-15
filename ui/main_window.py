@@ -330,9 +330,11 @@ class MainWindow(FramelessMainWindow):
         # Create audio worker thread
         self.audio_worker = AudioWorker(
             self.current_session.id, self.storage.base_dir, interval, device, start_time, self.current_session.length,
-            speech_api_key=self._effective_api_key("speech")
+            speech_api_key=self._effective_api_key("speech"),
+            speech_model=str(self.settings.value("speech_model", "auto")),
         )
         self.audio_worker.chunk_ready.connect(self.on_chunk_ready)
+        self.audio_worker.chunk_pending.connect(self.on_chunk_pending)
         self.audio_worker.engine_fallback.connect(self._on_speech_engine_fallback)
         self.audio_worker.start()
 
@@ -515,10 +517,25 @@ class MainWindow(FramelessMainWindow):
         self.transcript_panel.ocr_panel.add_capture(capture)
         self.transcript_panel.speech_panel.add_capture(capture)
 
-    def on_chunk_ready(self, timestamp, text) -> None:
-        if not text or not self.current_session:
+    def on_chunk_pending(self, timestamp) -> None:
+        # A chunk is being transcribed; show the placeholder on the slide it will
+        # attach to (the same lookup on_chunk_ready uses), if one exists yet.
+        if not self.current_session:
             return
         recent = self.storage.get_latest_capture_before(self.current_session.id, timestamp)
+        if recent:
+            self.transcript_panel.speech_panel.show_pending(recent.id)
+
+    def on_chunk_ready(self, timestamp, text) -> None:
+        if not self.current_session:
+            return
+        recent = self.storage.get_latest_capture_before(self.current_session.id, timestamp)
+        # Clear the placeholder regardless of whether there's text (a chunk can
+        # transcribe to nothing), so it never gets stuck on screen.
+        if recent:
+            self.transcript_panel.speech_panel.clear_pending(recent.id)
+        if not text:
+            return
         if recent:
             self.storage.append_speech_text(recent.id, text)
             self.transcript_panel.speech_panel.update_capture_speech(recent.id, text)
@@ -725,16 +742,21 @@ class MainWindow(FramelessMainWindow):
         self.processing_mode = str(self.settings.value("processing_mode", "local"))
 
     def _effective_api_key(self, kind: str = "") -> str:
+        # API is only used when the master switch is on AND that specific engine
+        # (ocr / speech / summarize) is enabled for the API. This lets the user, e.g.,
+        # run Gemini OCR for math slides while keeping speech on the fast local model.
         if self.processing_mode != "api":
+            return ""
+        if kind and not self.settings.value(f"api_use_{kind}", True, type=bool):
             return ""
         return self.api_key
 
     def _summarize_engine_label(self) -> str:
-        return "gemini-flash" if self._effective_api_key() else "sumy"
+        return "gemini-flash" if self._effective_api_key("summarize") else "sumy"
 
     def _refresh_engine_labels(self) -> None:
-        ocr_engine = "gemini vision" if self._effective_api_key() else "pytesseract"
-        speech_engine = "gemini" if self._effective_api_key() else "faster-whisper"
+        ocr_engine = "gemini vision" if self._effective_api_key("ocr") else "pytesseract"
+        speech_engine = "gemini" if self._effective_api_key("speech") else "faster-whisper"
         self.transcript_panel.update_engine_labels(ocr_engine, speech_engine, self._summarize_engine_label())
 
     def _on_ocr_engine_fallback(self, engine: str) -> None:

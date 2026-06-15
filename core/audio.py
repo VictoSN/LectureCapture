@@ -10,6 +10,9 @@ import numpy as np
 from PyQt6.QtCore import QThread, pyqtSignal
 
 RECORD_SAMPLE_RATE = 44100
+# faster-whisper wants 16 kHz mono; resampling there cuts both local decode work
+# and the API payload size (~5× smaller than 44.1 kHz).
+WHISPER_SAMPLE_RATE = 16000
 # After an API failure (e.g. a rate limit) stop calling the API for this long
 # before trying again, so a transient 429 doesn't permanently fall back to local.
 API_COOLDOWN_SECONDS = 60
@@ -19,12 +22,23 @@ MAX_PENDING_CHUNKS = 5
 # which stops Whisper/Gemini from hallucinating gibberish over quiet/empty audio.
 SILENCE_RMS_THRESHOLD = 0.005
 
+# Local Whisper model per device. On a CUDA GPU we can afford a large, highly
+# accurate English model in real time (distil-large-v3 ≈ large-v3 accuracy at a
+# fraction of the cost); on CPU we fall back to the fast English tiny model.
+# Both are English-only, so transcription is always English without extra config.
+GPU_WHISPER_MODEL = "distil-large-v3"
+CPU_WHISPER_MODEL = "tiny.en"
+
 
 class AudioWorker(QThread):
     chunk_ready = pyqtSignal(float, str)
+    # Emitted when a (non-silent) chunk starts transcribing, so the UI can show a
+    # "transcribing…" placeholder on the slide the speech will land on. The matching
+    # chunk_ready (same timestamp) clears it.
+    chunk_pending = pyqtSignal(float)
     engine_fallback = pyqtSignal(str)
 
-    def __init__(self, session_id: int, base_dir: str, interval: int, device, start_time, offset: int, speech_api_key: str = "") -> None:
+    def __init__(self, session_id: int, base_dir: str, interval: int, device, start_time, offset: int, speech_api_key: str = "", speech_model: str = "auto") -> None:
         super().__init__()
         self._running = True
 
@@ -32,6 +46,8 @@ class AudioWorker(QThread):
         self.base_dir = base_dir
         self.interval = interval
         self.speech_api_key = speech_api_key
+        # Which local Whisper model to use ("auto" = pick by device). See _ensure_model.
+        self.speech_model = speech_model or "auto"
 
         # API fallback state — cooldown-based instead of permanently sticky.
         self._api_cooldown_until = 0.0
@@ -39,6 +55,8 @@ class AudioWorker(QThread):
 
         # Whisper is loaded lazily, only if/when local transcription actually runs.
         self.model = None
+        # Set once the local model is loaded, so the footer can show GPU vs CPU.
+        self._local_engine_label = "faster-whisper"
 
         # Decode the device selection (may be int, dict, or None).
         if isinstance(device, dict):
@@ -151,6 +169,14 @@ class AudioWorker(QThread):
     # ---- transcription (consumer) --------------------------------------
 
     def _consume(self) -> None:
+        # When local is the speech engine, load + warm the model now (on this
+        # thread) so the slow first-inference CUDA warmup overlaps with the first
+        # chunk being recorded, instead of stalling that chunk's transcription.
+        if not self.speech_api_key:
+            try:
+                self._ensure_model()
+            except Exception as e:
+                print(f"[Audio] model preload failed: {e}")
         while True:
             item = self._queue.get()
             if item is None:
@@ -160,6 +186,8 @@ class AudioWorker(QThread):
                 text = ""  # don't transcribe silence (avoids hallucinated gibberish)
                 print(f"[Audio timing] chunk@{chunk_start:.1f}s skipped (silent)")
             else:
+                # Tell the UI a chunk for this moment is being transcribed.
+                self.chunk_pending.emit(chunk_start)
                 t0 = time.time()
                 try:
                     text = self._transcribe(audio, chunk_start)
@@ -179,22 +207,19 @@ class AudioWorker(QThread):
         rms = float(np.sqrt(np.mean(np.square(audio.astype(np.float64)))))
         return rms < SILENCE_RMS_THRESHOLD
 
-    def _to_wav_bytes(self, audio: np.ndarray) -> bytes:
-        buf = io.BytesIO()
-        sf.write(buf, audio, RECORD_SAMPLE_RATE, format="WAV", subtype="PCM_16")
-        return buf.getvalue()
-
-    def _to_wav_bytes_16k(self, audio: np.ndarray) -> bytes:
-        """Resample to 16kHz and encode as WAV. ~5× smaller than 44100Hz."""
-        target = 16000
-        n = int(len(audio) * target / RECORD_SAMPLE_RATE)
-        audio_16k = np.interp(
+    def _to_16k_array(self, audio: np.ndarray) -> np.ndarray:
+        """Resample 44.1 kHz mono float32 down to 16 kHz mono float32."""
+        n = int(len(audio) * WHISPER_SAMPLE_RATE / RECORD_SAMPLE_RATE)
+        return np.interp(
             np.linspace(0, len(audio) - 1, n),
             np.arange(len(audio)),
             audio.astype(np.float64),
         ).astype(np.float32)
+
+    def _to_wav_bytes_16k(self, audio: np.ndarray) -> bytes:
+        """Resample to 16kHz and encode as WAV. ~5× smaller than 44100Hz."""
         buf = io.BytesIO()
-        sf.write(buf, audio_16k, target, format="WAV", subtype="PCM_16")
+        sf.write(buf, self._to_16k_array(audio), WHISPER_SAMPLE_RATE, format="WAV", subtype="PCM_16")
         return buf.getvalue()
 
     @staticmethod
@@ -214,8 +239,8 @@ class AudioWorker(QThread):
             except Exception as e:
                 print(f"[Audio] API failed ({e}); using local for ~{API_COOLDOWN_SECONDS}s")
                 self._api_cooldown_until = time.time() + API_COOLDOWN_SECONDS
-        text = self._transcribe_local(self._to_wav_bytes(audio), chunk_start)
-        self._emit_engine("faster-whisper")
+        text = self._transcribe_local(audio, chunk_start)
+        self._emit_engine(self._local_engine_label)
         return text
 
     def _api_available(self) -> bool:
@@ -227,19 +252,56 @@ class AudioWorker(QThread):
             self.engine_fallback.emit(name)
 
     def _ensure_model(self):
-        if self.model is None:
-            from faster_whisper import WhisperModel
-            # tiny is ~10x faster than base on CPU with negligible accuracy loss for
-            # lecture speech. beam_size=1 (greedy) removes the main latency source.
-            self.model = WhisperModel("tiny", device="cpu", compute_type="int8")
+        if self.model is not None:
+            return self.model
+        from faster_whisper import WhisperModel
+
+        # An explicit model choice is honoured on whichever device is available;
+        # "auto" picks the best model for the device (big on GPU, tiny on CPU).
+        chosen = self.speech_model if self.speech_model != "auto" else None
+
+        # Prefer the GPU: a CUDA device lets us run a large, accurate English model in
+        # real time. "Device present" doesn't guarantee the cuBLAS/cuDNN runtime
+        # actually loads (e.g. unsupported GPU), so we warm up with a real inference
+        # and fall back to CPU if anything in the GPU path raises.
+        from core.cuda_setup import prepare_cuda
+        if prepare_cuda():
+            model_id = chosen or GPU_WHISPER_MODEL
+            try:
+                t0 = time.time()
+                model = WhisperModel(model_id, device="cuda", compute_type="float16")
+                self._warmup(model)
+                print(f"[Audio] loaded {model_id} on GPU in {time.time()-t0:.1f}s")
+                self.model = model
+                self._local_engine_label = f"faster-whisper · {model_id} · GPU"
+                self._emit_engine(self._local_engine_label)
+                return self.model
+            except Exception as e:
+                print(f"[Audio] GPU model unavailable ({e}); falling back to CPU")
+
+        # CPU fallback (int8, greedy). "auto" → tiny.en, else the user's choice (which
+        # may be slow on CPU — that's their call; the UI flags GPU-oriented models).
+        model_id = chosen or CPU_WHISPER_MODEL
+        self.model = WhisperModel(model_id, device="cpu", compute_type="int8")
+        self._local_engine_label = f"faster-whisper · {model_id} · CPU"
+        self._emit_engine(self._local_engine_label)
         return self.model
 
-    def _transcribe_local(self, wav_bytes: bytes, chunk_start: float) -> str:
+    def _warmup(self, model) -> None:
+        # First CUDA inference JITs kernels / autotunes cuDNN (several seconds). Run a
+        # short dummy clip (no VAD, so the encoder definitely runs) to pay that cost
+        # up front rather than on the user's first real chunk.
+        dummy = (np.random.randn(WHISPER_SAMPLE_RATE).astype(np.float32)) * 0.01
+        list(model.transcribe(dummy, beam_size=1, language="en")[0])
+
+    def _transcribe_local(self, audio: np.ndarray, chunk_start: float) -> str:
         try:
             model = self._ensure_model()
-            # faster-whisper accepts a file-like object and resamples to 16 kHz
-            # internally. vad_filter drops non-speech segments (extra hallucination guard).
-            segments, _info = model.transcribe(io.BytesIO(wav_bytes), beam_size=1, language="en", vad_filter=True)
+            # Feed a 16 kHz float32 array directly (no WAV encode/decode round-trip).
+            # vad_filter drops non-speech segments (extra hallucination guard).
+            segments, _info = model.transcribe(
+                self._to_16k_array(audio), beam_size=1, language="en", vad_filter=True
+            )
             out = ""
             for segment in segments:
                 out += f"{self._fmt_ts(chunk_start + segment.start)} {segment.text.strip()}\n"
