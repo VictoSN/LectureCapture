@@ -10,13 +10,14 @@ venv\Scripts\Activate
 ```
 3. Install dependencies:
 ```bash
-pip install PyQt6 pytesseract Pillow mss sounddevice soundfile faster_whisper sumy pywin32, PyQt5-Frameless-Window, google-genai
+pip install PyQt6 PyQt6-Frameless-Window numpy pytesseract Pillow mss sounddevice soundfile faster_whisper sumy pywin32 google-genai
 ```
-4. Install Tesseract:
+4. (Optional) For GPU-accelerated speech transcription on an NVIDIA GPU, also install the CUDA 12 runtime. Without these, transcription falls back to the CPU:
 ```bash
-download installer from https://github.com/tesseract-ocr/tesseract
+pip install nvidia-cublas-cu12 nvidia-cudnn-cu12
 ```
-5. Run:
+5. Install Tesseract (the OCR engine `pytesseract` calls): download and run the Windows installer from https://github.com/UB-Mannheim/tesseract/wiki
+6. Run:
 ```bash
 python main.py
 ```
