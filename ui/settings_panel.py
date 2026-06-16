@@ -131,6 +131,33 @@ class SettingsPanel(QWidget):
         )
         processing_layout.addWidget(self.speech_model_dropdown)
 
+        # Hardware detection — verify the GPU/CPU actually works and recommend a model.
+        # Mirrors the API "test connection" layout: a button + an on-demand result area.
+        self._recommended_model = None
+        self._hw_worker = None
+
+        hw_row = QHBoxLayout()
+        hw_row.setSpacing(10)
+        self.detect_hw_button = QPushButton("Detect Hardware")
+        self.detect_hw_button.setToolTip("Check GPU/CPU and recommend a speech model")
+        self.detect_hw_button.clicked.connect(self._detect_hardware)
+        hw_row.addWidget(self.detect_hw_button)
+
+        self.apply_model_button = QPushButton("Apply Recommended")
+        self.apply_model_button.setToolTip("Set the recommended model in the dropdown above")
+        self.apply_model_button.clicked.connect(self._apply_recommended_model)
+        self.apply_model_button.setVisible(False)
+        hw_row.addWidget(self.apply_model_button)
+        hw_row.addStretch()
+        processing_layout.addLayout(hw_row)
+
+        self.hw_output = QTextEdit()
+        self.hw_output.setReadOnly(True)
+        self.hw_output.setMaximumHeight(160)
+        self.hw_output.setPlaceholderText("Hardware details will appear here...")
+        self.hw_output.setVisible(False)
+        processing_layout.addWidget(self.hw_output)
+
         gemini_label = QLabel("Google Gemini API Key")
         self.api_layout.addWidget(gemini_label, 0, 0)
         self.gemini_input = QLineEdit()
@@ -628,10 +655,46 @@ class SettingsPanel(QWidget):
         except Exception as e:
             show(f"[API Test] Connection failed:\n{e}")
 
+    def _detect_hardware(self) -> None:
+        from core.hardware import HardwareProbeWorker
+        if self._hw_worker is not None:
+            return  # a probe is already running
+        self.detect_hw_button.setDisabled(True)
+        self.apply_model_button.setVisible(False)
+        self.hw_output.setVisible(True)
+        self.hw_output.setPlainText("Detecting hardware… (this can take a few seconds)")
+        self._hw_worker = HardwareProbeWorker()
+        self._hw_worker.done.connect(self._on_hardware_detected)
+        self._hw_worker.failed.connect(self._on_hardware_failed)
+        self._hw_worker.finished.connect(self._on_hardware_finished)
+        self._hw_worker.start()
+
+    def _on_hardware_detected(self, report: str, recommended: str) -> None:
+        self.hw_output.setPlainText(report)
+        self._recommended_model = recommended
+        # Offer Apply only if the recommendation isn't already selected.
+        already = self.speech_model_dropdown.currentData() == recommended
+        self.apply_model_button.setVisible(bool(recommended) and not already)
+
+    def _on_hardware_failed(self, message: str) -> None:
+        self.hw_output.setPlainText(f"Hardware detection failed:\n{message}")
+
+    def _on_hardware_finished(self) -> None:
+        self.detect_hw_button.setDisabled(False)
+        self._hw_worker = None
+
+    def _apply_recommended_model(self) -> None:
+        if not self._recommended_model:
+            return
+        idx = self.speech_model_dropdown.findData(self._recommended_model)
+        if idx >= 0:
+            self.speech_model_dropdown.setCurrentIndex(idx)
+        self.apply_model_button.setVisible(False)
+
     def deleteEvent(self) -> None:
         reply = QMessageBox.question(
-            self, 
-            "Delete All Session", 
+            self,
+            "Delete All Session",
             "Delete all of the sessions?"
         )
         if reply == QMessageBox.StandardButton.No:
