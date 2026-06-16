@@ -591,7 +591,7 @@ class MainWindow(FramelessMainWindow):
         title = f"Translation → {target}" if kind == "translate" else "Definition"
         if self._lookup_popup is None:
             from ui.lookup_popup import LookupPopup
-            self._lookup_popup = LookupPopup(self)
+            self._lookup_popup = LookupPopup(self, ICONS_DIR)
         self._lookup_popup.prepare(title, text)
         self._lookup_popup.show_at(QCursor.pos())
 

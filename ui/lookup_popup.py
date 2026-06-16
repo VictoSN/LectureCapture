@@ -4,19 +4,30 @@ Reused across lookups (created once, re-prepared each time) so there are no
 deletion races with the in-flight worker.
 """
 
+from pathlib import Path
+
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTextEdit, QWidget, QApplication
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QShortcut, QKeySequence, QGuiApplication
+
+from ui.styles import load_icon
 
 # Grow the result box to fit its content up to this height, then let it scroll.
 RESULT_MAX_HEIGHT = 280
+# The selected/original text grows to fit up to this height, then scrolls so long
+# selections (e.g. a whole paragraph) can be reviewed against the translation.
+ORIGINAL_MAX_HEIGHT = 96
 
 
 class LookupPopup(QDialog):
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None, icons_dir=None) -> None:
         super().__init__(parent)
+        self._icons_dir = (
+            Path(icons_dir) if icons_dir
+            else Path(__file__).resolve().parent.parent / "assets" / "icons"
+        )
         # Frameless tool window (no taskbar entry); translucent so the inner card's
         # rounded corners show instead of a square window background.
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool)
@@ -40,24 +51,31 @@ class LookupPopup(QDialog):
         self.title_label.setObjectName("sectionHeader")
         header.addWidget(self.title_label)
         header.addStretch()
-        self.close_btn = QPushButton("✕")
+        self.close_btn = QPushButton()
+        # The ✕ icon is black in light mode and white in dark mode: load_icon tints it
+        # to the active theme, and _icon_path lets refresh_icons re-tint on theme change.
+        self.close_btn._icon_path = self._icons_dir / "x.svg"
+        self.close_btn.setIcon(load_icon(self.close_btn._icon_path))
+        self.close_btn.setIconSize(QSize(14, 14))
         self.close_btn.setFixedSize(24, 24)
         self.close_btn.setToolTip("Close (Esc)")
-        # A fixed red ✕ — clearly visible on both the light and dark card, no theme
-        # detection (which proved unreliable for this frameless popup).
         self.close_btn.setStyleSheet(
-            "QPushButton { color: #d9534f; background: transparent; border: none;"
-            " font-size: 15px; border-radius: 6px; }"
-            "QPushButton:hover { color: #ff5f57; }"
+            "QPushButton { background: transparent; border: none; border-radius: 6px; }"
+            "QPushButton:hover { background: rgba(140, 140, 140, 0.20); }"
         )
         self.close_btn.clicked.connect(self.close)
         header.addWidget(self.close_btn)
         layout.addLayout(header)
 
-        self.original_label = QLabel("")
-        self.original_label.setObjectName("muted")
-        self.original_label.setWordWrap(True)
-        layout.addWidget(self.original_label)
+        # Read-only view of the selected text. Styled (via #lookupOriginal QSS) to look
+        # like muted plain text, but it scrolls once the selection is tall.
+        self.original_view = QTextEdit()
+        self.original_view.setObjectName("lookupOriginal")
+        self.original_view.setReadOnly(True)
+        self.original_view.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
+        self.original_view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.original_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        layout.addWidget(self.original_view)
 
         self.result = QTextEdit()
         self.result.setReadOnly(True)
@@ -79,7 +97,8 @@ class LookupPopup(QDialog):
     def prepare(self, title: str, original: str) -> None:
         """Reset the card for a fresh lookup (loading state)."""
         self.title_label.setText(title)
-        self.original_label.setText(original if len(original) <= 140 else original[:140] + "…")
+        self.original_view.setPlainText(original)
+        self._fit_original_height()
         self.result.setPlainText("…")
         self._fit_result_height()
         self.copy_btn.setEnabled(False)
@@ -106,6 +125,17 @@ class LookupPopup(QDialog):
         self.adjustSize()
         self._clamp_to_screen()
 
+    def _fit_original_height(self) -> None:
+        # Size the selected-text box to its content (up to ORIGINAL_MAX_HEIGHT), then let
+        # it scroll. Short selections stay compact; long ones become scrollable.
+        doc = self.original_view.document()
+        width = self.original_view.viewport().width()
+        if width <= 0:  # not shown yet — estimate from the card width so wrapping is right
+            width = self.maximumWidth() - 2 * 14 - 4
+        doc.setTextWidth(width)
+        content = int(doc.size().height()) + 2 * self.original_view.frameWidth() + 6
+        self.original_view.setFixedHeight(max(24, min(content, ORIGINAL_MAX_HEIGHT)))
+
     def _clamp_to_screen(self) -> None:
         if not self.isVisible():
             return
@@ -129,5 +159,9 @@ class LookupPopup(QDialog):
         y = min(global_pos.y() + 8, geo.bottom() - self.height() - 8)
         self.move(max(x, geo.left() + 8), max(y, geo.top() + 8))
         self.show()
+        # Now that it has a real width, re-fit the selected-text box and reposition.
+        self._fit_original_height()
+        self.adjustSize()
+        self._clamp_to_screen()
         self.raise_()
         self.activateWindow()

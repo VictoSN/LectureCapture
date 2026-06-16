@@ -314,6 +314,14 @@ QWidget#lookupCard {
     border: 1px solid #4a443b;
     border-radius: 12px;
 }
+/* Selected/original text inside the card — muted plain text that scrolls when tall */
+QTextEdit#lookupOriginal {
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: #9a9387;
+    font-size: 12px;
+}
 
 /* Key-cap chips in the keyboard-shortcuts dialog */
 QLabel#kbd {

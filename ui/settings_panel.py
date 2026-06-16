@@ -119,9 +119,9 @@ class SettingsPanel(QWidget):
             ("base.en — fast", "base.en"),
             ("small.en — balanced", "small.en"),
             ("distil-small.en — fast, distilled", "distil-small.en"),
-            ("medium.en — accurate (GPU recommended)", "medium.en"),
-            ("distil-large-v3 — accurate + fast (GPU)", "distil-large-v3"),
-            ("large-v3 — most accurate (GPU)", "large-v3"),
+            ("medium.en — accurate", "medium.en"),
+            ("distil-large-v3 — accurate + fast", "distil-large-v3"),
+            ("large-v3 — most accurate", "large-v3"),
         ]:
             self.speech_model_dropdown.addItem(label, value)
         self.speech_model_dropdown.setToolTip(
