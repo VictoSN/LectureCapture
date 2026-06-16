@@ -25,6 +25,13 @@ def recommend_model(vram_mb: int | None, gpu_usable: bool) -> str:
     return "small.en"
 
 
+def auto_gpu_model() -> str:
+    """Model that the 'Automatic' setting resolves to on a working GPU — tiered by
+    VRAM (same logic as the Detect-Hardware recommendation), not always the biggest."""
+    _, vram = _query_gpu()
+    return recommend_model(vram, True)
+
+
 def _query_gpu() -> tuple[str | None, int | None]:
     """(name, total VRAM in MB) via nvidia-smi, or (None, None) if unavailable."""
     try:

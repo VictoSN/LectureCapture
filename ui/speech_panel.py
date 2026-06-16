@@ -10,6 +10,7 @@ class SpeechPanel(QWidget):
     speech_text_changed = pyqtSignal(int, str)
     immediate_change = pyqtSignal()
     capture_deleted = pyqtSignal(int)  # capture_id
+    lookup_requested = pyqtSignal(str, str, str)  # (selected_text, kind, target)
     
     def __init__(self, base_dir, icons_dir) -> None:
         super().__init__()
@@ -60,6 +61,7 @@ class SpeechPanel(QWidget):
         speech_text.setPlainText(capture.speech_text or "")
         speech_text.blockSignals(False)
         speech_text.setReadOnly(self.is_locked or self._busy)
+        speech_text.lookup_requested.connect(self.lookup_requested)
         
         timer = QTimer(speech_text)
         timer.setSingleShot(True)

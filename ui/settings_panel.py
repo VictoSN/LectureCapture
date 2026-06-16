@@ -114,7 +114,7 @@ class SettingsPanel(QWidget):
         self.speech_model_dropdown = QComboBox()
         no_wheel(self.speech_model_dropdown)
         for label, value in [
-            ("Automatic (GPU: distil-large-v3 · CPU: tiny.en)", "auto"),
+            ("Automatic (best for your detected hardware)", "auto"),
             ("tiny.en — fastest, lowest accuracy", "tiny.en"),
             ("base.en — fast", "base.en"),
             ("small.en — balanced", "small.en"),

@@ -132,11 +132,12 @@ QCheckBox::indicator:hover {
     border-color: #d97757;
 }
 QCheckBox::indicator:checked {
-    background-color: #d97757;       /* coral fill = checked */
-    border-color: #d97757;
+    background-color: #2f2a24;
+    border-color: #d97757;           /* coral border + ✕ = checked */
+    image: url(__ASSETS__/icons/x_light.svg);
 }
 QCheckBox::indicator:checked:hover {
-    background-color: #e28a6b;
+    background-color: #322e29;
     border-color: #e28a6b;
 }
 QCheckBox::indicator:disabled {
@@ -307,6 +308,13 @@ QFrame#sectionDivider {
     border-top: 1px solid #36322b;
     max-height: 1px;
 }
+/* Translate/Define result card (frameless popup) */
+QWidget#lookupCard {
+    background-color: #272420;
+    border: 1px solid #4a443b;
+    border-radius: 12px;
+}
+
 /* Key-cap chips in the keyboard-shortcuts dialog */
 QLabel#kbd {
     background-color: #272420;

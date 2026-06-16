@@ -1,16 +1,29 @@
 from PyQt6.QtWidgets import (
-    QWidget, QLabel, QHBoxLayout, QSizePolicy, QPushButton, QToolButton, QApplication, QTextEdit
+    QWidget, QLabel, QHBoxLayout, QSizePolicy, QPushButton, QToolButton, QApplication, QTextEdit, QMenu,
+    QAbstractScrollArea
 )
-from PyQt6.QtCore import Qt, QSize, QSettings, QObject, QEvent
+from PyQt6.QtCore import Qt, QSize, QSettings, QObject, QEvent, pyqtSignal
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QPalette
+
+# Offered in the right-click "Translate to" submenu of any transcript text. The
+# user can also pick "Other…" for a language not listed here.
+LOOKUP_LANGUAGES = [
+    "Malay", "Indonesian", "Chinese (Simplified)", "Tamil", "Spanish", "French",
+    "German", "Japanese", "Korean", "Arabic",
+]
 
 
 class _EatWheelFilter(QObject):
-    """Swallows wheel events so they don't change the widget or propagate."""
+    """Stops the wheel from changing the widget (e.g. a QComboBox), but forwards it to
+    an enclosing scroll area so the page still scrolls when the cursor is over it."""
     def eventFilter(self, obj, event):
         if event.type() == QEvent.Type.Wheel:
-            event.accept()
-            return True
+            w = obj.parentWidget() if hasattr(obj, "parentWidget") else None
+            while w is not None and not isinstance(w, QAbstractScrollArea):
+                w = w.parentWidget()
+            if w is not None:
+                QApplication.sendEvent(w.viewport(), event)
+            return True  # never let the widget itself handle the wheel (no value change)
         return False
 
 _eat_wheel_filter: _EatWheelFilter | None = None
@@ -29,7 +42,31 @@ class NoLeakTextEdit(QTextEdit):
     Scrolling mid-text is contained here. Scrolling past the top/bottom naturally
     continues into the outer panel, so the outer panel is still reachable without
     having to aim at the scrollbar.
+
+    Also adds Define / Translate actions to the right-click menu when text is
+    selected, emitting `lookup_requested(selected_text, kind, target)` for a
+    controller to act on. kind is "define" or "translate"; target is the language
+    for translate ("" => the controller should prompt for a custom one).
     """
+    lookup_requested = pyqtSignal(str, str, str)
+
+    def contextMenuEvent(self, event):
+        menu = self.createStandardContextMenu()  # keep Copy / Select All / etc.
+        selected = self.textCursor().selectedText().replace("\u2029", "\n").strip()
+        if selected:
+            menu.addSeparator()
+            short = selected if len(selected) <= 24 else selected[:24] + "…"
+            define_act = menu.addAction(f'Define "{short}"')
+            define_act.triggered.connect(lambda *_: self.lookup_requested.emit(selected, "define", ""))
+            translate_menu = menu.addMenu("Translate to")
+            for lang in LOOKUP_LANGUAGES:
+                act = translate_menu.addAction(lang)
+                act.triggered.connect(lambda *_, l=lang: self.lookup_requested.emit(selected, "translate", l))
+            translate_menu.addSeparator()
+            other_act = translate_menu.addAction("Other…")
+            other_act.triggered.connect(lambda *_: self.lookup_requested.emit(selected, "translate", ""))
+        menu.exec(event.globalPos())
+
     def wheelEvent(self, event):
         bar = self.verticalScrollBar()
         delta = event.angleDelta().y()
@@ -58,7 +95,11 @@ def apply_theme(theme: str, themes_dir) -> None:
     # theme = "dark" or "light"
     qss_path = themes_dir / f"{theme}.qss"
     if qss_path.exists():
-        QApplication.instance().setStyleSheet(qss_path.read_text())
+        qss = qss_path.read_text()
+        # Resolve url(__ASSETS__/...) image paths to an absolute location so QSS-loaded
+        # images (e.g. the checkbox tick) work regardless of the process's working dir.
+        assets = Path(themes_dir).parent.as_posix()
+        QApplication.instance().setStyleSheet(qss.replace("__ASSETS__", assets))
     else:
         QApplication.instance().setStyleSheet("")
 

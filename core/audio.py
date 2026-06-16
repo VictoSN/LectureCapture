@@ -25,8 +25,8 @@ SILENCE_RMS_THRESHOLD = 0.005
 # Local Whisper model per device. On a CUDA GPU we can afford a large, highly
 # accurate English model in real time (distil-large-v3 ≈ large-v3 accuracy at a
 # fraction of the cost); on CPU we fall back to the fast English tiny model.
-# Both are English-only, so transcription is always English without extra config.
-GPU_WHISPER_MODEL = "distil-large-v3"
+# English-only, so transcription is always English without extra config. On a GPU,
+# "Automatic" instead picks a model tiered by VRAM (see core.hardware.auto_gpu_model).
 CPU_WHISPER_MODEL = "tiny.en"
 
 
@@ -266,7 +266,9 @@ class AudioWorker(QThread):
         # and fall back to CPU if anything in the GPU path raises.
         from core.cuda_setup import prepare_cuda
         if prepare_cuda():
-            model_id = chosen or GPU_WHISPER_MODEL
+            # "Automatic" → best model for the detected GPU's VRAM (not always the biggest).
+            from core.hardware import auto_gpu_model
+            model_id = chosen or auto_gpu_model()
             try:
                 t0 = time.time()
                 model = WhisperModel(model_id, device="cuda", compute_type="float16")

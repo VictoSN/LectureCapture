@@ -2,9 +2,9 @@ import time
 import zipfile, json
 
 from qframelesswindow import FramelessMainWindow
-from PyQt6.QtWidgets import QMessageBox, QFileDialog, QApplication
+from PyQt6.QtWidgets import QMessageBox, QFileDialog, QApplication, QInputDialog
 from ui.grip_splitter import GripSplitter
-from PyQt6.QtGui import QShortcut, QKeySequence, QGuiApplication
+from PyQt6.QtGui import QShortcut, QKeySequence, QGuiApplication, QCursor
 from PyQt6.QtCore import Qt, QTimer, QUrl, QSettings
 from PyQt6.QtMultimedia import QSoundEffect
 
@@ -49,6 +49,12 @@ class MainWindow(FramelessMainWindow):
         # Capture currently showing the "transcribing…" placeholder (one chunk is in
         # flight at a time). Tracked so we clear exactly the one we showed.
         self._pending_capture_id = None
+
+        # On-demand translate/define lookups: one reusable popup card, plus a set that
+        # keeps in-flight workers alive until they finish (so none is GC'd mid-run).
+        self._lookup_popup = None
+        self._lookup_worker = None
+        self._lookup_workers = set()
 
         # Background summarization runs on a worker thread so the (often slow) API
         # call doesn't freeze the UI. Held here so the QThread isn't garbage-collected
@@ -151,6 +157,11 @@ class MainWindow(FramelessMainWindow):
         self.transcript_panel.force_capture_clicked.connect(self.on_force_capture_clicked)
         self.transcript_panel.summary_panel.summarize_clicked.connect(self.on_summarize_clicked)
         self.transcript_panel.capture_deleted.connect(self.storage.delete_capture)
+
+        ## Translate / define on a text selection in any panel
+        self.transcript_panel.ocr_panel.lookup_requested.connect(self.on_lookup_requested)
+        self.transcript_panel.speech_panel.lookup_requested.connect(self.on_lookup_requested)
+        self.transcript_panel.summary_panel.lookup_requested.connect(self.on_lookup_requested)
         
         ## When any content is changed
         self.transcript_panel.ocr_panel.immediate_change.connect(self.unsaved_changes)
@@ -557,7 +568,51 @@ class MainWindow(FramelessMainWindow):
             # No slide captured yet — hold the speech and flush it onto the first
             # capture (see on_capture_ready) so early narration isn't lost.
             self._pending_speech += text
-    
+
+    def on_lookup_requested(self, text: str, kind: str, target: str) -> None:
+        """Translate or define a selection (right-clicked in any panel) via Gemini."""
+        text = (text or "").strip()
+        if not text:
+            return
+        # Lookups are Gemini-only; enabled whenever a key exists, regardless of the
+        # Local/API processing toggle (it's an on-demand tool, not part of the pipeline).
+        if not self.api_key:
+            QMessageBox.information(
+                self, "Gemini API key needed",
+                "Add a Gemini API key in Settings to use Translate / Define."
+            )
+            return
+        if kind == "translate" and not target:  # "Other…" — ask for a language
+            target, ok = QInputDialog.getText(self, "Translate", "Translate to which language?")
+            if not ok or not target.strip():
+                return
+            target = target.strip()
+
+        title = f"Translation → {target}" if kind == "translate" else "Definition"
+        if self._lookup_popup is None:
+            from ui.lookup_popup import LookupPopup
+            self._lookup_popup = LookupPopup(self)
+        self._lookup_popup.prepare(title, text)
+        self._lookup_popup.show_at(QCursor.pos())
+
+        from core.lookup import LookupWorker
+        worker = LookupWorker(text, kind, target, self.api_key)
+        self._lookup_worker = worker
+        self._lookup_workers.add(worker)
+        worker.done.connect(self._on_lookup_done)
+        worker.failed.connect(self._on_lookup_failed)
+        worker.finished.connect(lambda w=worker: self._lookup_workers.discard(w))
+        worker.start()
+
+    def _on_lookup_done(self, result: str) -> None:
+        # Ignore a stale worker's result (the user started another lookup since).
+        if self.sender() is self._lookup_worker and self._lookup_popup is not None:
+            self._lookup_popup.set_result(result or "(no result)")
+
+    def _on_lookup_failed(self, message: str) -> None:
+        if self.sender() is self._lookup_worker and self._lookup_popup is not None:
+            self._lookup_popup.set_error(message)
+
     def on_summarize_clicked(self) -> None:
         if not self.current_session:
             print('Need to select session first')

@@ -32,6 +32,7 @@ class OCRPanel(QWidget):
     immediate_change = pyqtSignal()
     capture_added = pyqtSignal()  # emitted after add_capture so parent can sync heights
     capture_deleted = pyqtSignal(int)  # capture_id
+    lookup_requested = pyqtSignal(str, str, str)  # (selected_text, kind, target)
 
     def __init__(self, base_dir, icons_dir) -> None:
         super().__init__()
@@ -126,6 +127,7 @@ class OCRPanel(QWidget):
         ocr_text.setPlainText(render_math(capture.extracted_text or ""))
         ocr_text.blockSignals(False)
         ocr_text.setReadOnly(self.is_locked or self._busy)
+        ocr_text.lookup_requested.connect(self.lookup_requested)
 
         # Wire the toggle button now that capture_image exists.
         def _toggle_image():

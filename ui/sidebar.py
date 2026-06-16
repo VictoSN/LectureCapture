@@ -41,14 +41,17 @@ class Sidebar(QWidget):
             QLineEdit.ActionPosition.LeadingPosition
         )
 
-        self.filter_button = create_button(icons_dir / 'filter.svg', self._show_filter)
+        self._filter_icon_path = icons_dir / 'filter.svg'
+        self._reset_icon_path = icons_dir / 'x.svg'
+        self.filter_button = create_button(self._filter_icon_path, self._on_filter_button)
         self.filter_button.setToolTip("Filter by category")
         search_layout.addWidget(self.filter_button)
-        
+
         self.session_category = QComboBox()
         no_wheel(self.session_category)
         self.session_category.addItems(["All", "Lab", "Tutorial", "Lecture"])
         self.session_category.currentTextChanged.connect(self.category_filter_changed)
+        self.session_category.currentTextChanged.connect(self._update_filter_button)
         self.session_category.setVisible(False)
         header.addWidget(self.session_category)
 
@@ -56,6 +59,7 @@ class Sidebar(QWidget):
         no_wheel(self.group_category)
         self.group_category.addItems(["All"] + group_categories)
         self.group_category.currentTextChanged.connect(self.group_filter_changed)
+        self.group_category.currentTextChanged.connect(self._update_filter_button)
         self.group_category.setVisible(False)
         header.addWidget(self.group_category)
 
@@ -138,13 +142,33 @@ class Sidebar(QWidget):
     
     def _show_filter(self) -> None:
         current_visibility = self.session_category.isVisible()
-        
+
         self.session_category.setVisible(not current_visibility)
         self.group_category.setVisible(not current_visibility)
-        
+
         if current_visibility:
             self.session_category.setCurrentIndex(0)
             self.group_category.setCurrentIndex(0)
+
+    def _is_filter_active(self) -> bool:
+        return (self.session_category.currentText() != "All"
+                or self.group_category.currentText() != "All")
+
+    def _on_filter_button(self) -> None:
+        # While a filter is applied the button is an ✕ that clears it; otherwise it
+        # toggles the category/group dropdowns.
+        if self._is_filter_active():
+            self.session_category.setCurrentIndex(0)
+            self.group_category.setCurrentIndex(0)
+        else:
+            self._show_filter()
+
+    def _update_filter_button(self) -> None:
+        active = self._is_filter_active()
+        path = self._reset_icon_path if active else self._filter_icon_path
+        self.filter_button._icon_path = path  # so theme changes recolour the right icon
+        self.filter_button.setIcon(load_icon(path))
+        self.filter_button.setToolTip("Clear filters" if active else "Filter by category")
 
     def refresh_theme(self, theme: str = None) -> None:
         self.session_search.removeAction(self._search_action)

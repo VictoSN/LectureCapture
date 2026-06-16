@@ -1,13 +1,14 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton
 from PyQt6.QtCore import pyqtSignal, QTimer
 
 from core.summarizer import strip_code_fence
-from ui.styles import create_label, create_button
+from ui.styles import create_label, create_button, NoLeakTextEdit
 
 class SummaryPanel(QWidget):
     summarize_clicked = pyqtSignal()
     summary_text_changed = pyqtSignal(str)  # new markdown source
     immediate_change = pyqtSignal()
+    lookup_requested = pyqtSignal(str, str, str)  # (selected_text, kind, target)
 
     def __init__(self, icons_dir) -> None:
         super().__init__()
@@ -39,7 +40,8 @@ class SummaryPanel(QWidget):
         header.addWidget(self.summary_button)
 
         # Summary
-        self.summary = QTextEdit()
+        self.summary = NoLeakTextEdit()
+        self.summary.lookup_requested.connect(self.lookup_requested)
 
         timer = QTimer(self.summary)
         timer.setSingleShot(True)
