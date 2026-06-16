@@ -25,9 +25,14 @@ SILENCE_RMS_THRESHOLD = 0.005
 # Local Whisper model per device. On a CUDA GPU we can afford a large, highly
 # accurate English model in real time (distil-large-v3 ≈ large-v3 accuracy at a
 # fraction of the cost); on CPU we fall back to the fast English tiny model.
-# English-only, so transcription is always English without extra config. On a GPU,
-# "Automatic" instead picks a model tiered by VRAM (see core.hardware.auto_gpu_model).
+# English-only, so transcription is always English without extra config.
 CPU_WHISPER_MODEL = "tiny.en"
+
+# Out-of-the-box model when the user hasn't picked one. A balanced "medium" default
+# (good accuracy, real-time on a GPU and most CPUs); Detect Hardware in Settings can
+# recommend/apply a better one for the detected device. (The retired "auto" value is
+# still handled below as a safety net for settings saved by older builds.)
+DEFAULT_SPEECH_MODEL = "small.en"
 
 
 class AudioWorker(QThread):
@@ -38,7 +43,7 @@ class AudioWorker(QThread):
     chunk_pending = pyqtSignal(float)
     engine_fallback = pyqtSignal(str)
 
-    def __init__(self, session_id: int, base_dir: str, interval: int, device, start_time, offset: int, speech_api_key: str = "", speech_model: str = "auto") -> None:
+    def __init__(self, session_id: int, base_dir: str, interval: int, device, start_time, offset: int, speech_api_key: str = "", speech_model: str = DEFAULT_SPEECH_MODEL) -> None:
         super().__init__()
         self._running = True
 
@@ -46,8 +51,9 @@ class AudioWorker(QThread):
         self.base_dir = base_dir
         self.interval = interval
         self.speech_api_key = speech_api_key
-        # Which local Whisper model to use ("auto" = pick by device). See _ensure_model.
-        self.speech_model = speech_model or "auto"
+        # Which local Whisper model to use. A concrete id (e.g. "small.en"); a legacy
+        # "auto" is still accepted and resolved per-device in _ensure_model.
+        self.speech_model = speech_model or DEFAULT_SPEECH_MODEL
 
         # API fallback state — cooldown-based instead of permanently sticky.
         self._api_cooldown_until = 0.0
@@ -256,8 +262,9 @@ class AudioWorker(QThread):
             return self.model
         from faster_whisper import WhisperModel
 
-        # An explicit model choice is honoured on whichever device is available;
-        # "auto" picks the best model for the device (big on GPU, tiny on CPU).
+        # The chosen model is honoured on whichever device is available. A legacy
+        # "auto" (from settings saved by older builds) resolves per-device below
+        # (big on GPU, tiny on CPU); new installs always store a concrete model.
         chosen = self.speech_model if self.speech_model != "auto" else None
 
         # Prefer the GPU: a CUDA device lets us run a large, accurate English model in

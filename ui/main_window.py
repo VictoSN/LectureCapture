@@ -14,7 +14,7 @@ from datetime import datetime
 from models.lecture import Session, OCRCapture
 from storage.database import Storage
 from core.ocr import OCRWorker
-from core.audio import AudioWorker
+from core.audio import AudioWorker, DEFAULT_SPEECH_MODEL
 from core.summarizer import SummarizeWorker
 from ui.title_bar import CustomTitleBar
 from ui.capture_overlay import CaptureOverlay
@@ -36,6 +36,10 @@ class MainWindow(FramelessMainWindow):
         super().__init__()
         self.storage = Storage()
         self.settings = QSettings("LectureCapture", "LectureCapture")
+        # Migrate the retired "auto" speech model to a concrete default. Detect Hardware
+        # now sets the model explicitly instead of resolving "auto" on every recording.
+        if str(self.settings.value("speech_model", DEFAULT_SPEECH_MODEL)) == "auto":
+            self.settings.setValue("speech_model", DEFAULT_SPEECH_MODEL)
         self.current_session = None
         self.is_recording = False
         self.is_new_session_open = False
@@ -346,7 +350,7 @@ class MainWindow(FramelessMainWindow):
         self.audio_worker = AudioWorker(
             self.current_session.id, self.storage.base_dir, interval, device, start_time, self.current_session.length,
             speech_api_key=self._effective_api_key("speech"),
-            speech_model=str(self.settings.value("speech_model", "auto")),
+            speech_model=str(self.settings.value("speech_model", DEFAULT_SPEECH_MODEL)),
         )
         self.audio_worker.chunk_ready.connect(self.on_chunk_ready)
         self.audio_worker.chunk_pending.connect(self.on_chunk_pending)
@@ -356,7 +360,7 @@ class MainWindow(FramelessMainWindow):
         # Update footer to show live engine names
         self.transcript_panel.update_engine_labels(
             self.ocr_worker.engine_name,
-            self.audio_worker.engine_name,
+            self._speech_engine_label(),
             self._summarize_engine_label(),
         )
 
@@ -823,9 +827,23 @@ class MainWindow(FramelessMainWindow):
     def _summarize_engine_label(self) -> str:
         return "gemini-flash" if self._effective_api_key("summarize") else "sumy"
 
+    def _speech_engine_label(self) -> str:
+        """Speech engine shown before a recording loads its model. For the local engine
+        this includes the configured model (e.g. "faster-whisper · small.en"); once the
+        model actually loads, engine_fallback upgrades it with the resolved model + the
+        GPU/CPU device it's running on."""
+        if self._effective_api_key("speech"):
+            return "gemini"
+        return f"faster-whisper · {self.settings.value('speech_model', DEFAULT_SPEECH_MODEL)}"
+
     def _refresh_engine_labels(self) -> None:
         ocr_engine = "gemini vision" if self._effective_api_key("ocr") else "pytesseract"
-        speech_engine = "gemini" if self._effective_api_key("speech") else "faster-whisper"
+        # Mid-recording the worker has reported a richer label (resolved model + GPU/CPU);
+        # a config-driven refresh shouldn't downgrade that to the configured value.
+        if self.is_recording and not self._effective_api_key("speech"):
+            speech_engine = self.transcript_panel.speech_engine_label.text()
+        else:
+            speech_engine = self._speech_engine_label()
         self.transcript_panel.update_engine_labels(ocr_engine, speech_engine, self._summarize_engine_label())
 
     def _on_ocr_engine_fallback(self, engine: str) -> None:

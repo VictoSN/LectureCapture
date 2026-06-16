@@ -8,6 +8,7 @@ from PyQt6.QtCore import pyqtSignal, QSettings, QUrl, Qt
 from PyQt6.QtMultimedia import QSoundEffect
 from PyQt6.QtGui import QShortcut, QKeySequence
 
+from core.audio import DEFAULT_SPEECH_MODEL
 from models.lecture import Session
 from ui.setup_recording import setup_source, setup_audio, update_coord_ranges
 from ui.styles import apply_theme, create_button, create_button_label, get_system_theme, no_wheel
@@ -107,14 +108,14 @@ class SettingsPanel(QWidget):
         processing_layout.addLayout(processing_button_layout)
 
         # Local speech model — applies whenever speech runs locally (the local engine,
-        # or an API fallback). Automatic picks distil-large-v3 on a GPU, tiny.en on CPU.
+        # or an API fallback). Use Detect Hardware below to get a recommendation tuned
+        # to this machine's GPU/CPU.
         local_model_label = QLabel("Local Speech Model")
         processing_layout.addWidget(local_model_label)
 
         self.speech_model_dropdown = QComboBox()
         no_wheel(self.speech_model_dropdown)
         for label, value in [
-            ("Automatic (best for your detected hardware)", "auto"),
             ("tiny.en — fastest, lowest accuracy", "tiny.en"),
             ("base.en — fast", "base.en"),
             ("small.en — balanced", "small.en"),
@@ -607,7 +608,9 @@ class SettingsPanel(QWidget):
         self.api_use_ocr.setChecked(self.settings.value("api_use_ocr", True, type=bool))
         self.api_use_speech.setChecked(self.settings.value("api_use_speech", True, type=bool))
         self.api_use_summarize.setChecked(self.settings.value("api_use_summarize", True, type=bool))
-        sm_idx = self.speech_model_dropdown.findData(self.settings.value("speech_model", "auto"))
+        sm_idx = self.speech_model_dropdown.findData(self.settings.value("speech_model", DEFAULT_SPEECH_MODEL))
+        if sm_idx < 0:  # unknown/legacy value (e.g. the retired "auto") → fall back to default
+            sm_idx = self.speech_model_dropdown.findData(DEFAULT_SPEECH_MODEL)
         if sm_idx >= 0:
             self.speech_model_dropdown.setCurrentIndex(sm_idx)
         
