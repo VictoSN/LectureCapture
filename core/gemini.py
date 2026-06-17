@@ -17,7 +17,6 @@ MODEL_CHAIN = [
     "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
     "gemini-3.1-flash-lite-preview",
-    "gemini-3-flash",
     "gemini-3.5-flash",
 ]
 
@@ -28,7 +27,6 @@ FREQUENT_MODEL_CHAIN = [
     "gemini-3.1-flash-lite-preview",
     "gemini-2.5-flash-lite",
     "gemini-2.5-flash",
-    "gemini-3-flash",
     "gemini-3.5-flash",
 ]
 
@@ -42,27 +40,33 @@ FREE_TIER_RPD = {
     "gemini-2.5-flash": 20,
     "gemini-2.5-flash-lite": 20,
     "gemini-3.1-flash-lite-preview": 500,
-    "gemini-3-flash": 20,
     "gemini-3.5-flash": 20,
 }
 
 
-def probe_model(api_key: str, model: str) -> str:
-    """Ping a single model. Returns 'ok' | 'limited' | 'missing' | 'invalid_key' | 'error'."""
-    from google import genai
+def probe_model(api_key: str, model: str) -> tuple[str, str]:
+    """Ping one model through the exact path real calls use. Returns (status, detail);
+    status is 'ok' | 'limited' | 'missing' | 'invalid_key' | 'error'. detail carries the
+    underlying error text for the failure cases so it can be shown to the user."""
     try:
-        genai.Client(api_key=api_key).models.generate_content(model=model, contents="ping")
-        return "ok"
+        generate(api_key, "ping", chain=[model])
+        return "ok", ""
     except Exception as e:
-        text = f"{type(e).__name__} {e}".lower()
+        detail = f"{type(e).__name__}: {e}"
+        text = detail.lower()
         if any(k in text for k in ("api key not valid", "api_key_invalid", "unauthenticated",
                                    "permission_denied", "unauthorized", " 401", " 403")):
-            return "invalid_key"
+            return "invalid_key", detail
         if any(k in text for k in ("429", "resource_exhausted", "rate limit", "quota", "exceed")):
-            return "limited"
+            return "limited", detail
         if any(k in text for k in ("404", "not found", "not_found")):
-            return "missing"
-        return "error"
+            return "missing", detail
+        # 503 / overload is transient: the model exists and the key works, the server is
+        # just busy right now. Not a real failure — the app falls back at call time.
+        if any(k in text for k in ("503", "unavailable", "overloaded", "high demand", "try again")):
+            return "busy", detail
+        print(f"[API Test] {model} error: {detail}")
+        return "error", detail
 
 
 def pretty_model(model_id: str) -> str:

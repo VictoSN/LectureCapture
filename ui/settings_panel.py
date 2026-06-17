@@ -18,8 +18,8 @@ from pathlib import Path
 class ConnectionTestWorker(QThread):
     """Pings every Gemini model the app might use, off the GUI thread, reporting each
     result as it comes so the user sees which models are available."""
-    model_result = pyqtSignal(str, str)  # model_id, status
-    done = pyqtSignal(bool)              # any model responded ok
+    model_result = pyqtSignal(str, str, str)  # model_id, status, detail
+    done = pyqtSignal(bool)                    # any model responded ok
 
     def __init__(self, api_key: str) -> None:
         super().__init__()
@@ -29,11 +29,9 @@ class ConnectionTestWorker(QThread):
         from core.gemini import ALL_MODELS, probe_model
         any_ok = False
         for model in ALL_MODELS:
-            status = probe_model(self._key, model)
+            status, detail = probe_model(self._key, model)
             any_ok = any_ok or status == "ok"
-            self.model_result.emit(model, status)
-            if status == "invalid_key":
-                break  # a bad key fails identically for every model
+            self.model_result.emit(model, status, detail)
         self.done.emit(any_ok)
 
 
@@ -176,7 +174,7 @@ class SettingsPanel(QWidget):
         self._recommended_model = None
         self._hw_worker = None
         self._conn_worker = None
-        self._conn_lines = []
+        self._conn_results = {}  # model_id -> (status, detail)
 
         self.detect_hw_button = QPushButton("Detect Hardware")
         self.detect_hw_button.setToolTip("Check GPU/CPU and recommend a speech model")
@@ -191,7 +189,7 @@ class SettingsPanel(QWidget):
 
         self.hw_output = QTextEdit()
         self.hw_output.setReadOnly(True)
-        self.hw_output.setMaximumHeight(160)
+        self.hw_output.setMaximumHeight(120)  # ~5 lines; scrolls if longer
         self.hw_output.setPlaceholderText("Hardware details will appear here...")
         self.hw_output.setVisible(False)
         self.api_layout.addWidget(self.hw_output, 4, 0, 1, 2)
@@ -248,10 +246,22 @@ class SettingsPanel(QWidget):
 
         self.api_test_output = QTextEdit()
         self.api_test_output.setReadOnly(True)
-        self.api_test_output.setMaximumHeight(400)
+        self.api_test_output.setMaximumHeight(100)  # ~5-6 lines; scrolls if longer
         self.api_test_output.setPlaceholderText("Test results will appear here...")
         self.api_test_output.setVisible(False)
         self.api_layout.addWidget(self.api_test_output, 10, 0, 1, 2)
+
+        # Static footnote explaining the results — shown only once a test has run.
+        self.api_test_note = QLabel(
+            "This is a live check (each line = one request). “Busy” is a temporary 503 on "
+            "Google's side, not your quota. “limit N/day” is the published free-tier cap — "
+            "the API doesn't report how many you have left, and the AI Studio usage "
+            "dashboard lags a little behind real requests."
+        )
+        self.api_test_note.setObjectName("muted")
+        self.api_test_note.setWordWrap(True)
+        self.api_test_note.setVisible(False)
+        self.api_layout.addWidget(self.api_test_note, 11, 0, 1, 2)
 
         self.api_layout.setColumnStretch(1, 1)  # control column fills the row width
 
@@ -703,33 +713,58 @@ class SettingsPanel(QWidget):
         if self._conn_worker is not None:
             return  # a test is already running
 
-        self.api_test_output.setPlainText("Checking each model…")
+        from core.gemini import ALL_MODELS
+        # List every model upfront as "testing" so the user sees all of them are being
+        # checked; each line updates in place as its result lands.
+        self._conn_results = {model: ("testing", "") for model in ALL_MODELS}
+        self.api_test_note.setVisible(True)  # mirror the output box's visibility
         self.test_api_button.setDisabled(True)
-        self._conn_lines = []
+        self._render_conn_results()
         self._conn_worker = ConnectionTestWorker(key)
         self._conn_worker.model_result.connect(self._on_model_tested)
         self._conn_worker.done.connect(self._on_conn_test_done)
         self._conn_worker.finished.connect(self._on_conn_test_finished)
         self._conn_worker.start()
 
-    def _on_model_tested(self, model: str, status: str) -> None:
+    def _render_conn_results(self, extra: str = "") -> None:
         from core.gemini import pretty_model, FREE_TIER_RPD
-        marks = {"ok": "available", "limited": "daily limit reached",
-                 "missing": "not available", "invalid_key": "invalid API key", "error": "error"}
-        icon = "✓" if status == "ok" else "✗"
-        rpd = FREE_TIER_RPD.get(model)
-        rpd_txt = f"  ·  ~{rpd}/day" if rpd else ""
-        self._conn_lines.append(f"{icon}  {pretty_model(model)} — {marks.get(status, status)}{rpd_txt}")
-        self.api_test_output.setPlainText("\n".join(self._conn_lines))
+        # icon, label per status. "busy" (503) is transient, not a failure.
+        info = {
+            "testing":     ("•", "testing…"),
+            "ok":          ("✓", "available"),
+            "busy":        ("⏳", "temporarily busy (try again)"),
+            "limited":     ("✗", "daily limit reached"),
+            "missing":     ("✗", "not available"),
+            "invalid_key": ("✗", "invalid API key"),
+            "error":       ("✗", "error"),
+        }
+        lines = []
+        for model, (status, detail) in self._conn_results.items():
+            icon, label = info.get(status, ("✗", status))
+            rpd = FREE_TIER_RPD.get(model)
+            rpd_txt = f"  ·  limit {rpd}/day" if rpd else ""
+            line = f"{icon}  {pretty_model(model)} — {label}{rpd_txt}"
+            # Only surface the raw error text for genuinely unexpected failures.
+            if status in ("error", "invalid_key") and detail:
+                line += f"\n      {detail}"
+            lines.append(line)
+        self.api_test_output.setPlainText("\n".join(lines) + extra)
+
+    def _on_model_tested(self, model: str, status: str, detail: str) -> None:
+        self._conn_results[model] = (status, detail)
+        self._render_conn_results()
 
     def _on_conn_test_done(self, any_ok: bool) -> None:
-        if not self._conn_lines:
-            return
-        note = ("\n\n~/day = free-tier daily request limit (the API doesn't report your "
-                "live remaining count).")
-        if not any_ok:
-            note = "\n\nNo models responded — check the key and your connection." + note
-        self.api_test_output.setPlainText("\n".join(self._conn_lines) + note)
+        statuses = {status for status, _ in self._conn_results.values()}
+        if any_ok or "busy" in statuses:
+            extra = ""  # the key and connection work; usable now or after a brief retry
+        elif "invalid_key" in statuses:
+            extra = "\n\nThe API key looks invalid — double-check it in the field above."
+        elif "limited" in statuses:
+            extra = "\n\nEvery available model has hit today's free-tier limit — try again tomorrow."
+        else:
+            extra = "\n\nNo models responded — check the key and your connection."
+        self._render_conn_results(extra)
 
     def _on_conn_test_finished(self) -> None:
         self.test_api_button.setDisabled(False)
