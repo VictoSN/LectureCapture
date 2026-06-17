@@ -242,8 +242,9 @@ class AudioWorker(QThread):
             try:
                 # Send a downsampled 16kHz WAV — ~5× smaller payload than 44100Hz,
                 # which significantly cuts Gemini API round-trip latency.
-                text = self._transcribe_api(self._to_wav_bytes_16k(audio), chunk_start)
-                self._emit_engine("gemini")
+                text, model = self._transcribe_api(self._to_wav_bytes_16k(audio), chunk_start)
+                from core.gemini import pretty_model
+                self._emit_engine(pretty_model(model))
                 return text
             except Exception as e:
                 print(f"[Audio] API failed ({e}); using local for ~{API_COOLDOWN_SECONDS}s")
@@ -324,21 +325,22 @@ class AudioWorker(QThread):
             print(f"[Audio] local transcription error: {e}")
             return ""
 
-    def _transcribe_api(self, wav_bytes: bytes, chunk_start: float) -> str:
-        from google import genai
+    def _transcribe_api(self, wav_bytes: bytes, chunk_start: float) -> tuple[str, str]:
+        """Returns (formatted_transcript, model_id)."""
         from google.genai import types
-        client = genai.Client(api_key=self.speech_api_key)
-        response = client.models.generate_content(
-            model="gemini-3.1-flash-lite-preview",
-            contents=[
+        from core.gemini import generate, FREQUENT_MODEL_CHAIN
+        response, model = generate(
+            self.speech_api_key,
+            [
                 types.Part.from_bytes(data=wav_bytes, mime_type="audio/wav"),
                 "Transcribe this audio accurately. Return only the spoken words with no timestamps, labels, or commentary.",
             ],
+            chain=FREQUENT_MODEL_CHAIN,
         )
         transcript = (response.text or "").strip()
         if not transcript:
-            return ""
-        return f"{self._fmt_ts(chunk_start)} {transcript}\n"
+            return "", model
+        return f"{self._fmt_ts(chunk_start)} {transcript}\n", model
 
     @property
     def engine_name(self) -> str:

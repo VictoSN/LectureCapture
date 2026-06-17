@@ -35,20 +35,18 @@ def summarize_local(text: str, sentences: int = 5) -> str:
         summary += str(sentence) + "\n"
     return summary
 
-def summarize_api(text: str, api_key: str) -> str:
-    from google import genai
-    client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=(
-            "Summarize the following lecture notes using markdown formatting. "
-            "Use ## for section headings, - for bullet points, and **bold** for key terms. "
-            "Preserve all key concepts, definitions, and important details. "
-            "Return only the markdown, no preamble.\n\n"
-            f"{text}"
-        )
+def summarize_api(text: str, api_key: str) -> tuple[str, str]:
+    """Returns (summary_text, model_id)."""
+    from core.gemini import generate
+    response, model = generate(
+        api_key,
+        "Summarize the following lecture notes using markdown formatting. "
+        "Use ## for section headings, - for bullet points, and **bold** for key terms. "
+        "Preserve all key concepts, definitions, and important details. "
+        "Return only the markdown, no preamble.\n\n"
+        f"{text}"
     )
-    return strip_code_fence(response.text)
+    return strip_code_fence(response.text), model
 
 def summarize(text: str, sentences: int = 5, api_key: str = "") -> tuple[str, str]:
     """
@@ -57,7 +55,9 @@ def summarize(text: str, sentences: int = 5, api_key: str = "") -> tuple[str, st
     """
     if api_key:
         try:
-            return summarize_api(text, api_key), "gemini-flash"
+            from core.gemini import pretty_model
+            summary, model = summarize_api(text, api_key)
+            return summary, pretty_model(model)
         except Exception as e:
             print(f"[Summarizer] API failed, falling back to local: {e}")
     return summarize_local(text, sentences), "sumy"

@@ -671,8 +671,6 @@ class SettingsPanel(QWidget):
             dropdown.setCurrentIndex(idx)
     
     def _test_api_connection(self) -> None:
-        from google import genai
-
         def show(text: str) -> None:
             print(text)
             self.api_test_output.setVisible(True)
@@ -687,9 +685,9 @@ class SettingsPanel(QWidget):
         self.api_test_output.setVisible(True)
         self.api_test_output.setPlainText("Testing...")
         try:
-            client = genai.Client(api_key=key)
-            client.models.generate_content(model="gemini-3.1-flash-lite-preview", contents="ping")
-            show("[API Test] Connected successfully.")
+            from core.gemini import generate, pretty_model
+            _, model = generate(key, "ping")
+            show(f"[API Test] {pretty_model(model)}: connected successfully.")
         except Exception as e:
             show(f"[API Test] Connection failed:\n{e}")
 

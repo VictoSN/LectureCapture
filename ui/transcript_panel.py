@@ -17,6 +17,7 @@ class TranscriptPanel(QWidget):
     stop_recording_clicked = pyqtSignal()  # request stop (with confirmation) while recording
     force_capture_clicked = pyqtSignal()
     capture_deleted = pyqtSignal(int)
+    quiz_clicked = pyqtSignal()            # open the quiz workspace
     
     def __init__(self, base_dir, icons_dir) -> None:
         super().__init__()
@@ -66,6 +67,10 @@ class TranscriptPanel(QWidget):
         self.summary_visibility_button = create_button(icons_dir / 'summarize.svg', lambda: self._panel_visibility(self.summary_panel), text="Summary", width=110)
         self.summary_visibility_button.setToolTip("Toggle Summary panel (Shift+3)")
         header.addWidget(self.summary_visibility_button)
+
+        self.quiz_button = create_button(icons_dir / 'question.svg', self.quiz_clicked, text="Quiz", width=90)
+        self.quiz_button.setToolTip("Generate a quiz from this session")
+        header.addWidget(self.quiz_button)
 
         # These are toggles driven by click or Shift+1/2/3, so they don't need to keep
         # keyboard focus — and the focus border (coral) would otherwise look identical
@@ -306,10 +311,11 @@ class TranscriptPanel(QWidget):
         # that settles so rows match the actual panel width (and can shrink).
         self._resync_timer.start()
         
-        #  Lock summary button if no content is available
+        #  Lock summary + quiz buttons if no content is available
         has_content = self.ocr_panel.has_content() or self.speech_panel.has_content()
         self.summary_panel.summary_button.setDisabled(not has_content)
         self.summary_panel.summary.setReadOnly(not has_content)
+        self.quiz_button.setDisabled(not has_content)
         
         if session.summary:
             self.summary_panel.set_summary(session.summary)
@@ -323,6 +329,7 @@ class TranscriptPanel(QWidget):
         self.ocr_visibility_button.setDisabled(locked)
         self.speech_visibility_button.setDisabled(locked)
         self.summary_visibility_button.setDisabled(locked)
+        self.quiz_button.setDisabled(locked)
         self.record_button.setDisabled(locked)
         
         self.ocr_panel.ocr_button.setDisabled(locked)
@@ -343,6 +350,7 @@ class TranscriptPanel(QWidget):
         self.properties_button.setDisabled(locked)
         self.record_button.setDisabled(locked)
         self.sync_scroll_button.setDisabled(locked)
+        self.quiz_button.setDisabled(locked)
 
         # Edit-mode toggles (buttons + shortcuts) off; both feeds forced read-only.
         self.ocr_shortcut.setEnabled(not locked)

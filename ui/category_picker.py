@@ -80,7 +80,7 @@ class CategoryPicker(QWidget):
         self.combo.blockSignals(True)
         self.combo.clear()
         if self._include_blank:
-            self.combo.addItem("", "")          # "no category"
+            self.combo.addItem("None", "")      # shown as "None"; value "" = no category
         seen = set()
         for c in categories:
             if c and c not in seen:

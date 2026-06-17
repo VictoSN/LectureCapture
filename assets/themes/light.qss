@@ -148,6 +148,34 @@ QCheckBox:disabled {
     color: #b3ac9b;
 }
 
+/* ---- Radio buttons (quiz options) ---- */
+QRadioButton {
+    background: transparent;
+    color: #423f37;
+    spacing: 8px;
+}
+QRadioButton::indicator {
+    width: 16px;
+    height: 16px;
+    border: 1px solid #c15f3c;       /* coral — visible on the cream bg */
+    border-radius: 8px;              /* circular */
+    background-color: #fbf9f2;
+}
+QRadioButton::indicator:hover {
+    border-color: #ab5333;
+}
+QRadioButton::indicator:checked {
+    background-color: #c15f3c;        /* solid coral when selected */
+    border-color: #c15f3c;
+}
+QRadioButton::indicator:checked:hover {
+    background-color: #ab5333;
+    border-color: #ab5333;
+}
+QRadioButton:disabled {
+    color: #b3ac9b;
+}
+
 /* ---- Text inputs ---- */
 QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QComboBox {
     background-color: #fbf9f2;
@@ -350,6 +378,13 @@ QTextEdit#lookupOriginal {
 }
 #connectionBannerClose:hover {
     background: rgba(255, 255, 255, 0.25);
+}
+
+/* Quiz review cards (per-question results) */
+QFrame#quizCard {
+    background-color: #fbf9f2;
+    border: 1px solid #cdc4ad;
+    border-radius: 10px;
 }
 
 /* Key-cap chips in the keyboard-shortcuts dialog */

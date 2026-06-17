@@ -23,20 +23,42 @@ class Storage:
 
         self.cursor = self.conn.cursor()
         self.cursor.execute("PRAGMA foreign_keys = ON") # Enable foreign keys
+        self._wipe_if_old_schema()
         self.create_table()
+
+    def _wipe_if_old_schema(self) -> None:
+        """The quiz columns were added without a migration (agreed: wipe rather than
+        migrate). CREATE TABLE IF NOT EXISTS can't add columns to an existing table, so
+        if we find the pre-quiz schema we drop the tables and clear stored captures."""
+        self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='session'")
+        if not self.cursor.fetchone():
+            return  # fresh database — nothing to wipe
+        self.cursor.execute("PRAGMA table_info(session)")
+        columns = {row[1] for row in self.cursor.fetchall()}
+        if "quiz" in columns:
+            return  # already on the current schema
+        self.cursor.execute("DROP TABLE IF EXISTS ocrcapture")
+        self.cursor.execute("DROP TABLE IF EXISTS session")
+        self.conn.commit()
+        sessions_dir = Path(self.base_dir) / "sessions"
+        if sessions_dir.exists():
+            shutil.rmtree(sessions_dir, ignore_errors=True)
 
     def create_table(self) -> None:
         self.cursor.execute("""
                             CREATE TABLE IF NOT EXISTS session(
                                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                name TEXT NOT NULL, 
-                                session_category TEXT NOT NULL, 
+                                name TEXT NOT NULL,
+                                session_category TEXT NOT NULL,
                                 group_category TEXT,
-                                date_recorded TEXT NOT NULL, 
-                                date_modified TEXT NOT NULL, 
+                                date_recorded TEXT NOT NULL,
+                                date_modified TEXT NOT NULL,
                                 length INTEGER NOT NULL,
                                 summary TEXT,
-                                summary_generated_at TEXT
+                                summary_generated_at TEXT,
+                                quiz TEXT,
+                                quiz_score INTEGER,
+                                quiz_source_hash TEXT
                             )
                             """)
 
@@ -94,15 +116,18 @@ class Storage:
             id=row[0],
             group_category=row[3],
             summary=row[7],
-            summary_generated_at=self._parse_datetime(row[8])
+            summary_generated_at=self._parse_datetime(row[8]),
+            quiz=row[9],
+            quiz_score=row[10],
+            quiz_source_hash=row[11],
         )
 
     def get_all_sessions(self) -> list[Session]:
-        self.cursor.execute("SELECT id, name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at FROM session")
+        self.cursor.execute("SELECT id, name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash FROM session")
         return [self._row_to_session(session) for session in self.cursor.fetchall()]        
 
     def get_session(self, id: int) -> Session:
-        self.cursor.execute("SELECT id, name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at FROM session WHERE id = ?", (id,))
+        self.cursor.execute("SELECT id, name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash FROM session WHERE id = ?", (id,))
         row = self.cursor.fetchone()
         return self._row_to_session(row) if row else None
 
@@ -124,6 +149,20 @@ class Storage:
 
         self.conn.commit()
     
+    def save_quiz(self, session_id: int, quiz_json: str, source_hash: str) -> None:
+        """Store a freshly generated quiz. Resets the score (NULL) — it's a new quiz."""
+        self.cursor.execute(
+            "UPDATE session SET quiz = ?, quiz_source_hash = ?, quiz_score = NULL WHERE id = ?",
+            (quiz_json, source_hash, session_id)
+        )
+        self.conn.commit()
+
+    def update_quiz_score(self, session_id: int, score: int) -> None:
+        self.cursor.execute(
+            "UPDATE session SET quiz_score = ? WHERE id = ?", (score, session_id)
+        )
+        self.conn.commit()
+
     def delete_session(self, id: int) -> None:
         file_path = Path(self.base_dir) / 'sessions' / str(id)
         
@@ -249,7 +288,7 @@ class Storage:
         return [row[0] for row in self.cursor.fetchall()]
 
     def search_sessions(self, name, session_category, group_category) -> list[Session]:
-        query = "SELECT id, name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at FROM session WHERE 1=1"
+        query = "SELECT id, name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash FROM session WHERE 1=1"
         params = []
         
         if name:
@@ -271,8 +310,8 @@ class Storage:
         # Copy session and captures in database
         now = datetime.now().isoformat()
         self.cursor.execute("""
-            INSERT INTO session (name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at)
-            SELECT name || ' (Copy)', session_category, group_category, ?, ?, length, summary, summary_generated_at
+            INSERT INTO session (name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash)
+            SELECT name || ' (Copy)', session_category, group_category, ?, ?, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash
             FROM session WHERE id = ?
         """, (now, now, id))
 

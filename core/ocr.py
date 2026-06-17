@@ -265,9 +265,10 @@ class OCRWorker(QThread):
         # math-only slide can produce no Tesseract text yet still need OCR.
         if self._api_available():
             try:
-                text = self._ocr_with_api(pil_img)
+                text, model = self._ocr_with_api(pil_img)
                 if text.strip():
-                    self._emit_engine("gemini vision")
+                    from core.gemini import pretty_model
+                    self._emit_engine(pretty_model(model))
                     return text
                 # Empty vision result — fall back to whatever Tesseract gave us.
             except Exception as e:
@@ -286,12 +287,11 @@ class OCRWorker(QThread):
             self._last_engine = name
             self.engine_fallback.emit(name)
 
-    def _ocr_with_api(self, pil_img) -> str:
-        from google import genai
-        client = genai.Client(api_key=self.ocr_api_key)
-        response = client.models.generate_content(
-            model="gemini-3.1-flash-lite-preview",
-            contents=[
+    def _ocr_with_api(self, pil_img) -> tuple[str, str]:
+        from core.gemini import generate, FREQUENT_MODEL_CHAIN
+        response, model = generate(
+            self.ocr_api_key,
+            [
                 (
                     "Transcribe ALL text from this lecture slide exactly as it appears, "
                     "preserving the reading order, structure, and line breaks. "
@@ -304,8 +304,9 @@ class OCRWorker(QThread):
                 ),
                 pil_img,
             ],
+            chain=FREQUENT_MODEL_CHAIN,
         )
-        return response.text or ""
+        return (response.text or ""), model
 
     @property
     def engine_name(self) -> str:

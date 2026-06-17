@@ -29,8 +29,7 @@ class LookupWorker(QThread):
         self.done.emit(result or "")
 
     def _lookup(self) -> str:
-        from google import genai
-        client = genai.Client(api_key=self._api_key)
+        from core.gemini import generate
         if self._kind == "translate":
             prompt = (
                 f"Translate the following text to {self._target}. "
@@ -43,5 +42,5 @@ class LookupWorker(QThread):
                 "would be understood in an academic or lecture context. Use 1-3 sentences. "
                 "Plain text, no preamble."
             )
-        response = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+        response, _ = generate(self._api_key, prompt)
         return (response.text or "").strip()

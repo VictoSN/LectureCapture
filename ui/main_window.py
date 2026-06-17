@@ -17,6 +17,8 @@ from core.ocr import OCRWorker
 from core.audio import AudioWorker, DEFAULT_SPEECH_MODEL
 from core.api_errors import SHORT_STATUS
 from core.summarizer import SummarizeWorker
+from core.quiz import QuizWorker, source_hash
+from core.gemini import MODEL_CHAIN, FREQUENT_MODEL_CHAIN, pretty_model
 from ui.title_bar import CustomTitleBar
 from ui.capture_overlay import CaptureOverlay
 from ui.sidebar import Sidebar
@@ -26,6 +28,7 @@ from ui.transcript_panel import TranscriptPanel
 from ui.properties_panel import PropertiesPanel
 from ui.recording_panel import RecordingPanel
 from ui.settings_panel import SettingsPanel
+from ui.quiz_panel import QuizPanel
 from ui.styles import load_icon, refresh_icons
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -162,6 +165,7 @@ class MainWindow(FramelessMainWindow):
         self.transcript_panel.stop_recording_clicked.connect(self.on_stop_recording_confirmation)
         self.transcript_panel.force_capture_clicked.connect(self.on_force_capture_clicked)
         self.transcript_panel.summary_panel.summarize_clicked.connect(self.on_summarize_clicked)
+        self.transcript_panel.quiz_clicked.connect(self.on_quiz_clicked)
         self.transcript_panel.capture_deleted.connect(self.storage.delete_capture)
 
         ## Translate / define on a text selection in any panel
@@ -190,7 +194,17 @@ class MainWindow(FramelessMainWindow):
         self.recording_panel.record_clicked.connect(lambda data: self.on_recording_confirmed(data))
         
         self.splitter.addWidget(self.recording_panel)  # add this
-        self.recording_panel.setVisible(False)         
+        self.recording_panel.setVisible(False)
+
+        # Quiz Panel (created once; reconfigured on each open)
+        self.quiz_panel = QuizPanel()
+        self.quiz_panel.generate_requested.connect(self.on_quiz_generate)
+        self.quiz_panel.completed.connect(self.on_quiz_completed)
+        self.quiz_panel.exit_requested.connect(self.on_quiz_exit)
+        self.splitter.addWidget(self.quiz_panel)
+        self.quiz_panel.setVisible(False)
+        self._quiz_worker = None
+        self.is_quizzing = False
         
         # Wait until the other widgets are added
         self.splitter.setSizes([260, 400, 400, 400, 400, 400]) # 1 : 4 ratio
@@ -748,6 +762,121 @@ class MainWindow(FramelessMainWindow):
                 sc.setEnabled(was_enabled)
             self._locked_shortcut_states = {}
 
+    # ---- Quiz ----------------------------------------------------------------
+
+    def _combined_session_text(self) -> str:
+        captures = self.storage.get_captures_by_session(self.current_session.id)
+        parts = []
+        for c in captures:
+            if c.extracted_text:
+                parts.append(c.extracted_text)
+            if c.speech_text:
+                parts.append(c.speech_text)
+        return "\n".join(parts)
+
+    def _parse_saved_quiz(self) -> list | None:
+        raw = self.current_session.quiz if self.current_session else None
+        if not raw:
+            return None
+        try:
+            data = json.loads(raw)
+            return data if isinstance(data, list) and data else None
+        except Exception:
+            return None
+
+    def on_quiz_clicked(self) -> None:
+        if not self.current_session or self.is_recording:
+            return
+        # Quiz is Gemini-only (no good local equivalent), gated on a key like Translate/
+        # Define — works in both Local and API modes.
+        if not self.api_key:
+            QMessageBox.information(
+                self, "Gemini API key needed",
+                "Add a Gemini API key in Settings to generate a quiz."
+            )
+            return
+
+        self._quiz_text = self._combined_session_text()
+        self._quiz_hash = source_hash(self._quiz_text)
+
+        saved = self._parse_saved_quiz()
+        self.quiz_panel.set_saved_quiz(saved, self.current_session.quiz_score if saved else None)
+        if saved:
+            changed = self.current_session.quiz_source_hash != self._quiz_hash
+            self.quiz_panel.configure_intro(True, self.current_session.quiz_score, len(saved), changed)
+        else:
+            self.quiz_panel.configure_intro(False, None, 0, False)
+
+        self.is_quizzing = True
+        self.is_properties_open = False  # quiz replaces the transcript/properties view
+        self._set_quizzing(True)
+        self.show_panel("quiz")
+
+    def on_quiz_generate(self) -> None:
+        if self._quiz_worker is not None:
+            return
+        self.quiz_panel.set_loading()
+        self._quiz_worker = QuizWorker(self._quiz_text, self.api_key)
+        self._quiz_worker.done.connect(self._on_quiz_generated)
+        self._quiz_worker.failed.connect(self._on_quiz_failed)
+        self._quiz_worker.attempting.connect(self.quiz_panel.set_generating_engine)
+        self._quiz_worker.finished.connect(self._on_quiz_worker_finished)
+        self._quiz_worker.start()
+
+    def _on_quiz_generated(self, questions) -> None:
+        # Persist the new quiz (resets the score) so it can be reviewed/retaken later.
+        self.current_session.quiz = json.dumps(questions)
+        self.current_session.quiz_source_hash = self._quiz_hash
+        self.current_session.quiz_score = None
+        self.storage.save_quiz(self.current_session.id, self.current_session.quiz, self._quiz_hash)
+        self.quiz_panel.set_saved_quiz(questions, None)
+        self.quiz_panel.load_questions(questions)
+
+    def _on_quiz_failed(self, message: str) -> None:
+        self.quiz_panel.show_error(message)
+
+    def _on_quiz_worker_finished(self) -> None:
+        self._quiz_worker = None
+
+    def on_quiz_completed(self, score: int, total: int) -> None:
+        if not self.current_session:
+            return
+        self.current_session.quiz_score = score
+        self.storage.update_quiz_score(self.current_session.id, score)
+
+    def on_quiz_exit(self) -> None:
+        if self.quiz_panel.is_answering():
+            reply = QMessageBox.question(
+                self, "Exit quiz", "Leave the quiz? Your progress on this attempt won't be saved."
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+        self.is_quizzing = False
+        self._set_quizzing(False)
+        self.show_panel("transcript")
+
+    def _set_quizzing(self, busy: bool) -> None:
+        """Lock the app while the quiz workspace is open so the session can't be switched
+        or mutated underneath it — same idea as _set_summarizing. The transcript is hidden
+        during the quiz, so only the sidebar / title bar / shortcuts need locking."""
+        self.sidebar.set_recording_locked(busy)
+        self.titleBar.new_session_button.setDisabled(busy)
+        self.titleBar.settings_button.setDisabled(busy)
+        shortcuts = (
+            self.create_session_shortcut,
+            self.settings_shortcut,
+            self.properties_shortcut,
+            self.recording_shortcut,
+        )
+        if busy:
+            self._quiz_locked_shortcuts = {sc: sc.isEnabled() for sc in shortcuts}
+            for sc in shortcuts:
+                sc.setEnabled(False)
+        else:
+            for sc, was_enabled in getattr(self, "_quiz_locked_shortcuts", {}).items():
+                sc.setEnabled(was_enabled)
+            self._quiz_locked_shortcuts = {}
+
     def on_search_changed(self, text) -> None:
         self.filter_name = text
         self.apply_filters()
@@ -852,19 +981,21 @@ class MainWindow(FramelessMainWindow):
         return self.api_key
 
     def _summarize_engine_label(self) -> str:
-        return "gemini-flash" if self._effective_api_key("summarize") else "sumy"
+        # API placeholder names the primary model; once a summary runs the label shows
+        # the model that actually answered (which may be a fallback).
+        return pretty_model(MODEL_CHAIN[0]) if self._effective_api_key("summarize") else "sumy"
 
     def _speech_engine_label(self) -> str:
         """Speech engine shown before a recording loads its model. For the local engine
         this includes the configured model (e.g. "faster-whisper · small.en"); once the
         model actually loads, engine_fallback upgrades it with the resolved model + the
-        GPU/CPU device it's running on."""
+        GPU/CPU device it's running on. For the API it names the primary model."""
         if self._effective_api_key("speech"):
-            return "gemini"
+            return pretty_model(FREQUENT_MODEL_CHAIN[0])
         return f"faster-whisper · {self.settings.value('speech_model', DEFAULT_SPEECH_MODEL)}"
 
     def _refresh_engine_labels(self) -> None:
-        ocr_engine = "gemini vision" if self._effective_api_key("ocr") else "pytesseract"
+        ocr_engine = pretty_model(FREQUENT_MODEL_CHAIN[0]) if self._effective_api_key("ocr") else "pytesseract"
         # Mid-recording the worker has reported a richer label (resolved model + GPU/CPU);
         # a config-driven refresh shouldn't downgrade that to the configured value.
         if self.is_recording and not self._effective_api_key("speech"):
@@ -900,7 +1031,7 @@ class MainWindow(FramelessMainWindow):
 
     def _maybe_clear_api_warning(self, engine: str) -> None:
         # An API engine reporting in means the connection/key is working now → clear.
-        if engine.startswith("gemini"):
+        if engine.lower().startswith("gemini"):
             self.transcript_panel.clear_connection_warning()
 
     def on_processing_mode_changed(self, mode: str) -> None:
@@ -1020,11 +1151,12 @@ class MainWindow(FramelessMainWindow):
         if self.is_settings_open and panel != "settings":
             self.settings_panel.revert_theme()
 
-        # "transcript", "settings", "new_session", "recording", "properties"
+        # "transcript", "settings", "new_session", "recording", "properties", "quiz"
         self.transcript_panel.setVisible(panel == "transcript")
         self.settings_panel.setVisible(panel == "settings")
         self.new_session_panel.setVisible(panel == "new_session")
         self.recording_panel.setVisible(panel == "recording")
+        self.quiz_panel.setVisible(panel == "quiz")
 
         if self.properties_panel:
             # Properties shows alongside transcript
