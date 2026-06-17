@@ -15,10 +15,12 @@ from models.lecture import Session, OCRCapture
 from storage.database import Storage
 from core.ocr import OCRWorker
 from core.audio import AudioWorker, DEFAULT_SPEECH_MODEL
+from core.api_errors import SHORT_STATUS
 from core.summarizer import SummarizeWorker
 from ui.title_bar import CustomTitleBar
 from ui.capture_overlay import CaptureOverlay
 from ui.sidebar import Sidebar
+from ui.category_picker import DEFAULT_SESSION_CATEGORIES
 from ui.new_session_panel import NewSessionPanel
 from ui.transcript_panel import TranscriptPanel
 from ui.properties_panel import PropertiesPanel
@@ -113,7 +115,7 @@ class MainWindow(FramelessMainWindow):
 
         sessions = self.storage.get_all_sessions()
         group_categories = self.storage.get_group_categories() # Get all group categories
-        self.sidebar = Sidebar(sessions, self.on_session_selected, group_categories, ICONS_DIR)
+        self.sidebar = Sidebar(sessions, self.on_session_selected, self._session_categories(), group_categories, ICONS_DIR)
         self.sidebar.new_session_clicked.connect(self.on_new_session_clicked)
         self.sidebar.settings_clicked.connect(self.on_settings_clicked)
         self.splitter.addWidget(self.sidebar)
@@ -130,7 +132,7 @@ class MainWindow(FramelessMainWindow):
         self.sidebar.group_filter_changed.connect(self.on_group_filter_changed)
 
         # New Session Panel
-        self.new_session_panel = NewSessionPanel(self.storage.get_group_categories())
+        self.new_session_panel = NewSessionPanel(self._session_categories(), self.storage.get_group_categories())
         self.new_session_panel.create_clicked.connect(
             lambda session_name, session_category, group_category: self.on_new_session_create(session_name, session_category, group_category)
         )
@@ -258,10 +260,20 @@ class MainWindow(FramelessMainWindow):
         if reply == QMessageBox.StandardButton.Yes:
             self.stop_recording()
 
+    def _session_categories(self) -> list[str]:
+        """Built-in defaults plus any custom session categories already in use."""
+        defaults = DEFAULT_SESSION_CATEGORIES
+        return defaults + [c for c in self.storage.get_session_categories() if c not in defaults]
+
     def on_new_session_clicked(self) -> None:
         if self.is_new_session_open:
             self.new_session_panel.reset_form()
-        
+        else:
+            # Pick up categories added since the panel was built (it's created once).
+            self.new_session_panel.set_categories(
+                self._session_categories(), self.storage.get_group_categories()
+            )
+
         self.is_new_session_open = not self.is_new_session_open
         self.is_properties_open = False # Close Properties when opening new session
         self.show_panel("new_session" if self.is_new_session_open else "transcript")
@@ -274,6 +286,7 @@ class MainWindow(FramelessMainWindow):
         new_session = Session(session_name, current_time, current_time, session_category, 0, None, group_category, None, None)
         self.storage.create_session(new_session)
         self.sidebar.refresh(self.storage.get_all_sessions())
+        self.sidebar.update_categories(self._session_categories(), self.storage.get_group_categories())
         self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
 
         # Clear the form so the next new session starts blank.
@@ -292,7 +305,7 @@ class MainWindow(FramelessMainWindow):
     def rebuild_properties_panel(self) -> None:
         if self.properties_panel:
             self.splitter.widget(self.splitter.indexOf(self.properties_panel)).setParent(None)
-        self.properties_panel = PropertiesPanel(self.current_session, self.storage.get_group_categories())
+        self.properties_panel = PropertiesPanel(self.current_session, self._session_categories(), self.storage.get_group_categories())
         self.properties_panel.delete_clicked.connect(self.on_properties_deleted)
         self.properties_panel.duplicate_clicked.connect(self.on_properties_duplicated)
         self.properties_panel.saved_clicked.connect(
@@ -344,6 +357,7 @@ class MainWindow(FramelessMainWindow):
         )
         self.ocr_worker.capture_ready.connect(self.on_capture_ready)
         self.ocr_worker.engine_fallback.connect(self._on_ocr_engine_fallback)
+        self.ocr_worker.api_error.connect(self._on_api_error)
         self.ocr_worker.start()
         
         # Create audio worker thread
@@ -355,6 +369,7 @@ class MainWindow(FramelessMainWindow):
         self.audio_worker.chunk_ready.connect(self.on_chunk_ready)
         self.audio_worker.chunk_pending.connect(self.on_chunk_pending)
         self.audio_worker.engine_fallback.connect(self._on_speech_engine_fallback)
+        self.audio_worker.api_error.connect(self._on_api_error)
         self.audio_worker.start()
 
         # Update footer to show live engine names
@@ -363,6 +378,14 @@ class MainWindow(FramelessMainWindow):
             self._speech_engine_label(),
             self._summarize_engine_label(),
         )
+
+        # API selected but no key entered → warn now (the workers will run locally and
+        # never reach the API, so this is the only chance to flag it). Otherwise start
+        # clean; a live failure will raise the banner via _on_api_error.
+        if self.processing_mode == "api" and not self.api_key:
+            self.transcript_panel.show_connection_warning(SHORT_STATUS["no_key"])
+        else:
+            self.transcript_panel.clear_connection_warning()
 
         # Que sound effect
         self.start_audio.play()
@@ -478,6 +501,7 @@ class MainWindow(FramelessMainWindow):
         self.transcript_panel.recording_time_label.setText("00:00")
         self.transcript_panel.record_button.setText("Record")
         self.transcript_panel.set_recording_active(False)
+        self.transcript_panel.clear_connection_warning()  # warning is recording-only
         
         # Unlock inputs
         self.sidebar.set_recording_locked(False)
@@ -758,6 +782,7 @@ class MainWindow(FramelessMainWindow):
         self.current_session.group_category = group_category
         self.storage.update_session(self.current_session)
         self.sidebar.refresh(self.storage.get_all_sessions())
+        self.sidebar.update_categories(self._session_categories(), self.storage.get_group_categories())
         self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
     
     def on_properties_deleted(self) -> None:
@@ -765,12 +790,14 @@ class MainWindow(FramelessMainWindow):
         self.properties_panel.setVisible(self.is_properties_open)
         self.storage.delete_session(self.current_session.id)
         self.sidebar.refresh(self.storage.get_all_sessions())
+        self.sidebar.update_categories(self._session_categories(), self.storage.get_group_categories())
         self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
         self.transcript_panel.clear_panels()
     
     def on_properties_duplicated(self) -> None:
         self.current_session = self.storage.duplicate_sessions(self.current_session.id)
         self.sidebar.refresh(self.storage.get_all_sessions())
+        self.sidebar.update_categories(self._session_categories(), self.storage.get_group_categories())
         self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
         self.on_session_selected(self.current_session)
     
@@ -852,6 +879,7 @@ class MainWindow(FramelessMainWindow):
             self.transcript_panel.speech_engine_label.text(),
             self.transcript_panel.summarize_engine_label.text(),
         )
+        self._maybe_clear_api_warning(engine)
 
     def _on_speech_engine_fallback(self, engine: str) -> None:
         self.transcript_panel.update_engine_labels(
@@ -859,6 +887,21 @@ class MainWindow(FramelessMainWindow):
             engine,
             self.transcript_panel.summarize_engine_label.text(),
         )
+        self._maybe_clear_api_warning(engine)
+
+    def _on_api_error(self, status: str) -> None:
+        """A worker's API call failed mid-recording — surface it as the red banner.
+        Guarded so a signal queued just before stop can't raise it afterwards."""
+        if not self.is_recording:
+            return
+        self.transcript_panel.show_connection_warning(
+            SHORT_STATUS.get(status, "Connection problem")
+        )
+
+    def _maybe_clear_api_warning(self, engine: str) -> None:
+        # An API engine reporting in means the connection/key is working now → clear.
+        if engine.startswith("gemini"):
+            self.transcript_panel.clear_connection_warning()
 
     def on_processing_mode_changed(self, mode: str) -> None:
         self.processing_mode = mode
@@ -961,12 +1004,14 @@ class MainWindow(FramelessMainWindow):
                 )
                 self.storage.create_ocr_capture(capture)
         self.sidebar.refresh(self.storage.get_all_sessions())
+        self.sidebar.update_categories(self._session_categories(), self.storage.get_group_categories())
         self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
 
     def on_all_deleted_clicked(self) -> None:
         self.storage.delete_all_sessions()
         self.current_session = None
         self.sidebar.refresh(self.storage.get_all_sessions())
+        self.sidebar.update_categories(self._session_categories(), self.storage.get_group_categories())
         self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
         self.transcript_panel.clear_panels()
 

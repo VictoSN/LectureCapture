@@ -42,6 +42,9 @@ DEBUG_DEDUP = False
 class OCRWorker(QThread):
     capture_ready = pyqtSignal(OCRCapture)
     engine_fallback = pyqtSignal(str)
+    # An API attempt failed mid-recording. Carries a status from core.api_errors
+    # ("invalid_key" | "no_connection" | "other") so the UI can warn the user.
+    api_error = pyqtSignal(str)
 
     def __init__(self, session_id, base_dir, interval, region: dict | None, monitor_index, start_time, offset, hwnd=None, ocr_api_key: str = "") -> None:
         super().__init__()
@@ -270,6 +273,8 @@ class OCRWorker(QThread):
             except Exception as e:
                 print(f"[OCR] API OCR failed ({e}); using raw text, cooldown {API_COOLDOWN_SECONDS}s")
                 self._api_cooldown_until = time.time() + API_COOLDOWN_SECONDS
+                from core.api_errors import classify_api_error
+                self.api_error.emit(classify_api_error(e))
                 self._emit_engine("pytesseract")
         return raw_text
 

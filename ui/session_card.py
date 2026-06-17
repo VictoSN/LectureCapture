@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import (
 
 from models.lecture import Session
 from ui.format_time import FormatTime
+from ui.category_picker import category_color
 
 class SessionCard(QWidget):
     def __init__(self, session: Session) -> None:
@@ -18,16 +19,12 @@ class SessionCard(QWidget):
         strip = QFrame()
         strip.setFixedWidth(3)
         
-        session_category = self.session.session_category
-        
-        # Maybe move this into its own file for modularity?
-        if session_category == "Lab":
-            strip.setStyleSheet("background-color: #2563EB;")
-        elif session_category == "Tutorial":
-            strip.setStyleSheet("background-color: #4CAF50;")
-        elif session_category == "Lecture":
-            strip.setStyleSheet("background-color: #8B5CF6;")
-            
+        # Built-in categories have fixed colours; custom ones get a stable colour
+        # derived from their name (see category_color).
+        color = category_color(self.session.session_category)
+        if color:
+            strip.setStyleSheet(f"background-color: {color};")
+
         main_layout.addWidget(strip)
         
         name_category_layout = QVBoxLayout()

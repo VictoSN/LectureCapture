@@ -18,7 +18,7 @@ class Sidebar(QWidget):
     category_filter_changed = pyqtSignal(str)
     group_filter_changed = pyqtSignal(str)
     
-    def __init__(self, sessions: list[Session], on_session_selected, group_categories: list[str], icons_dir) -> None:
+    def __init__(self, sessions: list[Session], on_session_selected, session_categories: list[str], group_categories: list[str], icons_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(14, 14, 14, 4)
@@ -49,7 +49,7 @@ class Sidebar(QWidget):
 
         self.session_category = QComboBox()
         no_wheel(self.session_category)
-        self.session_category.addItems(["All", "Lab", "Tutorial", "Lecture"])
+        self.session_category.addItems(["All"] + [c for c in session_categories if c])
         self.session_category.currentTextChanged.connect(self.category_filter_changed)
         self.session_category.currentTextChanged.connect(self._update_filter_button)
         self.session_category.setVisible(False)
@@ -132,6 +132,20 @@ class Sidebar(QWidget):
         scroll = self.lecture_list.verticalScrollBar().value()
         self._populate_list(sessions, selected_id)
         self.lecture_list.verticalScrollBar().setValue(scroll)
+
+    def update_categories(self, session_categories: list[str], group_categories: list[str]) -> None:
+        """Rebuild the filter dropdowns when categories change, keeping the current
+        selection if it still exists. Signals are blocked so this doesn't re-trigger
+        filtering (which would call back into refresh)."""
+        for combo, values in ((self.session_category, session_categories),
+                              (self.group_category, group_categories)):
+            current = combo.currentText()
+            combo.blockSignals(True)
+            combo.clear()
+            combo.addItems(["All"] + [c for c in values if c])
+            idx = combo.findText(current)
+            combo.setCurrentIndex(idx if idx >= 0 else 0)
+            combo.blockSignals(False)
 
     def set_recording_locked(self, locked: bool) -> None:
         self.filter_button.setDisabled(locked)

@@ -322,6 +322,28 @@ QTextEdit#lookupOriginal {
     color: #9a9387;
     font-size: 12px;
 }
+/* Recording-time connection/API warning bar above the engine labels */
+#connectionBanner {
+    background-color: #c0392b;
+    border-radius: 8px;
+}
+#connectionBannerText {
+    background: transparent;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+}
+#connectionBannerClose {
+    background: transparent;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    font-size: 13px;
+    padding: 0;
+}
+#connectionBannerClose:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
 
 /* Key-cap chips in the keyboard-shortcuts dialog */
 QLabel#kbd {

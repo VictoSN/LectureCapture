@@ -239,6 +239,15 @@ class Storage:
         self.cursor.execute("SELECT DISTINCT group_category FROM session WHERE group_category IS NOT NULL")
         return [row[0] for row in self.cursor.fetchall()]
 
+    def get_session_categories(self) -> list[str]:
+        """Distinct session categories the user has actually used (custom ones the user
+        added show up here). Merged with the built-in defaults by the caller."""
+        self.cursor.execute(
+            "SELECT DISTINCT session_category FROM session "
+            "WHERE session_category IS NOT NULL AND session_category != ''"
+        )
+        return [row[0] for row in self.cursor.fetchall()]
+
     def search_sessions(self, name, session_category, group_category) -> list[Session]:
         query = "SELECT id, name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at FROM session WHERE 1=1"
         params = []

@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (
-    QWidget, QLabel, QVBoxLayout, QHBoxLayout, QFrame
+    QWidget, QLabel, QVBoxLayout, QHBoxLayout, QFrame, QPushButton, QSizePolicy
 )
 from ui.grip_splitter import GripSplitter
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
@@ -132,8 +132,33 @@ class TranscriptPanel(QWidget):
         footer.setSpacing(14)
         footer.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
+        # Connection warning — a full-width red bar just above the engine labels, shown
+        # when an API call fails / there's no key during recording. Fixed height so it
+        # stays a thin horizontal strip; hidden (taking no space) the rest of the time.
+        self._banner_dismissed = False
+        self.connection_banner = QFrame()
+        self.connection_banner.setObjectName("connectionBanner")
+        self.connection_banner.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.connection_banner.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.connection_banner.setVisible(False)
+        banner_layout = QHBoxLayout(self.connection_banner)
+        banner_layout.setContentsMargins(12, 4, 8, 4)
+        banner_layout.setSpacing(8)
+        self._connection_label = QLabel("")
+        self._connection_label.setObjectName("connectionBannerText")
+        banner_layout.addWidget(self._connection_label)
+        banner_layout.addStretch()
+        self._connection_close = QPushButton("✕")
+        self._connection_close.setObjectName("connectionBannerClose")
+        self._connection_close.setFixedSize(22, 22)
+        self._connection_close.setToolTip("Dismiss")
+        self._connection_close.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._connection_close.clicked.connect(self._dismiss_connection_warning)
+        banner_layout.addWidget(self._connection_close)
+
         main_layout.addLayout(header)
         main_layout.addWidget(self.splitter)
+        main_layout.addWidget(self.connection_banner)
         main_layout.addLayout(footer)
         self.setLayout(main_layout)
         
@@ -336,3 +361,19 @@ class TranscriptPanel(QWidget):
         self.ocr_engine_label.setText(ocr_engine)
         self.speech_engine_label.setText(speech_engine)
         self.summarize_engine_label.setText(summarize_engine)
+
+    def show_connection_warning(self, message: str) -> None:
+        if self._banner_dismissed:  # user closed it; stay hidden until cleared/next recording
+            return
+        self._connection_label.setText(f"⚠  {message}")
+        self.connection_banner.setVisible(True)
+
+    def clear_connection_warning(self) -> None:
+        self._banner_dismissed = False
+        self.connection_banner.setVisible(False)
+
+    def _dismiss_connection_warning(self) -> None:
+        # User closed the banner — keep it hidden until the problem clears or a new
+        # recording starts, so it doesn't pop back on the next failed chunk.
+        self._banner_dismissed = True
+        self.connection_banner.setVisible(False)

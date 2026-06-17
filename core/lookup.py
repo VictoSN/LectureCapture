@@ -22,7 +22,9 @@ class LookupWorker(QThread):
         try:
             result = self._lookup()
         except Exception as e:
-            self.failed.emit(str(e))
+            from core.api_errors import classify_api_error, status_message
+            status = classify_api_error(e)
+            self.failed.emit(status_message(status) if status != "other" else str(e))
             return
         self.done.emit(result or "")
 

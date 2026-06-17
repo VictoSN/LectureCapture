@@ -2,7 +2,7 @@ import shutil
 
 from PyQt6.QtWidgets import (
     QWidget, QLabel, QPushButton, QComboBox, QVBoxLayout, QHBoxLayout, QGridLayout, QSpinBox,
-    QFileDialog, QLineEdit, QMessageBox, QScrollArea, QTextEdit, QCheckBox, QFrame
+    QFileDialog, QLineEdit, QMessageBox, QScrollArea, QTextEdit, QCheckBox, QFrame, QSizePolicy
 )
 from PyQt6.QtCore import pyqtSignal, QSettings, QUrl, Qt
 from PyQt6.QtMultimedia import QSoundEffect
@@ -107,13 +107,23 @@ class SettingsPanel(QWidget):
         processing_button_layout.addWidget(self.api_button)
         processing_layout.addLayout(processing_button_layout)
 
-        # Local speech model — applies whenever speech runs locally (the local engine,
-        # or an API fallback). Use Detect Hardware below to get a recommendation tuned
-        # to this machine's GPU/CPU.
+        processing_note = QLabel("How recordings are transcribed and summarised. Local runs "
+                                 "everything on this device (private, no internet needed). API "
+                                 "sends the steps you choose to Google Gemini for higher accuracy. "
+                                 "Translate / Define always use the Gemini key.")
+        processing_note.setWordWrap(True)
+        processing_note.setObjectName("muted")
+        processing_layout.addWidget(processing_note)
+
+        # Local speech model + Gemini key share ONE grid so their label/control columns
+        # line up exactly. Each is: label + control on row 0/6, an explanatory note, then
+        # a full-width action button and an on-demand output area. A spacer row separates
+        # the two halves.
         local_model_label = QLabel("Local Speech Model")
-        processing_layout.addWidget(local_model_label)
+        self.api_layout.addWidget(local_model_label, 0, 0)
 
         self.speech_model_dropdown = QComboBox()
+        self.speech_model_dropdown.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         no_wheel(self.speech_model_dropdown)
         for label, value in [
             ("tiny.en — fastest, lowest accuracy", "tiny.en"),
@@ -130,51 +140,63 @@ class SettingsPanel(QWidget):
             "accurate but heavier; on this machine the GPU runs even large models "
             "far faster than real time."
         )
-        processing_layout.addWidget(self.speech_model_dropdown)
+        self.api_layout.addWidget(self.speech_model_dropdown, 0, 1)
+
+        speech_note = QLabel("The on-device Whisper model that turns recorded audio into text. "
+                             "Bigger models are more accurate but slower; smaller ones stay "
+                             "real-time on modest hardware. Run Detect Hardware to pick the best "
+                             "fit for this PC.")
+        speech_note.setWordWrap(True)
+        speech_note.setObjectName("muted")
+        self.api_layout.addWidget(speech_note, 1, 0, 1, 2)
 
         # Hardware detection — verify the GPU/CPU actually works and recommend a model.
-        # Mirrors the API "test connection" layout: a button + an on-demand result area.
         self._recommended_model = None
         self._hw_worker = None
 
-        hw_row = QHBoxLayout()
-        hw_row.setSpacing(10)
         self.detect_hw_button = QPushButton("Detect Hardware")
         self.detect_hw_button.setToolTip("Check GPU/CPU and recommend a speech model")
         self.detect_hw_button.clicked.connect(self._detect_hardware)
-        hw_row.addWidget(self.detect_hw_button)
+        self.api_layout.addWidget(self.detect_hw_button, 2, 0, 1, 2)
 
         self.apply_model_button = QPushButton("Apply Recommended")
         self.apply_model_button.setToolTip("Set the recommended model in the dropdown above")
         self.apply_model_button.clicked.connect(self._apply_recommended_model)
         self.apply_model_button.setVisible(False)
-        hw_row.addWidget(self.apply_model_button)
-        hw_row.addStretch()
-        processing_layout.addLayout(hw_row)
+        self.api_layout.addWidget(self.apply_model_button, 3, 0, 1, 2)
 
         self.hw_output = QTextEdit()
         self.hw_output.setReadOnly(True)
         self.hw_output.setMaximumHeight(160)
         self.hw_output.setPlaceholderText("Hardware details will appear here...")
         self.hw_output.setVisible(False)
-        processing_layout.addWidget(self.hw_output)
+        self.api_layout.addWidget(self.hw_output, 4, 0, 1, 2)
+
+        self.api_layout.setRowMinimumHeight(5, 16)  # gap between the local & Gemini halves
 
         gemini_label = QLabel("Google Gemini API Key")
-        self.api_layout.addWidget(gemini_label, 0, 0)
+        self.api_layout.addWidget(gemini_label, 6, 0)
         self.gemini_input = QLineEdit()
-        self.gemini_input.setPlaceholderText("AIza... (leave blank for local)")
+        self.gemini_input.setPlaceholderText("AIza...")
         self.gemini_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.api_layout.addWidget(self.gemini_input, 0, 1)
+        self.api_layout.addWidget(self.gemini_input, 6, 1)
 
-        api_note = QLabel("Get a free key at aistudio.google.com. Choose below which steps use the API — the rest run locally.")
+        api_note = QLabel("Get a free key at aistudio.google.com. Required for Translate / Define, "
+                          "and for any steps you run through Gemini in API mode.")
         api_note.setWordWrap(True)
         api_note.setObjectName("muted")
-        self.api_layout.addWidget(api_note, 1, 0, 1, 2)
+        self.api_layout.addWidget(api_note, 7, 0, 1, 2)
 
         # Per-engine API selection: each step can independently use the API or the
-        # local engine. e.g. Gemini OCR for math slides + local speech for low latency.
+        # local engine. Only relevant in API mode, so this block hides for Local — but
+        # the key + Test above stay visible because Translate / Define always need them.
+        self.api_engines_container = QWidget()
+        engines_layout = QVBoxLayout(self.api_engines_container)
+        engines_layout.setContentsMargins(0, 0, 0, 0)
+        engines_layout.setSpacing(8)
+
         use_label = QLabel("Use API for:")
-        self.api_layout.addWidget(use_label, 2, 0, 1, 2)
+        engines_layout.addWidget(use_label)
 
         self.api_use_ocr = QCheckBox("OCR (slides)")
         self.api_use_ocr.setToolTip("Use Gemini vision for slide OCR (captures math/symbols). Off = local Tesseract.")
@@ -191,19 +213,23 @@ class SettingsPanel(QWidget):
         use_row.addStretch()
         use_row_widget = QWidget()
         use_row_widget.setLayout(use_row)
-        self.api_layout.addWidget(use_row_widget, 3, 0, 1, 2)
+        engines_layout.addWidget(use_row_widget)
+
+        self.api_layout.addWidget(self.api_engines_container, 8, 0, 1, 2)
 
         self.test_api_button = QPushButton("Test API Connection")
         self.test_api_button.setToolTip("Test the Gemini API key")
         self.test_api_button.clicked.connect(self._test_api_connection)
-        self.api_layout.addWidget(self.test_api_button, 4, 0, 1, 2)
+        self.api_layout.addWidget(self.test_api_button, 9, 0, 1, 2)
 
         self.api_test_output = QTextEdit()
         self.api_test_output.setReadOnly(True)
         self.api_test_output.setMaximumHeight(400)
         self.api_test_output.setPlaceholderText("Test results will appear here...")
         self.api_test_output.setVisible(False)
-        self.api_layout.addWidget(self.api_test_output, 5, 0, 1, 2)
+        self.api_layout.addWidget(self.api_test_output, 10, 0, 1, 2)
+
+        self.api_layout.setColumnStretch(1, 1)  # control column fills the row width
 
         self.api_container = QWidget()
         self.api_container.setLayout(self.api_layout)
@@ -229,7 +255,7 @@ class SettingsPanel(QWidget):
         preferences_label = QLabel("Recording")
         preferences_label.setObjectName("sectionHeader")
         preferences_layout.addWidget(preferences_label)
-        
+
         self.last_button = create_button_label(icons_dir / "history.svg", "Last Used", lambda: self.set_pref_mode("last"))
         preferences_buttons_layout.addWidget(self.last_button)
 
@@ -239,6 +265,13 @@ class SettingsPanel(QWidget):
         self.clear_button = create_button_label(icons_dir / "clear.svg", "Empty", lambda: self.set_pref_mode("empty"))
         preferences_buttons_layout.addWidget(self.clear_button)
         preferences_layout.addLayout(preferences_buttons_layout)
+
+        preferences_note = QLabel("What the recording panel is pre-filled with each time you start: "
+                                  "Last Used reuses your previous settings, Default applies the "
+                                  "values set below, and Empty starts blank.")
+        preferences_note.setWordWrap(True)
+        preferences_note.setObjectName("muted")
+        preferences_layout.addWidget(preferences_note)
 
         ## Interval
         self.interval_label = QLabel("Default Interval:")
@@ -449,8 +482,10 @@ class SettingsPanel(QWidget):
                 self._set_selected(btn, key == active)
 
     def update_ui(self) -> None:
-        # Processing Visibility
-        self.api_container.setVisible(self.proc_mode == "api")
+        # Processing Visibility. The key + Test Connection stay visible in both modes
+        # (Translate / Define always need them); only the per-engine pipeline toggles
+        # are specific to API mode.
+        self.api_engines_container.setVisible(self.proc_mode == "api")
         self.default_container.setVisible(self.pref_mode == "default")
         self._refresh_active_buttons()
 

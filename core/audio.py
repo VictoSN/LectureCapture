@@ -42,6 +42,9 @@ class AudioWorker(QThread):
     # chunk_ready (same timestamp) clears it.
     chunk_pending = pyqtSignal(float)
     engine_fallback = pyqtSignal(str)
+    # An API attempt failed mid-recording. Carries a status from core.api_errors
+    # ("invalid_key" | "no_connection" | "other") so the UI can warn the user.
+    api_error = pyqtSignal(str)
 
     def __init__(self, session_id: int, base_dir: str, interval: int, device, start_time, offset: int, speech_api_key: str = "", speech_model: str = DEFAULT_SPEECH_MODEL) -> None:
         super().__init__()
@@ -245,6 +248,8 @@ class AudioWorker(QThread):
             except Exception as e:
                 print(f"[Audio] API failed ({e}); using local for ~{API_COOLDOWN_SECONDS}s")
                 self._api_cooldown_until = time.time() + API_COOLDOWN_SECONDS
+                from core.api_errors import classify_api_error
+                self.api_error.emit(classify_api_error(e))
         text = self._transcribe_local(audio, chunk_start)
         self._emit_engine(self._local_engine_label)
         return text

@@ -1,15 +1,15 @@
 from PyQt6.QtWidgets import (
-    QPushButton, QLineEdit, QComboBox, QWidget, QGridLayout, QHBoxLayout, QVBoxLayout, QLabel
+    QPushButton, QLineEdit, QWidget, QGridLayout, QHBoxLayout, QVBoxLayout, QLabel
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QShortcut, QKeySequence
-from ui.styles import no_wheel
+from ui.category_picker import CategoryPicker, DEFAULT_SESSION_CATEGORIES
 
 class NewSessionPanel(QWidget):
     create_clicked = pyqtSignal(str, str, str)
     cancel_clicked = pyqtSignal()
 
-    def __init__(self, group_categories: list[str] = None) -> None:
+    def __init__(self, session_categories: list[str] = None, group_categories: list[str] = None) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(24, 24, 24, 24)
@@ -38,25 +38,21 @@ class NewSessionPanel(QWidget):
         session_category_label = QLabel("Session Category:")
         grid_layout.addWidget(session_category_label, 1, 0)
 
-        self.session_category = QComboBox()
-        no_wheel(self.session_category)
-        self.session_category.addItems(["Lab", "Tutorial", "Lecture"])
+        self.session_category = CategoryPicker(
+            "+ Add new session category…", "New session category…"
+        )
         grid_layout.addWidget(self.session_category, 1, 1)
 
         ## Group Category
         group_category_label = QLabel("Group Category:")
         grid_layout.addWidget(group_category_label, 2, 0)
 
-        self.group_category = QComboBox()
-        self.group_category.setEditable(True)
-        self.group_category.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-        self.group_category.lineEdit().setPlaceholderText("Group category (or type a new one)...")
-        no_wheel(self.group_category)
-        self.group_category.addItem("")
-        for cat in (group_categories or []):
-            if cat:
-                self.group_category.addItem(cat)
+        self.group_category = CategoryPicker(
+            "+ Add new group category…", "New group category…", include_blank=True
+        )
         grid_layout.addWidget(self.group_category, 2, 1)
+
+        self.set_categories(session_categories, group_categories)
 
         # Actions Buttons
         self.cancel_button = QPushButton("Cancel")
@@ -79,13 +75,22 @@ class NewSessionPanel(QWidget):
         QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self._on_cancel)
         QShortcut(QKeySequence(Qt.Key.Key_Return), self, activated=self._on_save)
     
+    def set_categories(self, session_categories: list[str] = None, group_categories: list[str] = None) -> None:
+        # Built-in defaults first, then any custom categories the user has added.
+        defaults = DEFAULT_SESSION_CATEGORIES
+        merged = defaults + [c for c in (session_categories or []) if c not in defaults]
+        self.session_category.set_categories(merged)
+        self.group_category.set_categories(group_categories or [])
+
     def _on_save(self) -> None:
-        group = self.group_category.currentText().strip()
+        if not self.session_name.text().strip():
+            return
+        session_cat = self.session_category.value() or DEFAULT_SESSION_CATEGORIES[0]
         self.create_clicked.emit(
             self.session_name.text(),
-            self.session_category.currentText(),
-            group,
-        ) if self.session_name.text().strip() else None
+            session_cat,
+            self.group_category.value(),
+        )
 
     def _on_cancel(self) -> None:
         self.reset_form()
@@ -93,5 +98,5 @@ class NewSessionPanel(QWidget):
 
     def reset_form(self):
         self.session_name.clear()
-        self.session_category.setCurrentIndex(0)
-        self.group_category.setCurrentIndex(0)
+        self.session_category.set_value("")
+        self.group_category.set_value("")
