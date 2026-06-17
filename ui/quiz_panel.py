@@ -52,7 +52,10 @@ class QuizPanel(QWidget):
         self.stack.addWidget(self._build_quiz_page())      # 2
         self.stack.addWidget(self._build_results_page())   # 3
 
-        QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self.exit_requested.emit)
+        # Enter = next / primary action, Esc = previous question (or leave the quiz).
+        QShortcut(QKeySequence(Qt.Key.Key_Return), self, activated=self._kb_next)
+        QShortcut(QKeySequence(Qt.Key.Key_Enter), self, activated=self._kb_next)   # numpad Enter
+        QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self._kb_prev)
 
     # ---- pages -----------------------------------------------------------
 
@@ -127,12 +130,18 @@ class QuizPanel(QWidget):
 
         nav = QHBoxLayout()
         self.prev_button = QPushButton("Previous")
+        self.prev_button.setToolTip("Previous question (Esc)")
         self.prev_button.clicked.connect(self._prev)
         nav.addWidget(self.prev_button)
         nav.addStretch()
         self.next_button = QPushButton("Next")
+        self.next_button.setToolTip("Next question (Enter)")
         self.next_button.clicked.connect(self._next)
         nav.addWidget(self.next_button)
+        # No keyboard focus on the nav buttons so Enter/Esc only drive the shortcuts
+        # (and don't double-fire by also activating a focused button).
+        self.prev_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.next_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         layout.addLayout(nav)
         return page
 
@@ -220,6 +229,23 @@ class QuizPanel(QWidget):
 
     def is_answering(self) -> bool:
         return self.stack.currentIndex() == 2
+
+    # ---- keyboard --------------------------------------------------------
+
+    def _kb_next(self) -> None:
+        idx = self.stack.currentIndex()
+        if idx == 2:                              # answering → next / finish
+            self._next()
+        elif idx == 0:                            # intro → primary action
+            self.generate_button.click()
+        elif idx == 3:                            # results → done
+            self.exit_requested.emit()
+
+    def _kb_prev(self) -> None:
+        if self.is_answering():                   # answering → previous question
+            self._prev()
+        else:                                     # elsewhere → leave the quiz
+            self.exit_requested.emit()
 
     # ---- intro actions ---------------------------------------------------
 

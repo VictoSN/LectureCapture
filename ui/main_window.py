@@ -29,6 +29,7 @@ from ui.properties_panel import PropertiesPanel
 from ui.recording_panel import RecordingPanel
 from ui.settings_panel import SettingsPanel
 from ui.quiz_panel import QuizPanel
+from ui.help_panel import HelpPanel
 from ui.styles import load_icon, refresh_icons
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -105,6 +106,7 @@ class MainWindow(FramelessMainWindow):
         self.titleBar.raise_()
         self.titleBar.new_session_button.clicked.connect(self.on_new_session_clicked)
         self.titleBar.settings_button.clicked.connect(self.on_settings_clicked)
+        self.titleBar.help_button.clicked.connect(self.on_help_clicked)
         self.titleBar.sidebar_button.clicked.connect(self._toggle_sidebar)
         self._sidebar_width = 260  # last known open width
 
@@ -205,9 +207,18 @@ class MainWindow(FramelessMainWindow):
         self.quiz_panel.setVisible(False)
         self._quiz_worker = None
         self.is_quizzing = False
-        
-        # Wait until the other widgets are added
-        self.splitter.setSizes([260, 400, 400, 400, 400, 400]) # 1 : 4 ratio
+
+        # Help Panel (created once; static content)
+        self.help_panel = HelpPanel()
+        self.help_panel.close_requested.connect(self.on_help_close)
+        self.splitter.addWidget(self.help_panel)
+        self.help_panel.setVisible(False)
+        self.is_help_open = False
+
+        # Wait until the other widgets are added. Size every panel (not a hardcoded
+        # count) so a newly added panel can't be left unsized — an unsized panel made
+        # the sidebar grab the slack when first shown.
+        self.splitter.setSizes([260] + [400] * (self.splitter.count() - 1)) # 1 : 4 ratio
         # The sidebar holds its width; the content panels absorb window resizing
         # and the space freed when other panels are hidden/shown.
         self.splitter.setStretchFactor(0, 0)
@@ -435,6 +446,7 @@ class MainWindow(FramelessMainWindow):
         self.transcript_panel.set_properties_locked(False)
         self.titleBar.new_session_button.setDisabled(False)
         self.titleBar.settings_button.setDisabled(False)
+        self.titleBar.help_button.setDisabled(False)
         self.showNormal()
 
     def show_overlay(self, data) -> None:
@@ -491,6 +503,7 @@ class MainWindow(FramelessMainWindow):
         self.transcript_panel.set_properties_locked(True)
         self.titleBar.new_session_button.setDisabled(True)
         self.titleBar.settings_button.setDisabled(True)
+        self.titleBar.help_button.setDisabled(True)
 
         
         # Start the OCR and Audio threads
@@ -522,6 +535,7 @@ class MainWindow(FramelessMainWindow):
         self.transcript_panel.set_properties_locked(False)
         self.titleBar.new_session_button.setDisabled(False)
         self.titleBar.settings_button.setDisabled(False)
+        self.titleBar.help_button.setDisabled(False)
         
         # Stop the threads
         self.ocr_worker.stop()
@@ -743,6 +757,7 @@ class MainWindow(FramelessMainWindow):
         # Title bar: new session + settings.
         self.titleBar.new_session_button.setDisabled(busy)
         self.titleBar.settings_button.setDisabled(busy)
+        self.titleBar.help_button.setDisabled(busy)
         # Workspace: properties, record, sync-scroll, and both feeds (read-only + no delete).
         self.transcript_panel.set_summary_lock(busy)
         # Global shortcuts that create/open/record — save their prior state so unlocking
@@ -862,6 +877,7 @@ class MainWindow(FramelessMainWindow):
         self.sidebar.set_recording_locked(busy)
         self.titleBar.new_session_button.setDisabled(busy)
         self.titleBar.settings_button.setDisabled(busy)
+        self.titleBar.help_button.setDisabled(busy)
         shortcuts = (
             self.create_session_shortcut,
             self.settings_shortcut,
@@ -963,7 +979,17 @@ class MainWindow(FramelessMainWindow):
             self.settings_panel.load_settings()
             self.settings_panel.update_ui()
         self.show_panel("settings" if self.is_settings_open else "transcript")
-    
+
+    def on_help_clicked(self) -> None:
+        self.is_help_open = not self.is_help_open
+        if self.is_help_open:
+            self.is_properties_open = False  # help takes over the workspace view
+        self.show_panel("help" if self.is_help_open else "transcript")
+
+    def on_help_close(self) -> None:
+        self.is_help_open = False
+        self.show_panel("transcript")
+
     def _load_api_keys(self) -> None:
         self.api_key = str(self.settings.value("api_key_gemini", ""))
 
@@ -1151,12 +1177,16 @@ class MainWindow(FramelessMainWindow):
         if self.is_settings_open and panel != "settings":
             self.settings_panel.revert_theme()
 
-        # "transcript", "settings", "new_session", "recording", "properties", "quiz"
+        # "transcript", "settings", "new_session", "recording", "properties", "quiz", "help"
         self.transcript_panel.setVisible(panel == "transcript")
         self.settings_panel.setVisible(panel == "settings")
         self.new_session_panel.setVisible(panel == "new_session")
         self.recording_panel.setVisible(panel == "recording")
         self.quiz_panel.setVisible(panel == "quiz")
+        self.help_panel.setVisible(panel == "help")
+        # Keep the help flag in sync no matter how the panel was left (e.g. the user
+        # opened Settings while help was showing), so its toggle button stays correct.
+        self.is_help_open = (panel == "help")
 
         if self.properties_panel:
             # Properties shows alongside transcript

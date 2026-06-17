@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QWidget, QLabel, QPushButton, QComboBox, QVBoxLayout, QHBoxLayout, QGridLayout, QSpinBox,
     QFileDialog, QLineEdit, QMessageBox, QScrollArea, QTextEdit, QCheckBox, QFrame, QSizePolicy
 )
-from PyQt6.QtCore import pyqtSignal, QSettings, QUrl, Qt
+from PyQt6.QtCore import pyqtSignal, QSettings, QUrl, Qt, QThread
 from PyQt6.QtMultimedia import QSoundEffect
 from PyQt6.QtGui import QShortcut, QKeySequence
 
@@ -14,6 +14,28 @@ from ui.setup_recording import setup_source, setup_audio, update_coord_ranges
 from ui.styles import apply_theme, create_button, create_button_label, get_system_theme, no_wheel
 
 from pathlib import Path
+
+class ConnectionTestWorker(QThread):
+    """Pings every Gemini model the app might use, off the GUI thread, reporting each
+    result as it comes so the user sees which models are available."""
+    model_result = pyqtSignal(str, str)  # model_id, status
+    done = pyqtSignal(bool)              # any model responded ok
+
+    def __init__(self, api_key: str) -> None:
+        super().__init__()
+        self._key = api_key
+
+    def run(self) -> None:
+        from core.gemini import ALL_MODELS, probe_model
+        any_ok = False
+        for model in ALL_MODELS:
+            status = probe_model(self._key, model)
+            any_ok = any_ok or status == "ok"
+            self.model_result.emit(model, status)
+            if status == "invalid_key":
+                break  # a bad key fails identically for every model
+        self.done.emit(any_ok)
+
 
 class SettingsPanel(QWidget):
     api_keys_changed = pyqtSignal(str)  # gemini_api_key
@@ -153,6 +175,8 @@ class SettingsPanel(QWidget):
         # Hardware detection — verify the GPU/CPU actually works and recommend a model.
         self._recommended_model = None
         self._hw_worker = None
+        self._conn_worker = None
+        self._conn_lines = []
 
         self.detect_hw_button = QPushButton("Detect Hardware")
         self.detect_hw_button.setToolTip("Check GPU/CPU and recommend a speech model")
@@ -671,25 +695,45 @@ class SettingsPanel(QWidget):
             dropdown.setCurrentIndex(idx)
     
     def _test_api_connection(self) -> None:
-        def show(text: str) -> None:
-            print(text)
-            self.api_test_output.setVisible(True)
-            self.api_test_output.setPlainText(text)
-
         key = self.gemini_input.text().strip()
-        if not key:
-            show("[API Test] No API key entered.")
-            return
-
-        print("[API Test] Testing Google Gemini connection...")
         self.api_test_output.setVisible(True)
-        self.api_test_output.setPlainText("Testing...")
-        try:
-            from core.gemini import generate, pretty_model
-            _, model = generate(key, "ping")
-            show(f"[API Test] {pretty_model(model)}: connected successfully.")
-        except Exception as e:
-            show(f"[API Test] Connection failed:\n{e}")
+        if not key:
+            self.api_test_output.setPlainText("No API key entered.")
+            return
+        if self._conn_worker is not None:
+            return  # a test is already running
+
+        self.api_test_output.setPlainText("Checking each model…")
+        self.test_api_button.setDisabled(True)
+        self._conn_lines = []
+        self._conn_worker = ConnectionTestWorker(key)
+        self._conn_worker.model_result.connect(self._on_model_tested)
+        self._conn_worker.done.connect(self._on_conn_test_done)
+        self._conn_worker.finished.connect(self._on_conn_test_finished)
+        self._conn_worker.start()
+
+    def _on_model_tested(self, model: str, status: str) -> None:
+        from core.gemini import pretty_model, FREE_TIER_RPD
+        marks = {"ok": "available", "limited": "daily limit reached",
+                 "missing": "not available", "invalid_key": "invalid API key", "error": "error"}
+        icon = "✓" if status == "ok" else "✗"
+        rpd = FREE_TIER_RPD.get(model)
+        rpd_txt = f"  ·  ~{rpd}/day" if rpd else ""
+        self._conn_lines.append(f"{icon}  {pretty_model(model)} — {marks.get(status, status)}{rpd_txt}")
+        self.api_test_output.setPlainText("\n".join(self._conn_lines))
+
+    def _on_conn_test_done(self, any_ok: bool) -> None:
+        if not self._conn_lines:
+            return
+        note = ("\n\n~/day = free-tier daily request limit (the API doesn't report your "
+                "live remaining count).")
+        if not any_ok:
+            note = "\n\nNo models responded — check the key and your connection." + note
+        self.api_test_output.setPlainText("\n".join(self._conn_lines) + note)
+
+    def _on_conn_test_finished(self) -> None:
+        self.test_api_button.setDisabled(False)
+        self._conn_worker = None
 
     def _detect_hardware(self) -> None:
         from core.hardware import HardwareProbeWorker

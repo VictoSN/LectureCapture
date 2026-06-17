@@ -387,6 +387,15 @@ QFrame#quizCard {
     border-radius: 10px;
 }
 
+/* Help guide — placeholder boxes where step-by-step screenshots will go */
+QLabel#helpImage {
+    border: 1px dashed #c2b9a3;
+    border-radius: 10px;
+    background-color: #f3efe5;
+    color: #837c6c;
+    padding: 8px;
+}
+
 /* Key-cap chips in the keyboard-shortcuts dialog */
 QLabel#kbd {
     background-color: #eae5d7;

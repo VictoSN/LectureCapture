@@ -33,6 +33,38 @@ FREQUENT_MODEL_CHAIN = [
 ]
 
 
+# Every model the app might use (both chains, de-duplicated, preferred order first).
+ALL_MODELS = list(dict.fromkeys(MODEL_CHAIN + FREQUENT_MODEL_CHAIN))
+
+# Published free-tier requests-per-day per model (the API doesn't expose live remaining
+# quota, so this is a static reference shown alongside the live availability check).
+FREE_TIER_RPD = {
+    "gemini-2.5-flash": 20,
+    "gemini-2.5-flash-lite": 20,
+    "gemini-3.1-flash-lite-preview": 500,
+    "gemini-3-flash": 20,
+    "gemini-3.5-flash": 20,
+}
+
+
+def probe_model(api_key: str, model: str) -> str:
+    """Ping a single model. Returns 'ok' | 'limited' | 'missing' | 'invalid_key' | 'error'."""
+    from google import genai
+    try:
+        genai.Client(api_key=api_key).models.generate_content(model=model, contents="ping")
+        return "ok"
+    except Exception as e:
+        text = f"{type(e).__name__} {e}".lower()
+        if any(k in text for k in ("api key not valid", "api_key_invalid", "unauthenticated",
+                                   "permission_denied", "unauthorized", " 401", " 403")):
+            return "invalid_key"
+        if any(k in text for k in ("429", "resource_exhausted", "rate limit", "quota", "exceed")):
+            return "limited"
+        if any(k in text for k in ("404", "not found", "not_found")):
+            return "missing"
+        return "error"
+
+
 def pretty_model(model_id: str) -> str:
     """Human-readable model name, e.g. 'gemini-3.1-flash-lite-preview' → 'Gemini 3.1 Flash Lite'."""
     if not model_id:
