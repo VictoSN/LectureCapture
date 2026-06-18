@@ -388,6 +388,11 @@ QLabel#helpImage {
     color: #9a9387;
     padding: 8px;
 }
+/* Coral frame/mat around an actual help screenshot (matches active-button accent) */
+QFrame#helpScreenshot {
+    background-color: #d97757;
+    border-radius: 6px;
+}
 
 /* Key-cap chips in the keyboard-shortcuts dialog */
 QLabel#kbd {

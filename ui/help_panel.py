@@ -1,17 +1,27 @@
 """A scrollable, chaptered help/guide panel (a splitter sibling shown via
 show_panel("help"), replacing the old keyboard-shortcuts popup).
 
-Text-based for now, with image placeholders where step-by-step screenshots will go.
+Each chapter shows a theme-matched screenshot from assets/screenshots/light_mode|dark_mode;
+a chapter whose screenshot doesn't exist yet falls back to a captioned placeholder box.
 """
 
+from pathlib import Path
+
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QGridLayout
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QGridLayout, QFrame
 )
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QShortcut, QKeySequence
+from PyQt6.QtCore import Qt, pyqtSignal, QSettings
+from PyQt6.QtGui import QShortcut, QKeySequence, QPixmap
+
+from ui.styles import check_theme
+from ui.scalable_image_label import ScalableImageLabel
+
+SCREENSHOTS_DIR = Path(__file__).resolve().parent.parent / "assets" / "screenshots"
 
 
-# (chapter title, intro paragraph, [body paragraphs], image caption)
+# (chapter title, intro paragraph, [body paragraphs], image caption, screenshot filename)
+# Screenshots live in assets/screenshots/light_mode|dark_mode/<filename> and are matched
+# to the active theme; a missing file falls back to a captioned placeholder box.
 CHAPTERS = [
     (
         "Getting Started",
@@ -24,6 +34,7 @@ CHAPTERS = [
             "transcript, an optional AI summary, and a quiz — all in one place.",
         ],
         "Overview of the main window",
+        "getting_started.png",
     ),
     (
         "Recording a Session",
@@ -36,6 +47,7 @@ CHAPTERS = [
             "Return to stop (with a confirmation).",
         ],
         "The recording setup panel",
+        "recording.png",
     ),
     (
         "The Workspace: OCR · Audio · Summary",
@@ -49,6 +61,7 @@ CHAPTERS = [
             "any text directly — changes save automatically.",
         ],
         "The three-panel workspace",
+        "workspace.png",
     ),
     (
         "Translate & Define",
@@ -60,6 +73,7 @@ CHAPTERS = [
             "API mode.",
         ],
         "Right-click translate / define menu",
+        "translate_define.png",
     ),
     (
         "AI Summary",
@@ -70,6 +84,7 @@ CHAPTERS = [
             "The summary is saved with the session and can be edited like any other text.",
         ],
         "A generated summary",
+        "summary.png",
     ),
     (
         "Quiz",
@@ -82,6 +97,7 @@ CHAPTERS = [
             "after the session content changes. (Needs a Gemini API key.)",
         ],
         "Answering a quiz question",
+        "quiz.png",
     ),
     (
         "Settings",
@@ -98,6 +114,7 @@ CHAPTERS = [
             "and exporting or importing sessions.",
         ],
         "The settings page",
+        "settings.png",
     ),
 ]
 
@@ -134,6 +151,11 @@ class HelpPanel(QWidget):
         super().__init__()
         self.setObjectName("helpPanel")
 
+        # (image-holder layout, caption, filename) per chapter, so images can be swapped
+        # when the theme changes. Resolve the active theme the way load_icon does.
+        self._image_slots: list[tuple[QVBoxLayout, str, str]] = []
+        self._dark = check_theme(str(QSettings("LectureCapture", "LectureCapture").value("theme", "auto")))
+
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
 
@@ -161,20 +183,21 @@ class HelpPanel(QWidget):
         layout.addLayout(header)
 
         intro = QLabel("A quick guide to recording lectures and getting notes, summaries, "
-                       "and quizzes out of them. Screenshots will be added here over time.")
+                       "and quizzes out of them.")
         intro.setWordWrap(True)
         intro.setObjectName("muted")
         layout.addWidget(intro)
 
-        for title_text, intro_text, paragraphs, image_caption in CHAPTERS:
-            layout.addWidget(self._chapter(title_text, intro_text, paragraphs, image_caption))
+        for title_text, intro_text, paragraphs, image_caption, image_file in CHAPTERS:
+            layout.addWidget(self._chapter(title_text, intro_text, paragraphs, image_caption, image_file))
 
         layout.addWidget(self._shortcuts_chapter())
         layout.addStretch()
 
         QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self.close_requested.emit)
 
-    def _chapter(self, title: str, intro: str, paragraphs: list[str], image_caption: str) -> QWidget:
+    def _chapter(self, title: str, intro: str, paragraphs: list[str],
+                 image_caption: str, image_file: str) -> QWidget:
         box = QWidget()
         col = QVBoxLayout(box)
         col.setContentsMargins(0, 8, 0, 0)
@@ -188,7 +211,13 @@ class HelpPanel(QWidget):
         lead.setWordWrap(True)
         col.addWidget(lead)
 
-        col.addWidget(self._image_placeholder(image_caption))
+        # An image holder whose contents (real screenshot or placeholder) are filled by
+        # _load_image, and refilled when the theme changes.
+        holder = QVBoxLayout()
+        holder.setContentsMargins(0, 0, 0, 0)
+        col.addLayout(holder)
+        self._image_slots.append((holder, image_caption, image_file))
+        self._load_image(holder, image_caption, image_file)
 
         for para in paragraphs:
             p = QLabel("• " + para)
@@ -196,12 +225,40 @@ class HelpPanel(QWidget):
             col.addWidget(p)
         return box
 
-    def _image_placeholder(self, caption: str) -> QLabel:
+    def _load_image(self, holder: QVBoxLayout, caption: str, filename: str) -> None:
+        # Clear whatever's there, then add the theme-matched screenshot, or a captioned
+        # placeholder box if that file doesn't exist yet.
+        while holder.count():
+            w = holder.takeAt(0).widget()
+            if w:
+                w.deleteLater()
+        path = SCREENSHOTS_DIR / ("dark_mode" if self._dark else "light_mode") / filename
+        if path.exists():
+            pixmap = QPixmap(str(path))
+            if not pixmap.isNull():
+                holder.addWidget(self._framed_image(pixmap))
+                return
         ph = QLabel(f"🖼  {caption}")
         ph.setObjectName("helpImage")
         ph.setAlignment(Qt.AlignmentFlag.AlignCenter)
         ph.setMinimumHeight(130)
-        return ph
+        holder.addWidget(ph)
+
+    def _framed_image(self, pixmap: QPixmap) -> QWidget:
+        # A thin coral frame around the screenshot so its edges don't bleed into the panel.
+        frame = QFrame()
+        frame.setObjectName("helpScreenshot")
+        frame.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        inner = QVBoxLayout(frame)
+        inner.setContentsMargins(3, 3, 3, 3)  # 3px coral mat
+        inner.addWidget(ScalableImageLabel(pixmap))
+        return frame
+
+    def refresh_theme(self, theme: str = None) -> None:
+        """Swap every chapter screenshot to the folder matching the active theme."""
+        self._dark = check_theme(theme) if theme else self._dark
+        for holder, caption, filename in self._image_slots:
+            self._load_image(holder, caption, filename)
 
     def _shortcuts_chapter(self) -> QWidget:
         box = QWidget()

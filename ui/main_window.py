@@ -1072,6 +1072,7 @@ class MainWindow(FramelessMainWindow):
     def _on_theme_changed(self, theme: str) -> None:
         refresh_icons(self, theme)
         self.sidebar.refresh_theme(theme)
+        self.help_panel.refresh_theme(theme)
 
     def on_sound_effects_changed(self, start: str, stop: str) -> None:
         self.start_audio.setSource(QUrl.fromLocalFile(start if start else self.DEFAULT_START_SOUND))

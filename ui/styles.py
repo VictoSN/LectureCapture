@@ -8,8 +8,8 @@ from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QPalette
 # Offered in the right-click "Translate to" submenu of any transcript text. The
 # user can also pick "Other…" for a language not listed here.
 LOOKUP_LANGUAGES = [
-    "Malay", "Indonesian", "Chinese (Simplified)", "Tamil", "Spanish", "French",
-    "German", "Japanese", "Korean", "Arabic",
+    "Arabic", "Chinese (Simplified)", "French", "German", "Indonesian",
+    "Japanese", "Korean", "Malay", "Spanish", "Tamil",
 ]
 
 
