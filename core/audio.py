@@ -284,6 +284,9 @@ class AudioWorker(QThread):
             model_id = chosen or auto_gpu_model()
             try:
                 t0 = time.time()
+                # On first use this downloads the model (can be hundreds of MB) before it
+                # loads — surface that so the empty transcript doesn't look like a freeze.
+                self._emit_engine(f"faster-whisper · loading {model_id}…")
                 model = WhisperModel(model_id, device="cuda", compute_type="float16")
                 self._warmup(model)
                 print(f"[Audio] loaded {model_id} on GPU in {time.time()-t0:.1f}s")
@@ -297,6 +300,7 @@ class AudioWorker(QThread):
         # CPU fallback (int8, greedy). "auto" → tiny.en, else the user's choice (which
         # may be slow on CPU — that's their call; the UI flags GPU-oriented models).
         model_id = chosen or CPU_WHISPER_MODEL
+        self._emit_engine(f"faster-whisper · loading {model_id}…")
         self.model = WhisperModel(model_id, device="cpu", compute_type="int8")
         self._local_engine_label = f"faster-whisper · {model_id} · CPU"
         self._emit_engine(self._local_engine_label)

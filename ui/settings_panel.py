@@ -35,6 +35,42 @@ class ConnectionTestWorker(QThread):
         self.done.emit(any_ok)
 
 
+class ModelDownloadWorker(QThread):
+    """Fetches a faster-whisper model in the background when the user picks it, so the
+    first recording isn't blocked on a multi-hundred-MB download. A no-op (and fast) if
+    the model is already cached."""
+    status = pyqtSignal(str, str)  # model_id, "downloading" | "ready" | "failed"
+
+    def __init__(self, model_id: str) -> None:
+        super().__init__()
+        self._model_id = model_id
+
+    def run(self) -> None:
+        try:
+            from faster_whisper import download_model
+        except Exception:
+            try:
+                from faster_whisper.utils import download_model
+            except Exception as e:
+                print(f"[Model] download unavailable: {e}")
+                self.status.emit(self._model_id, "failed")
+                return
+        # Already cached? local_files_only resolves from disk without touching the network.
+        try:
+            download_model(self._model_id, local_files_only=True)
+            self.status.emit(self._model_id, "ready")
+            return
+        except Exception:
+            pass
+        self.status.emit(self._model_id, "downloading")
+        try:
+            download_model(self._model_id)
+            self.status.emit(self._model_id, "ready")
+        except Exception as e:
+            print(f"[Model] download failed for {self._model_id}: {e}")
+            self.status.emit(self._model_id, "failed")
+
+
 class SettingsPanel(QWidget):
     api_keys_changed = pyqtSignal(str)  # gemini_api_key
     processing_mode_changed = pyqtSignal(str)  # local, api
@@ -160,15 +196,30 @@ class SettingsPanel(QWidget):
             "accurate but heavier; on this machine the GPU runs even large models "
             "far faster than real time."
         )
+        # Picking a model downloads it now (activated = user choice only, not the
+        # programmatic setCurrentIndex in load_settings / Apply Recommended).
+        self.speech_model_dropdown.activated.connect(self._on_speech_model_chosen)
+        self._dl_workers = set()
         self.api_layout.addWidget(self.speech_model_dropdown, 0, 1)
 
+        # Note + a download-status line stacked together (the grid row is otherwise full).
+        note_box = QWidget()
+        note_layout = QVBoxLayout(note_box)
+        note_layout.setContentsMargins(0, 0, 0, 0)
+        note_layout.setSpacing(4)
         speech_note = QLabel("The on-device Whisper model that turns recorded audio into text. "
                              "Bigger models are more accurate but slower; smaller ones stay "
-                             "real-time on modest hardware. Run Detect Hardware to pick the best "
-                             "fit for this PC.")
+                             "real-time on modest hardware. Picking a model downloads it once "
+                             "(needs internet); Detect Hardware recommends the best fit for this PC.")
         speech_note.setWordWrap(True)
         speech_note.setObjectName("muted")
-        self.api_layout.addWidget(speech_note, 1, 0, 1, 2)
+        note_layout.addWidget(speech_note)
+        self.speech_model_status = QLabel("")
+        self.speech_model_status.setWordWrap(True)
+        self.speech_model_status.setObjectName("muted")
+        self.speech_model_status.setVisible(False)
+        note_layout.addWidget(self.speech_model_status)
+        self.api_layout.addWidget(note_box, 1, 0, 1, 2)
 
         # Hardware detection — verify the GPU/CPU actually works and recommend a model.
         self._recommended_model = None
@@ -805,6 +856,30 @@ class SettingsPanel(QWidget):
         if idx >= 0:
             self.speech_model_dropdown.setCurrentIndex(idx)
         self.apply_model_button.setVisible(False)
+        self._download_speech_model(self._recommended_model)
+
+    def _on_speech_model_chosen(self, index: int) -> None:
+        # Fired only on a user selection (not programmatic) — fetch it now.
+        self._download_speech_model(self.speech_model_dropdown.itemData(index))
+
+    def _download_speech_model(self, model_id: str) -> None:
+        if not model_id:
+            return
+        worker = ModelDownloadWorker(model_id)
+        worker.status.connect(self._on_model_download_status)
+        worker.finished.connect(lambda w=worker: self._dl_workers.discard(w))
+        self._dl_workers.add(worker)
+        worker.start()
+
+    def _on_model_download_status(self, model: str, state: str) -> None:
+        if state == "downloading":
+            text = f"Downloading {model}… one-time, needs internet (this can take a while)."
+        elif state == "ready":
+            text = f"{model} is downloaded and ready for offline use."
+        else:
+            text = f"Couldn't download {model} — check your internet connection."
+        self.speech_model_status.setText(text)
+        self.speech_model_status.setVisible(True)
 
     def deleteEvent(self) -> None:
         reply = QMessageBox.question(
