@@ -224,6 +224,8 @@ class MainWindow(FramelessMainWindow):
         self.splitter.setStretchFactor(0, 0)
         for i in range(1, self.splitter.count()):
             self.splitter.setStretchFactor(i, 1)
+        # Remember a user-dragged sidebar width so panel switches can restore it.
+        self.splitter.splitterMoved.connect(self._on_splitter_moved)
         self.transcript_panel.set_session_locked(True) # Locked buttons initially
 
         # Load API keys and processing mode from saved settings
@@ -1199,20 +1201,40 @@ class MainWindow(FramelessMainWindow):
         # previously "collapsed". Defer one frame to check and fix if needed.
         QTimer.singleShot(0, self._ensure_content_visible)
 
+    def _on_splitter_moved(self, pos: int, index: int) -> None:
+        # A genuine user drag (setSizes doesn't emit this). Capture the sidebar width so
+        # later panel switches restore exactly what the user set.
+        if self.sidebar.isVisible():
+            self._sidebar_width = self.splitter.sizes()[0]
+
     def _ensure_content_visible(self) -> None:
         sizes = self.splitter.sizes()
-        # Index 0 is sidebar; everything else is content. If all content panels
-        # collapsed to 0, take the available space and give it to the first visible one.
-        content = sizes[1:]
-        if sum(content) == 0:
-            available = self.splitter.width() - sizes[0]
-            if available <= 0:
-                return
-            for i in range(1, self.splitter.count()):
-                if self.splitter.widget(i).isVisible():
-                    sizes[i] = available
-                    self.splitter.setSizes(sizes)
-                    return
+        total = self.splitter.width()
+        visible_content = [i for i in range(1, self.splitter.count())
+                           if self.splitter.widget(i).isVisible()]
+        if total <= 0 or not visible_content:
+            return
+        changed = False
+
+        # Pin the sidebar to its tracked width. Showing/hiding panels lets QSplitter
+        # drift it despite its stretch factor (e.g. toggling the sidebar then opening a
+        # session). Absorb the difference into the widest visible content panel so an
+        # open Properties panel keeps its own size.
+        if self.sidebar.isVisible() and sizes[0] != self._sidebar_width:
+            delta = sizes[0] - self._sidebar_width
+            sizes[0] = self._sidebar_width
+            widest = max(visible_content, key=lambda i: sizes[i])
+            sizes[widest] = max(0, sizes[widest] + delta)
+            changed = True
+
+        # If every content panel collapsed to 0, hand the leftover width to the first
+        # visible one (a newly shown panel can otherwise appear blank).
+        if sum(sizes[i] for i in visible_content) == 0:
+            sizes[visible_content[0]] = max(0, total - sizes[0])
+            changed = True
+
+        if changed:
+            self.splitter.setSizes(sizes)
 
     def _toggle_sidebar(self) -> None:
         if self.sidebar.isVisible():
