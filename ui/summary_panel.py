@@ -1,5 +1,6 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton
 from PyQt6.QtCore import pyqtSignal, QTimer
+from PyQt6.QtGui import QTextCharFormat, QTextCursor
 
 from core.summarizer import strip_code_fence
 from ui.styles import create_label, create_button, NoLeakTextEdit
@@ -67,7 +68,10 @@ class SummaryPanel(QWidget):
         # Strip any all-enclosing ```markdown fence first, or QTextEdit renders the whole
         # summary as one literal code block (raw ## and ** instead of formatting).
         self._markdown_source = strip_code_fence(source or "")
-        self._pre_preview_readonly = self.summary.isReadOnly()
+        # A set summary always has content, so edit mode is editable. Don't capture the
+        # current read-only state here — if a re-summarize happens while already in
+        # preview, that would be True and would lock editing after exiting preview.
+        self._pre_preview_readonly = False
         self._is_preview = True
         self.preview_button.setText("Preview")  # current mode = Preview
         self.summary.blockSignals(True)
@@ -96,9 +100,20 @@ class SummaryPanel(QWidget):
             self.preview_button.setText("Preview")  # current mode = Preview
             self._is_preview = True
         else:
-            # Preview -> Edit: restore the editable source.
+            # Preview -> Edit: restore the editable plain-text source. setMarkdown leaves
+            # rich formatting in the document (and clicking a bold heading in preview
+            # carries that into the cursor), so strip all character formatting back to
+            # plain text — otherwise the raw source shows up bold in edit mode.
             self.summary.blockSignals(True)
+            self.summary.setReadOnly(False)
             self.summary.setPlainText(self._markdown_source)
+            cursor = self.summary.textCursor()
+            cursor.select(QTextCursor.SelectionType.Document)
+            cursor.setCharFormat(QTextCharFormat())
+            cursor.clearSelection()
+            cursor.movePosition(QTextCursor.MoveOperation.Start)
+            self.summary.setTextCursor(cursor)
+            self.summary.setCurrentCharFormat(QTextCharFormat())
             self.summary.blockSignals(False)
             self.summary.setReadOnly(self._pre_preview_readonly)
             self.preview_button.setText("Edit")  # current mode = Edit
