@@ -31,6 +31,7 @@ MANIFEST
 #   before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
+!LectureCapture.spec
 
 # Installer logs
 pip-log.txt
@@ -216,3 +217,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# LectureCapture build artifacts (installer output + smoke-test logs)
+installer/
+err.txt
+out.txt

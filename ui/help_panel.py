@@ -15,8 +15,9 @@ from PyQt6.QtGui import QShortcut, QKeySequence, QPixmap
 
 from ui.styles import check_theme
 from ui.scalable_image_label import ScalableImageLabel
+from core.resources import resource_root
 
-SCREENSHOTS_DIR = Path(__file__).resolve().parent.parent / "assets" / "screenshots"
+SCREENSHOTS_DIR = resource_root() / "assets" / "screenshots"
 
 
 # (chapter title, intro paragraph, [body paragraphs], image caption, screenshot filename)

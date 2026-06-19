@@ -9,6 +9,7 @@ to be safe across loader code paths.
 """
 
 import os
+import sys
 import glob
 import sysconfig
 
@@ -31,8 +32,10 @@ def prepare_cuda() -> bool:
 
     _prepared = False
     try:
-        site = sysconfig.get_paths()["purelib"]
-        dll_dirs = glob.glob(os.path.join(site, "nvidia", "*", "bin"))
+        # The nvidia-*-cu12 wheels ship their DLLs under <base>/nvidia/<pkg>/bin. From
+        # source that's site-packages; in a frozen build they're bundled under _MEIPASS.
+        base = sys._MEIPASS if getattr(sys, "frozen", False) else sysconfig.get_paths()["purelib"]
+        dll_dirs = glob.glob(os.path.join(base, "nvidia", "*", "bin"))
         if dll_dirs:
             os.environ["PATH"] = os.pathsep.join(dll_dirs) + os.pathsep + os.environ.get("PATH", "")
             for d in dll_dirs:

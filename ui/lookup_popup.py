@@ -24,10 +24,8 @@ ORIGINAL_MAX_HEIGHT = 96
 class LookupPopup(QDialog):
     def __init__(self, parent=None, icons_dir=None) -> None:
         super().__init__(parent)
-        self._icons_dir = (
-            Path(icons_dir) if icons_dir
-            else Path(__file__).resolve().parent.parent / "assets" / "icons"
-        )
+        from core.resources import resource_root
+        self._icons_dir = Path(icons_dir) if icons_dir else resource_root() / "assets" / "icons"
         # Frameless tool window (no taskbar entry); translucent so the inner card's
         # rounded corners show instead of a square window background.
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool)

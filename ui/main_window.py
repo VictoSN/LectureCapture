@@ -13,6 +13,7 @@ from datetime import datetime
 
 from models.lecture import Session, OCRCapture
 from storage.database import Storage
+from core.resources import resource_root
 from core.ocr import OCRWorker
 from core.audio import AudioWorker, DEFAULT_SPEECH_MODEL
 from core.api_errors import SHORT_STATUS
@@ -32,10 +33,10 @@ from ui.quiz_panel import QuizPanel
 from ui.help_panel import HelpPanel
 from ui.styles import load_icon, refresh_icons
 
-BASE_DIR = Path(__file__).resolve().parent
-BUNDLED_SOUNDS_DIR = BASE_DIR.parent / 'assets' / 'sound_effects'
-ICONS_DIR = BASE_DIR.parent / 'assets' / 'icons'
-THEMES_DIR = BASE_DIR.parent / 'assets' / 'themes'
+_ASSETS = resource_root() / 'assets'  # project root from source, bundle dir when frozen
+BUNDLED_SOUNDS_DIR = _ASSETS / 'sound_effects'
+ICONS_DIR = _ASSETS / 'icons'
+THEMES_DIR = _ASSETS / 'themes'
 
 class MainWindow(FramelessMainWindow):
     def __init__(self) -> None:
