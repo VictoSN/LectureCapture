@@ -89,7 +89,7 @@ CHAPTERS = [
     ),
     (
         "Quiz",
-        "Press Quiz to generate a self-test from the session's content with Gemini.",
+        "Press Quiz to generate a self-test from the session's content with Gemini. (Needs summary to be generated.)",
         [
             "The number of questions scales to how much material there is — a mix of "
             "multiple-choice and true/false, graded automatically. Use Enter for the next "
