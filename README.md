@@ -90,7 +90,14 @@ Wraps the build into a single `setup.exe` (installs to Program Files, adds short
 
 1. Install Inno Setup (e.g. `winget install JRSoftware.InnoSetup`).
 2. Build the .exe first (above), then compile the installer:
-```bash
+
+**PowerShell / Windows Terminal**
+```powershell
+& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" installer.iss
+```
+
+**Command Prompt (CMD)**
+```cmd
 "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" installer.iss
 ```
 The result is `installer\LectureCapture-Setup.exe`.
