@@ -12,11 +12,13 @@ class Session:
     group_category: str | None = None
     summary: str | None = None
     summary_generated_at: datetime | None = None
-    # Saved quiz: JSON list of questions, the last score (correct count), and a hash of
-    # the source text it was generated from (to detect when the content has changed).
+    # Saved quiz: JSON list of questions, the last score (correct count), a hash of the
+    # source text it was generated from (to detect when content changed), and when it was
+    # generated.
     quiz: str | None = None
     quiz_score: int | None = None
     quiz_source_hash: str | None = None
+    quiz_generated_at: datetime | None = None
 
 @dataclass
 class OCRCapture:

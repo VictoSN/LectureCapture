@@ -846,6 +846,7 @@ class MainWindow(FramelessMainWindow):
         self.current_session.quiz = json.dumps(questions)
         self.current_session.quiz_source_hash = self._quiz_hash
         self.current_session.quiz_score = None
+        self.current_session.quiz_generated_at = datetime.now()
         self.storage.save_quiz(self.current_session.id, self.current_session.quiz, self._quiz_hash)
         self.quiz_panel.set_saved_quiz(questions, None)
         self.quiz_panel.load_questions(questions)
@@ -1104,6 +1105,10 @@ class MainWindow(FramelessMainWindow):
             "length": session.length,
             "summary": session.summary,
             "summary_generated_at": session.summary_generated_at.isoformat() if session.summary_generated_at else None,
+            "quiz": session.quiz,
+            "quiz_score": session.quiz_score,
+            "quiz_source_hash": session.quiz_source_hash,
+            "quiz_generated_at": session.quiz_generated_at.isoformat() if session.quiz_generated_at else None,
             "captures": [
                 {
                     "timestamp": c.timestamp,
@@ -1144,6 +1149,10 @@ class MainWindow(FramelessMainWindow):
                 length=session_data["length"],
                 summary=session_data.get("summary"),
                 summary_generated_at=datetime.fromisoformat(session_data["summary_generated_at"]) if session_data.get("summary_generated_at") else None,
+                quiz=session_data.get("quiz"),
+                quiz_score=session_data.get("quiz_score"),
+                quiz_source_hash=session_data.get("quiz_source_hash"),
+                quiz_generated_at=datetime.fromisoformat(session_data["quiz_generated_at"]) if session_data.get("quiz_generated_at") else None,
                 id=None
             )
             new_id = self.storage.create_session(new_session)

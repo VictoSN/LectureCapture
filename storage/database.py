@@ -35,7 +35,7 @@ class Storage:
             return  # fresh database — nothing to wipe
         self.cursor.execute("PRAGMA table_info(session)")
         columns = {row[1] for row in self.cursor.fetchall()}
-        if "quiz" in columns:
+        if "quiz_generated_at" in columns:
             return  # already on the current schema
         self.cursor.execute("DROP TABLE IF EXISTS ocrcapture")
         self.cursor.execute("DROP TABLE IF EXISTS session")
@@ -58,7 +58,8 @@ class Storage:
                                 summary_generated_at TEXT,
                                 quiz TEXT,
                                 quiz_score INTEGER,
-                                quiz_source_hash TEXT
+                                quiz_source_hash TEXT,
+                                quiz_generated_at TEXT
                             )
                             """)
 
@@ -87,10 +88,12 @@ class Storage:
         date_recorded = session.date_recorded.isoformat()
         date_modified = session.date_modified.isoformat()
         summary_generated_at = session.summary_generated_at.isoformat() if session.summary_generated_at else None
+        quiz_generated_at = session.quiz_generated_at.isoformat() if isinstance(session.quiz_generated_at, datetime) else session.quiz_generated_at
 
+        # Quiz columns are carried too, so an imported/duplicated session keeps its quiz.
         self.cursor.execute(
-            "INSERT INTO session (name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (session.name, session.session_category, session.group_category, date_recorded, date_modified, session.length, session.summary, summary_generated_at)
+            "INSERT INTO session (name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash, quiz_generated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (session.name, session.session_category, session.group_category, date_recorded, date_modified, session.length, session.summary, summary_generated_at, session.quiz, session.quiz_score, session.quiz_source_hash, quiz_generated_at)
         )
     
         self.conn.commit()
@@ -120,14 +123,15 @@ class Storage:
             quiz=row[9],
             quiz_score=row[10],
             quiz_source_hash=row[11],
+            quiz_generated_at=self._parse_datetime(row[12]),
         )
 
     def get_all_sessions(self) -> list[Session]:
-        self.cursor.execute("SELECT id, name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash FROM session")
+        self.cursor.execute("SELECT id, name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash, quiz_generated_at FROM session")
         return [self._row_to_session(session) for session in self.cursor.fetchall()]        
 
     def get_session(self, id: int) -> Session:
-        self.cursor.execute("SELECT id, name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash FROM session WHERE id = ?", (id,))
+        self.cursor.execute("SELECT id, name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash, quiz_generated_at FROM session WHERE id = ?", (id,))
         row = self.cursor.fetchone()
         return self._row_to_session(row) if row else None
 
@@ -150,10 +154,11 @@ class Storage:
         self.conn.commit()
     
     def save_quiz(self, session_id: int, quiz_json: str, source_hash: str) -> None:
-        """Store a freshly generated quiz. Resets the score (NULL) — it's a new quiz."""
+        """Store a freshly generated quiz: stamps the generation time and resets the
+        score (NULL), since it's a new quiz."""
         self.cursor.execute(
-            "UPDATE session SET quiz = ?, quiz_source_hash = ?, quiz_score = NULL WHERE id = ?",
-            (quiz_json, source_hash, session_id)
+            "UPDATE session SET quiz = ?, quiz_source_hash = ?, quiz_generated_at = ?, quiz_score = NULL WHERE id = ?",
+            (quiz_json, source_hash, datetime.now().isoformat(), session_id)
         )
         self.conn.commit()
 
@@ -288,7 +293,7 @@ class Storage:
         return [row[0] for row in self.cursor.fetchall()]
 
     def search_sessions(self, name, session_category, group_category) -> list[Session]:
-        query = "SELECT id, name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash FROM session WHERE 1=1"
+        query = "SELECT id, name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash, quiz_generated_at FROM session WHERE 1=1"
         params = []
         
         if name:
@@ -310,8 +315,8 @@ class Storage:
         # Copy session and captures in database
         now = datetime.now().isoformat()
         self.cursor.execute("""
-            INSERT INTO session (name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash)
-            SELECT name || ' (Copy)', session_category, group_category, ?, ?, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash
+            INSERT INTO session (name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash, quiz_generated_at)
+            SELECT name || ' (Copy)', session_category, group_category, ?, ?, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash, quiz_generated_at
             FROM session WHERE id = ?
         """, (now, now, id))
 

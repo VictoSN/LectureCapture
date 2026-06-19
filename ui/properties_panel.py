@@ -81,9 +81,16 @@ class PropertiesPanel(QWidget):
         # Summary Generated
         summary_generated_label = QLabel("Summary Generated:")
         grid_layout.addWidget(summary_generated_label, 5, 0)
-        
+
         self.summary_generated = QLabel(FormatDetailedTime(session.summary_generated_at) or "None")
         grid_layout.addWidget(self.summary_generated, 5, 1)
+
+        # Quiz Generated
+        quiz_generated_label = QLabel("Quiz Generated:")
+        grid_layout.addWidget(quiz_generated_label, 6, 0)
+
+        self.quiz_generated = QLabel(FormatDetailedTime(session.quiz_generated_at) or "None")
+        grid_layout.addWidget(self.quiz_generated, 6, 1)
 
         # Actions Buttons
         self.cancel_button = QPushButton("Close")
