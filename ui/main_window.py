@@ -4,7 +4,7 @@ import zipfile, json
 from qframelesswindow import FramelessMainWindow
 from PyQt6.QtWidgets import QMessageBox, QFileDialog, QApplication, QInputDialog
 from ui.grip_splitter import GripSplitter
-from PyQt6.QtGui import QShortcut, QKeySequence, QGuiApplication, QCursor
+from PyQt6.QtGui import QShortcut, QKeySequence, QGuiApplication, QCursor, QIcon
 from PyQt6.QtCore import Qt, QTimer, QUrl, QSettings
 from PyQt6.QtMultimedia import QSoundEffect
 
@@ -31,7 +31,7 @@ from ui.recording_panel import RecordingPanel
 from ui.settings_panel import SettingsPanel
 from ui.quiz_panel import QuizPanel
 from ui.help_panel import HelpPanel
-from ui.styles import load_icon, refresh_icons
+from ui.styles import refresh_icons
 
 _ASSETS = resource_root() / 'assets'  # project root from source, bundle dir when frozen
 BUNDLED_SOUNDS_DIR = _ASSETS / 'sound_effects'
@@ -73,7 +73,7 @@ class MainWindow(FramelessMainWindow):
         self._summarize_worker = None
 
         # Window details
-        self.setWindowIcon(load_icon(ICONS_DIR / 'logo.png'))
+        self.setWindowIcon(QIcon(str(ICONS_DIR / 'logo.ico')))
         self.setWindowTitle("LectureCapture")
         self.setMinimumSize(800, 600)
         self.resize(1300, 800)
