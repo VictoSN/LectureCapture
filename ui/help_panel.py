@@ -15,7 +15,7 @@ from PyQt6.QtGui import QShortcut, QKeySequence, QPixmap
 
 from ui.styles import check_theme
 from ui.scalable_image_label import ScalableImageLabel
-from core.resources import resource_root
+from core.resources import resource_root, APP_VERSION
 
 SCREENSHOTS_DIR = resource_root() / "assets" / "screenshots"
 
@@ -194,6 +194,12 @@ class HelpPanel(QWidget):
 
         layout.addWidget(self._shortcuts_chapter())
         layout.addStretch()
+
+        version = QLabel(f"Version {APP_VERSION}")
+        version.setObjectName("muted")
+        version.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        version.setContentsMargins(0, 16, 0, 0)
+        layout.addWidget(version)
 
         QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self.close_requested.emit)
 

@@ -8,6 +8,10 @@ import os
 import sys
 from pathlib import Path
 
+# Single source of truth for the app version shown in-app (Help panel footer).
+# Keep this in sync with MyAppVersion in installer.iss (Inno Setup can't import Python).
+APP_VERSION = "2.0.0"
+
 
 def resource_root() -> Path:
     """Project root when running from source; the PyInstaller bundle dir when frozen."""
