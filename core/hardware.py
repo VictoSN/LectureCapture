@@ -90,7 +90,7 @@ def probe_hardware() -> tuple[str, str]:
             f"GPU: {name or 'CUDA device'} ({vram_txt})\n"
             "CUDA acceleration: working ✓\n\n"
             f"Recommended model: {rec}\n"
-            "Your GPU runs this far faster than real time."
+            "Your GPU runs this near real time."
         )
     elif present:
         body = (

@@ -194,7 +194,7 @@ class SettingsPanel(QWidget):
         self.speech_model_dropdown.setToolTip(
             "Whisper model used for local speech-to-text. Larger models are more "
             "accurate but heavier; on this machine the GPU runs even large models "
-            "far faster than real time."
+            "near real time."
         )
         # Picking a model downloads it now (activated = user choice only, not the
         # programmatic setCurrentIndex in load_settings / Apply Recommended).
