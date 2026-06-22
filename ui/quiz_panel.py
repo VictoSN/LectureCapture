@@ -7,7 +7,7 @@ review UI and emits `completed(score, total)` so the score can be saved.
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QStackedWidget,
-    QRadioButton, QButtonGroup, QScrollArea, QFrame
+    QRadioButton, QButtonGroup, QScrollArea, QFrame, QProgressBar
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QShortcut, QKeySequence
@@ -103,6 +103,21 @@ class QuizPanel(QWidget):
         hint.setObjectName("muted")
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(hint)
+
+        # Indeterminate progress bar (range 0..0 = continuous "busy" animation) so it's
+        # clear the app is working — quiz generation can take several seconds.
+        bar_row = QHBoxLayout()
+        bar_row.addStretch()
+        self.loading_bar = QProgressBar()
+        self.loading_bar.setRange(0, 0)
+        self.loading_bar.setTextVisible(False)
+        self.loading_bar.setFixedWidth(260)
+        bar_row.addWidget(self.loading_bar)
+        bar_row.addStretch()
+        layout.addSpacing(6)
+        layout.addLayout(bar_row)
+        layout.addSpacing(2)
+
         self.loading_engine = QLabel("")
         self.loading_engine.setObjectName("muted")
         self.loading_engine.setAlignment(Qt.AlignmentFlag.AlignCenter)
