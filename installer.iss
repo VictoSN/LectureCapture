@@ -5,7 +5,7 @@
 ; Then compile this:     "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" installer.iss
 
 #define MyAppName "LectureCapture"
-#define MyAppVersion "2.1.0"
+#define MyAppVersion "2.1.2"
 #define MyAppPublisher "LectureCapture"
 #define MyAppExeName "LectureCapture.exe"
 

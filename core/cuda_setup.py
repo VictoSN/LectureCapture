@@ -32,10 +32,18 @@ def prepare_cuda() -> bool:
 
     _prepared = False
     try:
-        # The nvidia-*-cu12 wheels ship their DLLs under <base>/nvidia/<pkg>/bin. From
-        # source that's site-packages; in a frozen build they're bundled under _MEIPASS.
-        base = sys._MEIPASS if getattr(sys, "frozen", False) else sysconfig.get_paths()["purelib"]
-        dll_dirs = glob.glob(os.path.join(base, "nvidia", "*", "bin"))
+        # Where the CUDA runtime DLLs live differs between source and a frozen build:
+        #   * From source: the nvidia-*-cu12 wheels under site-packages/nvidia/<pkg>/bin.
+        #   * Frozen (PyInstaller): the spec relocates them next to the ctranslate2 native
+        #     module (_MEIPASS/ctranslate2) so cuDNN 9's split loader finds its sub-DLLs.
+        # Either way we add the dir(s) to PATH + add_dll_directory so CTranslate2's runtime
+        # LoadLibrary("cublas64_12.dll" / "cudnn64_9.dll" + its sub-DLLs) resolves them.
+        if getattr(sys, "frozen", False):
+            ct2 = os.path.join(sys._MEIPASS, "ctranslate2")
+            dll_dirs = [ct2] if os.path.isdir(ct2) else []
+        else:
+            base = sysconfig.get_paths()["purelib"]
+            dll_dirs = glob.glob(os.path.join(base, "nvidia", "*", "bin"))
         if dll_dirs:
             os.environ["PATH"] = os.pathsep.join(dll_dirs) + os.pathsep + os.environ.get("PATH", "")
             for d in dll_dirs:

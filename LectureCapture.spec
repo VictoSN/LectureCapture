@@ -37,12 +37,18 @@ for pkg in ("faster_whisper", "ctranslate2", "google.genai", "sumy", "huggingfac
 if os.path.isdir(TESSERACT_DIR):
     datas.append((TESSERACT_DIR, "tesseract"))
 
-# CUDA runtime DLLs from the nvidia-*-cu12 wheels, preserving nvidia/<pkg>/bin so
-# core.cuda_setup can put each bin dir on the DLL search path at runtime.
+# CUDA runtime DLLs from the nvidia-*-cu12 wheels — bundled into the ctranslate2/ folder,
+# right beside ctranslate2's native module (which is what loads cuBLAS/cuDNN via runtime
+# LoadLibrary). cuDNN 9 ships a SPLIT loader: ctranslate2's own cudnn64_9.dll dlopens the
+# heavy sub-DLLs (cudnn_cnn64_9.dll, cudnn_ops64_9.dll, ...), which only the nvidia-cudnn
+# wheel provides. In the frozen build those sub-DLLs weren't on the loader's search path,
+# so CUDA init silently failed -> CPU fallback (it works from source because the venv keeps
+# the whole set together). Co-locating them with ctranslate2 + adding that dir to the DLL
+# search path (core/cuda_setup) fixes it. ~1.9 GB, but relocated (NOT duplicated), so the
+# build size is unchanged.
 for bin_dir in glob.glob(os.path.join(SITE, "nvidia", "*", "bin")):
-    dest = os.path.relpath(bin_dir, SITE)  # e.g. nvidia\cublas\bin
     for dll in glob.glob(os.path.join(bin_dir, "*.dll")):
-        datas.append((dll, dest))
+        datas.append((dll, "ctranslate2"))
 
 # nltk tokenizer data for sumy's local summary (its data lives in the user profile, not
 # the package). PyInstaller's nltk runtime hook adds _MEIPASS/nltk_data to the search path.
@@ -73,6 +79,17 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+
+# De-duplicate the CUDA runtime. PyInstaller's dependency scan auto-bundles the directly
+# linked CUDA DLLs (cublas64_12, cublasLt64_12 [~640 MB!], cudnn_graph/ops) under
+# nvidia/<pkg>/bin, but we've already co-located the FULL CUDA set into ctranslate2/ above
+# (the only dir core/cuda_setup puts on the DLL search path). The nvidia/ tree is therefore
+# never loaded — drop it so the runtime isn't shipped twice (~930 MB of duplicate DLLs).
+def _not_redundant_nvidia(entry):
+    return not entry[0].replace("\\", "/").lower().startswith("nvidia/")
+a.binaries = [e for e in a.binaries if _not_redundant_nvidia(e)]
+a.datas = [e for e in a.datas if _not_redundant_nvidia(e)]
+
 pyz = PYZ(a.pure)
 
 exe = EXE(

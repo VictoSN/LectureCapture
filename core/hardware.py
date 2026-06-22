@@ -57,28 +57,56 @@ def _cuda_device_count() -> int:
         return 0
 
 
-def _cuda_usable() -> bool:
-    """Load a tiny model on CUDA and run one inference to confirm the runtime works."""
+def _gpu_probe() -> str:
+    """Check whether a usable CUDA GPU is present — WITHOUT downloading a speech model.
+
+    The hardware check exists only to tell the user "you have a GPU the CUDA runtime can
+    use" so we can recommend a model. The model itself is a separate, heavy download that
+    happens later (when the user clicks Apply, or on the first recording) — requiring it
+    here would mean downloading a model just to test the GPU, which is backwards.
+
+    Returns one of:
+      "ok"          — a CUDA device is present and the cuBLAS runtime loads.
+      "cuda_failed" — a device is present but the CUDA runtime won't load (e.g. the bundled
+                      DLLs aren't on the loader's path in a frozen build).
+      "no_cuda"     — no CUDA device / runtime present.
+    """
     from core.cuda_setup import prepare_cuda
+    from core.applog import get_logger
+    log = get_logger()
+
+    # prepare_cuda() puts the bundled runtime dir on the DLL search path and confirms a
+    # CUDA device exists (it imports ctranslate2 + counts devices). That already loads
+    # ctranslate2's CUDA dependencies; we additionally confirm cuBLAS itself loads, since
+    # CTranslate2 only pulls cuBLAS in lazily when a model actually runs on the GPU.
     if not prepare_cuda():
-        return False
-    try:
-        import numpy as np
-        from faster_whisper import WhisperModel
-        model = WhisperModel("tiny.en", device="cuda", compute_type="float16")
-        list(model.transcribe((np.random.randn(16000) * 0.01).astype(np.float32),
-                              beam_size=1, language="en")[0])
-        del model
-        return True
-    except Exception as e:
-        print(f"[Hardware] CUDA present but not usable: {e}")
-        return False
+        return "no_cuda"
+    return "ok" if _cublas_loads(log) else "cuda_failed"
+
+
+def _cublas_loads(log) -> bool:
+    """Confirm the cuBLAS runtime DLL loads on this machine. No model / download needed.
+
+    This is the part that silently failed in the frozen build (the bundled cuBLAS/cuDNN
+    weren't on the loader's search path); a plain DLL load catches that without an inference.
+    """
+    import ctypes
+    err = None
+    for name in ("cublas64_12.dll", "cublas64_13.dll"):  # CUDA 12 today; 13 future-proof
+        try:
+            ctypes.WinDLL(name)
+            return True
+        except OSError as e:
+            err = e
+    log.warning("cuBLAS runtime DLL did not load: %s", err)
+    return False
 
 
 def probe_hardware() -> tuple[str, str]:
     """Returns (human-readable report, recommended model value for the dropdown)."""
     name, vram = _query_gpu()
-    usable = _cuda_usable()
+    status = _gpu_probe()
+    usable = status == "ok"
     present = bool(name) or _cuda_device_count() > 0
     rec = recommend_model(vram, usable)
 

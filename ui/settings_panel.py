@@ -46,29 +46,30 @@ class ModelDownloadWorker(QThread):
         self._model_id = model_id
 
     def run(self) -> None:
+        # Route through core.models.ensure_model so this shares the same process-wide
+        # download lock + completeness check as the hardware probe and the recording —
+        # otherwise a "download model" click could race the probe into a half-written
+        # cache (the broken-symlink model.bin that looked like a CUDA failure).
+        from core.models import ensure_model, model_is_complete
+        from core.applog import get_logger
+        log = get_logger()
         try:
             from faster_whisper import download_model
         except Exception:
-            try:
-                from faster_whisper.utils import download_model
-            except Exception as e:
-                print(f"[Model] download unavailable: {e}")
-                self.status.emit(self._model_id, "failed")
-                return
-        # Already cached? local_files_only resolves from disk without touching the network.
+            from faster_whisper.utils import download_model
+
+        # Already cached & complete? report ready without touching the network.
         try:
-            download_model(self._model_id, local_files_only=True)
-            self.status.emit(self._model_id, "ready")
-            return
+            d = download_model(self._model_id, local_files_only=True)
+            if model_is_complete(d):
+                self.status.emit(self._model_id, "ready")
+                return
         except Exception:
             pass
+
         self.status.emit(self._model_id, "downloading")
-        try:
-            download_model(self._model_id)
-            self.status.emit(self._model_id, "ready")
-        except Exception as e:
-            print(f"[Model] download failed for {self._model_id}: {e}")
-            self.status.emit(self._model_id, "failed")
+        d = ensure_model(self._model_id, log)
+        self.status.emit(self._model_id, "ready" if d else "failed")
 
 
 class SettingsPanel(QWidget):

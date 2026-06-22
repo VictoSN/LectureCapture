@@ -10,7 +10,7 @@ from pathlib import Path
 
 # Single source of truth for the app version shown in-app (Help panel footer).
 # Keep this in sync with MyAppVersion in installer.iss (Inno Setup can't import Python).
-APP_VERSION = "2.1.0"
+APP_VERSION = "2.1.2"
 
 
 def resource_root() -> Path:

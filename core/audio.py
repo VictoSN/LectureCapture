@@ -69,6 +69,10 @@ class AudioWorker(QThread):
         self.model = None
         # Set once the local model is loaded, so the footer can show GPU vs CPU.
         self._local_engine_label = "faster-whisper"
+        # Once the GPU model load has failed we stop re-attempting it on every chunk.
+        # Without this, a failed load left self.model=None and each following chunk re-ran
+        # the whole GPU path, flapping the footer between the GPU model and CPU fallback.
+        self._gpu_disabled = False
 
         # Decode the device selection (may be int, dict, or None).
         if isinstance(device, dict):
@@ -274,6 +278,9 @@ class AudioWorker(QThread):
         if self.model is not None:
             return self.model
         from faster_whisper import WhisperModel
+        from core.models import ensure_model
+        from core.applog import get_logger
+        log = get_logger()
 
         # The chosen model is honoured on whichever device is available. A legacy
         # "auto" (from settings saved by older builds) resolves per-device below
@@ -282,33 +289,46 @@ class AudioWorker(QThread):
 
         # Prefer the GPU: a CUDA device lets us run a large, accurate English model in
         # real time. "Device present" doesn't guarantee the cuBLAS/cuDNN runtime
-        # actually loads (e.g. unsupported GPU), so we warm up with a real inference
-        # and fall back to CPU if anything in the GPU path raises.
+        # actually loads (e.g. unsupported GPU), so we fall back to CPU if it raises.
         from core.cuda_setup import prepare_cuda
-        if prepare_cuda():
+        if prepare_cuda() and not self._gpu_disabled:
             # "Automatic" → best model for the detected GPU's VRAM (not always the biggest).
             from core.hardware import auto_gpu_model
             model_id = chosen or auto_gpu_model()
-            try:
-                t0 = time.time()
-                # On first use this downloads the model (can be hundreds of MB) before it
-                # loads — surface that so the empty transcript doesn't look like a freeze.
-                self._emit_engine(f"faster-whisper · loading {model_id}…")
-                model = WhisperModel(model_id, device="cuda", compute_type="float16")
-                self._warmup(model)
-                print(f"[Audio] loaded {model_id} on GPU in {time.time()-t0:.1f}s")
-                self.model = model
-                self._local_engine_label = f"faster-whisper · {model_id} · GPU"
-                self._emit_engine(self._local_engine_label)
-                return self.model
-            except Exception as e:
-                print(f"[Audio] GPU model unavailable ({e}); falling back to CPU")
+            # On first use this downloads the model (can be hundreds of MB) before it
+            # loads — surface that so the empty transcript doesn't look like a freeze.
+            self._emit_engine(f"faster-whisper · loading {model_id}…")
+            # Make sure model.bin is fully on disk *before* handing it to CUDA — a partial /
+            # broken-symlink cache is what masqueraded as a CUDA failure on first launch.
+            model_dir = ensure_model(model_id, log)
+            if model_dir is not None:
+                try:
+                    t0 = time.time()
+                    model = WhisperModel(model_dir, device="cuda", compute_type="float16")
+                    self._warmup(model)
+                    log.info("loaded %s on GPU in %.1fs", model_id, time.time() - t0)
+                    self.model = model
+                    self._local_engine_label = f"faster-whisper · {model_id} · GPU"
+                    self._emit_engine(self._local_engine_label)
+                    return self.model
+                except Exception as e:
+                    log.warning("GPU model load failed (%s); falling back to CPU", e)
+            else:
+                log.warning("GPU model %s unavailable (download/cache); trying CPU", model_id)
+            self._gpu_disabled = True  # don't re-attempt GPU on every chunk (footer flap)
 
         # CPU fallback (int8, greedy). "auto" → tiny.en, else the user's choice (which
         # may be slow on CPU — that's their call; the UI flags GPU-oriented models).
         model_id = chosen or CPU_WHISPER_MODEL
         self._emit_engine(f"faster-whisper · loading {model_id}…")
-        self.model = WhisperModel(model_id, device="cpu", compute_type="int8")
+        model_dir = ensure_model(model_id, log)
+        if model_dir is None:
+            # Both paths failed to get the model on disk — almost always offline with an
+            # empty cache. Raise instead of silently re-looping every chunk.
+            log.error("CPU model %s unavailable (offline / broken cache)", model_id)
+            self._emit_engine("faster-whisper · model unavailable (offline?)")
+            raise RuntimeError(f"speech model {model_id} unavailable")
+        self.model = WhisperModel(model_dir, device="cpu", compute_type="int8")
         self._local_engine_label = f"faster-whisper · {model_id} · CPU"
         self._emit_engine(self._local_engine_label)
         return self.model

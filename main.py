@@ -3,10 +3,16 @@ from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import QTimer
 from ui.main_window import MainWindow, ICONS_DIR
-from core.resources import configure_bundled_tesseract
+from core.resources import configure_bundled_tesseract, APP_VERSION
+from core.applog import get_logger, install_excepthook
 import ctypes
 
 if __name__ == "__main__":
+    # Configure file logging first so anything below (incl. the GPU probe / model fetch in
+    # a windowed build that swallows stdout) leaves a trace in %APPDATA%\LectureCapture\logs.
+    log = get_logger()
+    install_excepthook()
+    log.info("LectureCapture %s starting (frozen=%s)", APP_VERSION, getattr(sys, "frozen", False))
     configure_bundled_tesseract()  # point pytesseract at the bundled binary when frozen
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("LectureCapture")
     app = QApplication(sys.argv)
