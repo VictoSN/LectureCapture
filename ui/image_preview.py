@@ -28,6 +28,14 @@ class ImagePreviewDialog(QDialog):
     def __init__(self, pixmap: QPixmap, parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Image Preview")
+        # Give the preview real window controls (minimize / maximize / close) like a normal
+        # app window — a plain QDialog only shows a close button.
+        self.setWindowFlags(
+            Qt.WindowType.Window
+            | Qt.WindowType.WindowMinimizeButtonHint
+            | Qt.WindowType.WindowMaximizeButtonHint
+            | Qt.WindowType.WindowCloseButtonHint
+        )
         self._pixmap = pixmap
         self._fitted = True   # while True, track the window size (fit-to-window)
 

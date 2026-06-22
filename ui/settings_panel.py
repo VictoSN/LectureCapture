@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QFileDialog, QLineEdit, QMessageBox, QScrollArea, QTextEdit, QCheckBox, QFrame, QSizePolicy
 )
 from PyQt6.QtCore import pyqtSignal, QSettings, QUrl, Qt, QThread
-from PyQt6.QtMultimedia import QSoundEffect
+from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtGui import QShortcut, QKeySequence
 
 from core.audio import DEFAULT_SPEECH_MODEL
@@ -638,12 +638,18 @@ class SettingsPanel(QWidget):
                     dropdown.setCurrentIndex(idx)
     
     def play_sound(self, dropdown: QComboBox) -> None:
+        # QMediaPlayer (not QSoundEffect — that produced no audio on several machines).
+        # One reusable player/output kept on self so it isn't garbage-collected mid-play.
         path = dropdown.currentData()
-        if path:
-            effect = QSoundEffect()
-            effect.setSource(QUrl.fromLocalFile(path))
-            effect.play()
-            self._preview_sound = effect
+        if not path:
+            return
+        if not hasattr(self, "_preview_player"):
+            self._preview_output = QAudioOutput()
+            self._preview_player = QMediaPlayer()
+            self._preview_player.setAudioOutput(self._preview_output)
+        self._preview_player.stop()
+        self._preview_player.setSource(QUrl.fromLocalFile(path))
+        self._preview_player.play()
     
     def _on_save(self) -> None:
         # Save preferences mode

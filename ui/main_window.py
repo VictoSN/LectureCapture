@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import QMessageBox, QFileDialog, QApplication, QInputDialog
 from ui.grip_splitter import GripSplitter
 from PyQt6.QtGui import QShortcut, QKeySequence, QGuiApplication, QCursor, QIcon
 from PyQt6.QtCore import Qt, QTimer, QUrl, QSettings
-from PyQt6.QtMultimedia import QSoundEffect
+from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 
 from pathlib import Path
 from datetime import datetime
@@ -95,10 +95,19 @@ class MainWindow(FramelessMainWindow):
         start_path = self.settings.value("start_sound") or self.DEFAULT_START_SOUND
         stop_path = self.settings.value("stop_sound") or self.DEFAULT_STOP_SOUND
         
-        self.start_audio = QSoundEffect()
+        # Start/stop chimes via QMediaPlayer (not QSoundEffect): QSoundEffect's low-level
+        # path produced no audio on several machines (and only played the stop sound on
+        # others because its source hadn't finished loading when play() was called at
+        # record start). QMediaPlayer uses the platform media backend and is reliable for
+        # short WAVs. The QAudioOutput must be retained or the player is silent.
+        self._start_output = QAudioOutput()
+        self.start_audio = QMediaPlayer()
+        self.start_audio.setAudioOutput(self._start_output)
         self.start_audio.setSource(QUrl.fromLocalFile(start_path))
 
-        self.stop_audio = QSoundEffect()
+        self._stop_output = QAudioOutput()
+        self.stop_audio = QMediaPlayer()
+        self.stop_audio.setAudioOutput(self._stop_output)
         self.stop_audio.setSource(QUrl.fromLocalFile(stop_path))
         
         self.filter_name = ""
@@ -420,7 +429,7 @@ class MainWindow(FramelessMainWindow):
             self.transcript_panel.clear_connection_warning()
 
         # Que sound effect
-        self.start_audio.play()
+        self._play_effect(self.start_audio)
         
         # Enable recording-only shortcuts, disable the rest
         self.create_session_shortcut.setEnabled(False)
@@ -529,7 +538,7 @@ class MainWindow(FramelessMainWindow):
         self.elapse_s = 0
         
         self.is_recording = False
-        self.stop_audio.play()
+        self._play_effect(self.stop_audio)
         
         # Update labels
         self.transcript_panel.recording_time_label.setText("00:00")
@@ -1114,6 +1123,12 @@ class MainWindow(FramelessMainWindow):
         refresh_icons(self, theme)
         self.sidebar.refresh_theme(theme)
         self.help_panel.refresh_theme(theme)
+
+    def _play_effect(self, player: QMediaPlayer) -> None:
+        # stop() rewinds to the start so a second/third recording replays from the
+        # beginning (QMediaPlayer won't replay a finished clip on play() alone).
+        player.stop()
+        player.play()
 
     def on_sound_effects_changed(self, start: str, stop: str) -> None:
         self.start_audio.setSource(QUrl.fromLocalFile(start if start else self.DEFAULT_START_SOUND))
