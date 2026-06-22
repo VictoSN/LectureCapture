@@ -172,15 +172,22 @@ class HelpPanel(QWidget):
         layout.setSpacing(14)
         scroll.setWidget(content)
 
+        # Close lives in a persistent footer pinned below the scroll area (outside it),
+        # so it's always reachable without scrolling to the top or bottom of the guide.
+        footer = QHBoxLayout()
+        footer.setContentsMargins(24, 8, 24, 12)
+        footer.addStretch()
+        self.close_button = QPushButton("Close")
+        self.close_button.setToolTip("Close help (Esc)")
+        self.close_button.clicked.connect(self.close_requested)
+        footer.addWidget(self.close_button)
+        outer.addLayout(footer)
+
         header = QHBoxLayout()
         title = QLabel("Help & Guide")
         title.setStyleSheet("font-size: 18px; font-weight: 600;")
         header.addWidget(title)
         header.addStretch()
-        self.close_button = QPushButton("Close")
-        self.close_button.setToolTip("Close help (Esc)")
-        self.close_button.clicked.connect(self.close_requested)
-        header.addWidget(self.close_button)
         layout.addLayout(header)
 
         intro = QLabel("A quick guide to recording lectures and getting notes, summaries, "

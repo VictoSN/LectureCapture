@@ -1,9 +1,9 @@
 from PyQt6.QtWidgets import (
     QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QScrollArea, QLabel,
-    QTextEdit, QDialog, QMessageBox
+    QTextEdit, QMessageBox
 )
-from PyQt6.QtGui import QPixmap, QGuiApplication
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtGui import QPixmap, QImageReader
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QSize
 
 from models.lecture import OCRCapture
 from ui.styles import create_label, create_button, NoLeakTextEdit
@@ -76,6 +76,23 @@ class OCRPanel(QWidget):
         main_layout.addWidget(self.scroll)
         self.setLayout(main_layout)
 
+    def _load_thumbnail(self, image_path: str) -> QPixmap | None:
+        """Decode the screenshot directly at thumbnail width via QImageReader, so the
+        full-resolution bitmap is never materialized. Loading a long session previously
+        decoded every 1080p/4K PNG in full on the UI thread just to shrink it to 640px;
+        QImageReader reads the header for the size, then decodes scaled in one pass.
+        Returns None when the file is missing/unreadable."""
+        reader = QImageReader(image_path)
+        reader.setAutoTransform(True)
+        size = reader.size()  # from the header — no full decode
+        if size.isValid() and size.width() > THUMBNAIL_WIDTH:
+            height = max(1, round(size.height() * THUMBNAIL_WIDTH / size.width()))
+            reader.setScaledSize(QSize(THUMBNAIL_WIDTH, height))
+        image = reader.read()
+        if image.isNull():
+            return None
+        return QPixmap.fromImage(image)
+
     def _create_capture_widget(self, capture: OCRCapture, panel_number: int) -> QWidget:
         capture_widget = QWidget()
         capture_layout = QVBoxLayout(capture_widget)
@@ -104,21 +121,19 @@ class OCRPanel(QWidget):
 
         capture_layout.addLayout(timestamp_row)
 
-        # Image — keep only a downscaled thumbnail in memory. The full-resolution
-        # screenshot is loaded from disk on demand for preview; otherwise a long
-        # session would pin hundreds of full-size pixmaps in RAM and run out.
+        # Image — keep only a downscaled thumbnail in memory, decoded straight to
+        # thumbnail size (see _load_thumbnail). The full-resolution screenshot is loaded
+        # from disk on demand for preview only.
         image_path = str(Path(self.base_dir) / 'sessions' / str(capture.session_id) / 'captures' / capture.image_path)
-        source = QPixmap(image_path)
+        thumb = self._load_thumbnail(image_path)
 
-        if source.isNull():
+        if thumb is None:
             capture_image = QLabel("[No image]")
             capture_image.setAlignment(Qt.AlignmentFlag.AlignTop)
         else:
-            thumb = source.scaledToWidth(THUMBNAIL_WIDTH, Qt.TransformationMode.SmoothTransformation) if source.width() > THUMBNAIL_WIDTH else source
             capture_image = ScalableImageLabel(thumb)
             capture_image.setCursor(Qt.CursorShape.PointingHandCursor)
             capture_image.mousePressEvent = lambda _e, p=image_path: self._show_full_image(p)
-        # `source` is released when this scope ends, freeing the full-res pixmap.
 
         # Text — render any LaTeX math spans to Unicode so symbols (∈, ℕ, ⊕ …)
         # show instead of raw "\in \mathbb{N}". Prose outside $...$ is untouched.
@@ -177,20 +192,13 @@ class OCRPanel(QWidget):
         self.ocr_button.setDisabled(not self.has_content())
 
     def _show_full_image(self, image_path: str) -> None:
+        # Full-resolution preview with zoom + pan in a freely resizable window
+        # (decoded full-size here, on demand — the feed only keeps a thumbnail).
         pixmap = QPixmap(image_path)
         if pixmap.isNull():
             return
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Image Preview")
-        layout = QVBoxLayout(dialog)
-        label = QLabel()
-        screen = QGuiApplication.primaryScreen().availableGeometry()
-        label.setPixmap(pixmap.scaled(
-            int(screen.width() * 0.8), int(screen.height() * 0.8),
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation
-        ))
-        layout.addWidget(label)
+        from ui.image_preview import ImagePreviewDialog
+        dialog = ImagePreviewDialog(pixmap, self)
         dialog.exec()
     
     def clear_captures(self) -> None:

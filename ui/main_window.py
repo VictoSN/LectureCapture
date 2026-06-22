@@ -88,8 +88,12 @@ class MainWindow(FramelessMainWindow):
         self.DEFAULT_START_SOUND = str(BUNDLED_SOUNDS_DIR / 'Beep 1 (Default).wav')
         self.DEFAULT_STOP_SOUND = str(BUNDLED_SOUNDS_DIR / 'Chirp 1 (Default).wav')
 
-        start_path = self.settings.value("start_sound", self.DEFAULT_START_SOUND)
-        stop_path = self.settings.value("stop_sound", self.DEFAULT_STOP_SOUND)
+        # Use `or DEFAULT` rather than only the QSettings fallback: when the user (or an
+        # earlier save) stored an empty string — what "None" persists as — the key exists,
+        # so settings.value() returns "" and setSource("") yields a silent, invalid source.
+        # Falling back to the default keeps a working start/stop sound.
+        start_path = self.settings.value("start_sound") or self.DEFAULT_START_SOUND
+        stop_path = self.settings.value("stop_sound") or self.DEFAULT_STOP_SOUND
         
         self.start_audio = QSoundEffect()
         self.start_audio.setSource(QUrl.fromLocalFile(start_path))
@@ -564,6 +568,9 @@ class MainWindow(FramelessMainWindow):
         has_content = self.transcript_panel.ocr_panel.has_content() or self.transcript_panel.speech_panel.has_content()
         self.transcript_panel.summary_panel.summary_button.setDisabled(not has_content)
         self.transcript_panel.summary_panel.summary.setReadOnly(not has_content)
+        # Quiz needs a summary, which a fresh recording doesn't have yet — keep it disabled
+        # (with an explanatory tooltip) until the user generates one.
+        self.transcript_panel.set_quiz_available(bool(self.current_session.summary))
         
         # Shortcut
         self.create_session_shortcut.setEnabled(True)
@@ -748,6 +755,9 @@ class MainWindow(FramelessMainWindow):
         button.setText("Summarize")
         self._set_summarizing(False)
         self._summarize_worker = None
+        # _set_summarizing(False) re-enables the quiz button as part of unlocking; gate it
+        # back on whether a summary actually resulted (a failed/cancelled summary leaves none).
+        self.transcript_panel.set_quiz_available(bool(self.current_session and self.current_session.summary))
 
     def _set_summarizing(self, busy: bool) -> None:
         """Lock the app down while a summary is generating so nothing can mutate the
@@ -802,6 +812,18 @@ class MainWindow(FramelessMainWindow):
         except Exception:
             return None
 
+    def _parse_saved_answers(self) -> list | None:
+        """The user's stored answers for the saved quiz, or None if there are none
+        (older quizzes saved before answers were persisted -> Review shows the key only)."""
+        raw = self.current_session.quiz_answers if self.current_session else None
+        if not raw:
+            return None
+        try:
+            data = json.loads(raw)
+            return data if isinstance(data, list) else None
+        except Exception:
+            return None
+
     def on_quiz_clicked(self) -> None:
         if not self.current_session or self.is_recording:
             return
@@ -818,7 +840,11 @@ class MainWindow(FramelessMainWindow):
         self._quiz_hash = source_hash(self._quiz_text)
 
         saved = self._parse_saved_quiz()
-        self.quiz_panel.set_saved_quiz(saved, self.current_session.quiz_score if saved else None)
+        self.quiz_panel.set_saved_quiz(
+            saved,
+            self.current_session.quiz_score if saved else None,
+            self._parse_saved_answers() if saved else None,
+        )
         if saved:
             changed = self.current_session.quiz_source_hash != self._quiz_hash
             self.quiz_panel.configure_intro(True, self.current_session.quiz_score, len(saved), changed)
@@ -847,6 +873,7 @@ class MainWindow(FramelessMainWindow):
         self.current_session.quiz_source_hash = self._quiz_hash
         self.current_session.quiz_score = None
         self.current_session.quiz_generated_at = datetime.now()
+        self.current_session.quiz_answers = None  # fresh quiz -> no recorded answers yet
         self.storage.save_quiz(self.current_session.id, self.current_session.quiz, self._quiz_hash)
         self.quiz_panel.set_saved_quiz(questions, None)
         self.quiz_panel.load_questions(questions)
@@ -860,8 +887,12 @@ class MainWindow(FramelessMainWindow):
     def on_quiz_completed(self, score: int, total: int) -> None:
         if not self.current_session:
             return
+        # Persist the score AND the per-question answers so Review can show what the
+        # user got wrong (see QuizPanel.current_answers / _review_existing).
+        answers_json = json.dumps(self.quiz_panel.current_answers())
         self.current_session.quiz_score = score
-        self.storage.update_quiz_score(self.current_session.id, score)
+        self.current_session.quiz_answers = answers_json
+        self.storage.update_quiz_result(self.current_session.id, score, answers_json)
 
     def on_quiz_exit(self) -> None:
         if self.quiz_panel.is_answering():
@@ -938,6 +969,9 @@ class MainWindow(FramelessMainWindow):
         self.is_properties_open = not self.is_properties_open
         self.properties_panel.setVisible(self.is_properties_open)
         self.storage.delete_session(self.current_session.id)
+        # The open session no longer exists; drop the reference so later actions don't
+        # operate on a deleted session.
+        self.current_session = None
         self.sidebar.refresh(self.storage.get_all_sessions())
         self.sidebar.update_categories(self._session_categories(), self.storage.get_group_categories())
         self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
@@ -964,6 +998,9 @@ class MainWindow(FramelessMainWindow):
             self.storage.update_speech_text(id, text)
         elif option == 3:
             self.current_session.summary = text
+            # Quiz is gated on having a summary — so emptying it must re-disable the quiz
+            # button (and restoring text re-enable it).
+            self.transcript_panel.set_quiz_available(bool(text and text.strip()))
 
         self.storage.update_session(self.current_session)
         # Note: the sidebar/settings session lists are intentionally NOT rebuilt
@@ -1197,9 +1234,15 @@ class MainWindow(FramelessMainWindow):
         self.recording_panel.setVisible(panel == "recording")
         self.quiz_panel.setVisible(panel == "quiz")
         self.help_panel.setVisible(panel == "help")
-        # Keep the help flag in sync no matter how the panel was left (e.g. the user
-        # opened Settings while help was showing), so its toggle button stays correct.
+        # Make show_panel the single source of truth for which workspace panel is open.
+        # Previously only is_help_open was synced here, so switching directly between
+        # panels (e.g. Settings -> Help) left is_settings_open stale at True; the next
+        # Settings click then read that stale flag and toggled to the transcript instead
+        # of showing Settings. Syncing every flag to the actual target panel fixes that.
+        self.is_settings_open = (panel == "settings")
+        self.is_new_session_open = (panel == "new_session")
         self.is_help_open = (panel == "help")
+        self.is_properties_open = (panel == "properties")
 
         if self.properties_panel:
             # Properties shows alongside transcript

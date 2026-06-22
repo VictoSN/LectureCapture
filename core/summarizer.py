@@ -1,11 +1,11 @@
 import re
 
-from sumy.parsers.plaintext import PlaintextParser
-from sumy.nlp.tokenizers import Tokenizer
-from sumy.summarizers.lsa import LsaSummarizer
-from sumy.nlp.stemmers import Stemmer
-
 from PyQt6.QtCore import QThread, pyqtSignal
+
+# NOTE: sumy is imported lazily inside summarize_local (not at module top). It pulls in
+# nltk + requests + urllib3 — ~0.4s — and this module is imported at startup via
+# main_window, yet local summarization is an on-demand feature most sessions never use.
+# Deferring the import keeps that cost off every app launch. See tests/PERFORMANCE.md.
 
 LANGUAGE = "english"
 
@@ -27,6 +27,13 @@ def strip_code_fence(text: str) -> str:
     return text
 
 def summarize_local(text: str, sentences: int = 5) -> str:
+    # Imported here, not at module top, so the heavy sumy/nltk stack only loads when a
+    # local summary is actually generated (see note above).
+    from sumy.parsers.plaintext import PlaintextParser
+    from sumy.nlp.tokenizers import Tokenizer
+    from sumy.summarizers.lsa import LsaSummarizer
+    from sumy.nlp.stemmers import Stemmer
+
     summary = ""
     parser = PlaintextParser.from_string(text, Tokenizer(LANGUAGE))
     stemmer = Stemmer(LANGUAGE)

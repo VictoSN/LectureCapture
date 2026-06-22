@@ -311,16 +311,27 @@ class TranscriptPanel(QWidget):
         # that settles so rows match the actual panel width (and can shrink).
         self._resync_timer.start()
         
-        #  Lock summary + quiz buttons if no content is available
+        #  Summarize needs content; Quiz needs a generated summary (it tests on the
+        #  lecture material the summary distils). Gate each accordingly.
         has_content = self.ocr_panel.has_content() or self.speech_panel.has_content()
         self.summary_panel.summary_button.setDisabled(not has_content)
         self.summary_panel.summary.setReadOnly(not has_content)
-        self.quiz_button.setDisabled(not has_content)
-        
+        self.set_quiz_available(bool(session.summary))
+
         if session.summary:
             self.summary_panel.set_summary(session.summary)
         else:
             self.summary_panel.clear_summary()
+
+    def set_quiz_available(self, available: bool) -> None:
+        """Quiz requires a summary to exist first (see the Quiz help chapter). Reflect that
+        in the button state AND the tooltip so it's clear why it's disabled — otherwise the
+        button silently does nothing after a recording until a summary is made."""
+        self.quiz_button.setDisabled(not available)
+        self.quiz_button.setToolTip(
+            "Generate a quiz from this session"
+            if available else "Generate a summary first, then you can create a quiz"
+        )
             
     def set_session_locked(self, locked: bool) -> None:
         self.properties_button.setDisabled(locked)
@@ -361,6 +372,9 @@ class TranscriptPanel(QWidget):
     
     def clear_panels(self) -> None:
         self.set_session_locked(True)
+        # Reset the header back to the placeholder — otherwise deleting the open session
+        # (or all sessions) leaves its name stranded in the title bar.
+        self.session_name.setText("Select a session")
         self.ocr_panel.clear_captures()
         self.speech_panel.clear_captures()
         self.summary_panel.clear_summary()

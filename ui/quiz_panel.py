@@ -28,6 +28,7 @@ class QuizPanel(QWidget):
         self._option_group: QButtonGroup | None = None
         self._saved_questions: list[dict] = []
         self._saved_score = None
+        self._saved_answers: list = []   # chosen option per question from the last attempt
 
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 20, 24, 20)
@@ -56,6 +57,9 @@ class QuizPanel(QWidget):
         QShortcut(QKeySequence(Qt.Key.Key_Return), self, activated=self._kb_next)
         QShortcut(QKeySequence(Qt.Key.Key_Enter), self, activated=self._kb_next)   # numpad Enter
         QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self._kb_prev)
+        # Up/Down move (and select) the answer option while answering.
+        QShortcut(QKeySequence(Qt.Key.Key_Up), self, activated=lambda: self._kb_select(-1))
+        QShortcut(QKeySequence(Qt.Key.Key_Down), self, activated=lambda: self._kb_select(1))
 
     # ---- pages -----------------------------------------------------------
 
@@ -185,7 +189,8 @@ class QuizPanel(QWidget):
             scored = last_score is not None
             parts = []
             if scored:
-                parts.append(f"Last score: {last_score}/{total}.")
+                pct = round(last_score / total * 100) if total else 0
+                parts.append(f"Last score: {last_score}/{total} ({pct}%).")
             if content_changed:
                 parts.append("This session's content has changed since the quiz was made — "
                              "regenerate for an up-to-date quiz.")
@@ -203,10 +208,16 @@ class QuizPanel(QWidget):
             self.generate_button.setText("Generate Quiz")
         self.stack.setCurrentIndex(0)
 
-    def set_saved_quiz(self, questions: list, last_score) -> None:
-        """Hand the panel the saved quiz so Review/Retake work without regenerating."""
+    def set_saved_quiz(self, questions: list, last_score, answers=None) -> None:
+        """Hand the panel the saved quiz so Review/Retake work without regenerating.
+        `answers` (optional) are the chosen option indices from the last attempt."""
         self._saved_questions = list(questions or [])
         self._saved_score = last_score
+        self._saved_answers = list(answers) if answers else []
+
+    def current_answers(self) -> list:
+        """Chosen option index per question for the current attempt (None = unanswered)."""
+        return list(self._answers)
 
     def set_loading(self) -> None:
         self.loading_engine.setText("")
@@ -247,6 +258,25 @@ class QuizPanel(QWidget):
         else:                                     # elsewhere → leave the quiz
             self.exit_requested.emit()
 
+    def _kb_select(self, delta: int) -> None:
+        """Move the selected answer option by `delta` (and record it) while answering.
+        From no selection, Down picks the first option and Up the last."""
+        if not self.is_answering() or self._option_group is None:
+            return
+        buttons = self._option_group.buttons()
+        if not buttons:
+            return
+        current = self._option_group.checkedId()
+        if current < 0:
+            new_id = 0 if delta > 0 else len(buttons) - 1
+        else:
+            new_id = max(0, min(len(buttons) - 1, current + delta))
+        button = self._option_group.button(new_id)
+        if button:
+            # setChecked() doesn't fire idClicked, so record the answer ourselves.
+            button.setChecked(True)
+            self._on_option(new_id)
+
     # ---- intro actions ---------------------------------------------------
 
     def _retake(self) -> None:
@@ -257,8 +287,12 @@ class QuizPanel(QWidget):
         if not self._saved_questions:
             return
         self._questions = list(self._saved_questions)
-        self._answers = [None] * len(self._questions)   # per-answer choices aren't saved
-        self._build_results(self._saved_score, show_user_answers=False)
+        # Use the saved per-question choices when we have a set that lines up with the
+        # questions; otherwise (older quizzes saved before answers were stored) fall back
+        # to showing just the answer key.
+        have_answers = len(self._saved_answers) == len(self._questions)
+        self._answers = list(self._saved_answers) if have_answers else [None] * len(self._questions)
+        self._build_results(self._saved_score, show_user_answers=have_answers)
         self.stack.setCurrentIndex(3)
 
     # ---- answering -------------------------------------------------------

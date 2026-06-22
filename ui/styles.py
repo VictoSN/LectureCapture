@@ -50,7 +50,9 @@ class NoLeakTextEdit(QTextEdit):
     """
     lookup_requested = pyqtSignal(str, str, str)
 
-    def contextMenuEvent(self, event):
+    def _build_context_menu(self):
+        # Built separately from contextMenuEvent so it can be inspected in tests without
+        # the blocking menu.exec().
         menu = self.createStandardContextMenu()  # keep Copy / Select All / etc.
         selected = self.textCursor().selectedText().replace("\u2029", "\n").strip()
         if selected:
@@ -65,7 +67,10 @@ class NoLeakTextEdit(QTextEdit):
             translate_menu.addSeparator()
             other_act = translate_menu.addAction("Other…")
             other_act.triggered.connect(lambda *_: self.lookup_requested.emit(selected, "translate", ""))
-        menu.exec(event.globalPos())
+        return menu
+
+    def contextMenuEvent(self, event):
+        self._build_context_menu().exec(event.globalPos())
 
     def wheelEvent(self, event):
         bar = self.verticalScrollBar()
@@ -123,31 +128,48 @@ def refresh_icons(root: QWidget, theme: str = None) -> None:
             size = getattr(widget, "_icon_size", 14)
             widget.setPixmap(load_icon(path, theme).pixmap(size, size))
 
+# Recolored icons are identical for a given (path, dark/light) and were being rebuilt
+# (QPixmap load + a QPainter recolor pass) for every button/row that used them — e.g. the
+# delete + minimize icons recolored once per capture row on session load. Cache the result
+# (QIcon is implicitly shared, so handing the same instance to many widgets is fine). A
+# theme change uses a different key, so refresh_icons() still re-resolves correctly.
+_icon_cache: dict[tuple[str, bool], QIcon] = {}
+
+
 def load_icon(icon_path: str | Path, theme: str = None) -> QIcon:
     name = Path(icon_path).name
     if name in ("light_mode.svg", "dark_mode.svg", "red_dot.svg"):
         return QIcon(str(icon_path))
-    
+
     if not theme:
-        settings = QSettings("LectureCapture", "LectureCapture")    
+        settings = QSettings("LectureCapture", "LectureCapture")
         dark_mode = check_theme(str(settings.value("theme", "auto")))
     elif theme == "auto":
         dark_mode = check_theme(get_system_theme())
     else:
         dark_mode = check_theme(theme)
-    
+
+    key = (str(icon_path), dark_mode)
+    cached = _icon_cache.get(key)
+    if cached is not None:
+        return cached
+
     pixmap = QPixmap(str(icon_path))
     if not dark_mode:
-        return QIcon(pixmap)
-    white_pixmap = QPixmap(pixmap.size())
-    white_pixmap.fill(Qt.GlobalColor.transparent)
-    
-    painter = QPainter(white_pixmap)
-    painter.drawPixmap(0, 0, pixmap)
-    painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
-    painter.fillRect(white_pixmap.rect(), QColor("white"))
-    painter.end()
-    return QIcon(white_pixmap)
+        icon = QIcon(pixmap)
+    else:
+        white_pixmap = QPixmap(pixmap.size())
+        white_pixmap.fill(Qt.GlobalColor.transparent)
+
+        painter = QPainter(white_pixmap)
+        painter.drawPixmap(0, 0, pixmap)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+        painter.fillRect(white_pixmap.rect(), QColor("white"))
+        painter.end()
+        icon = QIcon(white_pixmap)
+
+    _icon_cache[key] = icon
+    return icon
 
 def create_label(icon_path: str | Path, text: str) -> tuple[QWidget, QLabel]:
     w = QWidget()

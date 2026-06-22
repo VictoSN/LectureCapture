@@ -3,9 +3,12 @@ import time
 import queue
 import threading
 
-import sounddevice as sd
-import soundfile as sf
 import numpy as np
+
+# sounddevice (PortAudio) and soundfile are imported lazily inside the methods that use
+# them — NOT here. Importing sounddevice costs ~0.5s (PortAudio init) and this module is
+# imported at app startup via main_window, yet audio devices are only touched once a
+# recording actually runs. Deferring keeps that cost off every launch (tests/PERFORMANCE.md).
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
@@ -90,6 +93,7 @@ class AudioWorker(QThread):
     # ---- device selection ----------------------------------------------
 
     def find_loopback_device(self):
+        import sounddevice as sd
         devices = sd.query_devices()
         for i, device in enumerate(devices):
             if device["max_input_channels"] > 0:
@@ -105,6 +109,7 @@ class AudioWorker(QThread):
         return None
 
     def _resolve_input(self):
+        import sounddevice as sd
         device = self.find_loopback_device() if self.device_type == "loopback" else self.device_id
         try:
             info = sd.query_devices(device, "input")
@@ -143,6 +148,7 @@ class AudioWorker(QThread):
         print("[Audio] no usable audio input")
 
     def _run_stream(self, device, channels) -> None:
+        import sounddevice as sd
         frames_per_chunk = int(self.interval * RECORD_SAMPLE_RATE)
         cb_queue: queue.Queue = queue.Queue()
 
@@ -227,6 +233,7 @@ class AudioWorker(QThread):
 
     def _to_wav_bytes_16k(self, audio: np.ndarray) -> bytes:
         """Resample to 16kHz and encode as WAV. ~5× smaller than 44100Hz."""
+        import soundfile as sf
         buf = io.BytesIO()
         sf.write(buf, self._to_16k_array(audio), WHISPER_SAMPLE_RATE, format="WAV", subtype="PCM_16")
         return buf.getvalue()

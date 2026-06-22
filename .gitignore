@@ -222,3 +222,7 @@ __marimo__/
 installer/
 err.txt
 out.txt
+
+# Local unit-test suite + tracking docs (dev-only, not part of the shipped app)
+tests/
+pytest.ini

@@ -464,7 +464,7 @@ class SettingsPanel(QWidget):
         no_wheel(self.export_dropdown)
         export_layout.addWidget(self.export_dropdown)
         
-        self.export_button = create_button(icons_dir / "export.svg", lambda: self.export_clicked.emit(self.export_dropdown.currentData()), width=90)
+        self.export_button = create_button(icons_dir / "export.svg", self._emit_export, width=90)
         self.export_button.setToolTip("Export selected session")
         export_layout.addWidget(self.export_button)
 
@@ -625,8 +625,11 @@ class SettingsPanel(QWidget):
                 self.start_sound_dropdown.addItem(wav.name, str(wav))
                 self.stop_sound_dropdown.addItem(wav.name, str(wav))
         
-        saved_start = self.settings.value("start_sound", str(self.bundled_sounds_dir / 'Beep 1 (Default).wav'))
-        saved_stop = self.settings.value("stop_sound", str(self.bundled_sounds_dir / 'Chirp 1 (Default).wav'))
+        # `or default`: a stored empty string ("None") falls back to the default so the
+        # dropdown shows a real sound instead of silently sitting on "None" (matches the
+        # default applied in MainWindow's audio setup).
+        saved_start = self.settings.value("start_sound") or str(self.bundled_sounds_dir / 'Beep 1 (Default).wav')
+        saved_stop = self.settings.value("stop_sound") or str(self.bundled_sounds_dir / 'Chirp 1 (Default).wav')
 
         for saved, dropdown in [(saved_start, self.start_sound_dropdown), (saved_stop, self.stop_sound_dropdown)]:
             if saved:
@@ -691,10 +694,21 @@ class SettingsPanel(QWidget):
                 self.start_sound_dropdown.addItem(Path(path).name, str(dst))
                 self.stop_sound_dropdown.addItem(Path(path).name, str(dst))
     
+    def _emit_export(self) -> None:
+        # currentData() is None when the dropdown is empty (no sessions). export_clicked
+        # is typed pyqtSignal(int), so emitting None raises TypeError and crashes the app —
+        # guard it so clicking Export with nothing to export is a no-op.
+        session_id = self.export_dropdown.currentData()
+        if session_id is not None:
+            self.export_clicked.emit(session_id)
+
     def refresh_sessions(self, sessions: list[Session]) -> None:
         self.export_dropdown.clear()
         for session in sessions:
             self.export_dropdown.addItem(session.name, session.id)
+        # Nothing to export when there are no sessions; disable the button so the
+        # empty-selection path can't even be reached.
+        self.export_button.setDisabled(len(sessions) == 0)
     
     def reload_sources(self) -> None:
         # Re-enumerate monitors/windows and audio devices so the dropdowns reflect
