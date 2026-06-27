@@ -128,8 +128,8 @@ class TranscriptPanel(QWidget):
         clock_w, self.recording_time_label = create_label(icons_dir / 'clock.svg', '00:00')
         saved_w, self.saved_label = create_label(icons_dir / 'save.svg', 'Saved')
         ocr_w, self.ocr_engine_label = create_label(icons_dir / 'scan.svg', 'pytesseract')
-        speech_w, self.speech_engine_label = create_label(icons_dir / 'microphone.svg', 'faster-whisper')
-        summary_w, self.summarize_engine_label = create_label(icons_dir / 'summarize.svg', 'sumy')
+        speech_w, self.speech_engine_label = create_label(icons_dir / 'microphone.svg', '')
+        summary_w, self.summarize_engine_label = create_label(icons_dir / 'summarize.svg', '')
 
         for w in [clock_w, saved_w, ocr_w, speech_w, summary_w]:
             footer.addWidget(w)

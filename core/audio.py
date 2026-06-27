@@ -8,48 +8,33 @@ import numpy as np
 # sounddevice (PortAudio) and soundfile are imported lazily inside the methods that use
 # them — NOT here. Importing sounddevice costs ~0.5s (PortAudio init) and this module is
 # imported at app startup via main_window, yet audio devices are only touched once a
-# recording actually runs. Deferring keeps that cost off every launch (tests/PERFORMANCE.md).
+# recording actually runs. Deferring keeps that cost off every launch.
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
 RECORD_SAMPLE_RATE = 44100
-# faster-whisper wants 16 kHz mono; resampling there cuts both local decode work
-# and the API payload size (~5× smaller than 44.1 kHz).
+# 16 kHz mono cuts the API payload size ~5× compared to 44.1 kHz.
 WHISPER_SAMPLE_RATE = 16000
-# After an API failure (e.g. a rate limit) stop calling the API for this long
-# before trying again, so a transient 429 doesn't permanently fall back to local.
+# After an API failure stop calling the API for this long before trying again.
 API_COOLDOWN_SECONDS = 60
 # Caps how many recorded chunks may wait for transcription (bounds memory).
 MAX_PENDING_CHUNKS = 5
-# Chunks whose RMS level is below this are treated as silence and NOT transcribed,
-# which stops Whisper/Gemini from hallucinating gibberish over quiet/empty audio.
+# Chunks whose RMS level is below this are treated as silence and NOT sent to
+# the API, which stops Gemini from hallucinating gibberish over quiet audio.
 SILENCE_RMS_THRESHOLD = 0.005
-
-# Local Whisper model per device. On a CUDA GPU we can afford a large, highly
-# accurate English model in real time (distil-large-v3 ≈ large-v3 accuracy at a
-# fraction of the cost); on CPU we fall back to the fast English tiny model.
-# English-only, so transcription is always English without extra config.
-CPU_WHISPER_MODEL = "tiny.en"
-
-# Out-of-the-box model when the user hasn't picked one. A balanced "medium" default
-# (good accuracy, real-time on a GPU and most CPUs); Detect Hardware in Settings can
-# recommend/apply a better one for the detected device. (The retired "auto" value is
-# still handled below as a safety net for settings saved by older builds.)
-DEFAULT_SPEECH_MODEL = "small.en"
 
 
 class AudioWorker(QThread):
     chunk_ready = pyqtSignal(float, str)
     # Emitted when a (non-silent) chunk starts transcribing, so the UI can show a
-    # "transcribing…" placeholder on the slide the speech will land on. The matching
-    # chunk_ready (same timestamp) clears it.
+    # "transcribing…" placeholder on the slide the speech will land on.
     chunk_pending = pyqtSignal(float)
     engine_fallback = pyqtSignal(str)
     # An API attempt failed mid-recording. Carries a status from core.api_errors
     # ("invalid_key" | "no_connection" | "other") so the UI can warn the user.
     api_error = pyqtSignal(str)
 
-    def __init__(self, session_id: int, base_dir: str, interval: int, device, start_time, offset: int, speech_api_key: str = "", speech_model: str = DEFAULT_SPEECH_MODEL) -> None:
+    def __init__(self, session_id: int, base_dir: str, interval: int, device, start_time, offset: int, speech_api_key: str = "") -> None:
         super().__init__()
         self._running = True
 
@@ -57,22 +42,10 @@ class AudioWorker(QThread):
         self.base_dir = base_dir
         self.interval = interval
         self.speech_api_key = speech_api_key
-        # Which local Whisper model to use. A concrete id (e.g. "small.en"); a legacy
-        # "auto" is still accepted and resolved per-device in _ensure_model.
-        self.speech_model = speech_model or DEFAULT_SPEECH_MODEL
 
         # API fallback state — cooldown-based instead of permanently sticky.
         self._api_cooldown_until = 0.0
         self._last_engine = self.engine_name
-
-        # Whisper is loaded lazily, only if/when local transcription actually runs.
-        self.model = None
-        # Set once the local model is loaded, so the footer can show GPU vs CPU.
-        self._local_engine_label = "faster-whisper"
-        # Once the GPU model load has failed we stop re-attempting it on every chunk.
-        # Without this, a failed load left self.model=None and each following chunk re-ran
-        # the whole GPU path, flapping the footer between the GPU model and CPU fallback.
-        self._gpu_disabled = False
 
         # Decode the device selection (may be int, dict, or None).
         if isinstance(device, dict):
@@ -90,7 +63,7 @@ class AudioWorker(QThread):
 
         # Recorded chunks waiting to be transcribed. A consumer thread drains this
         # so capture (which runs continuously in the audio callback) never pauses
-        # while a chunk is transcribed.
+        # while a chunk is being sent to the API.
         self._queue: queue.Queue = queue.Queue(maxsize=MAX_PENDING_CHUNKS)
         self._consumer = None
 
@@ -160,8 +133,6 @@ class AudioWorker(QThread):
             mono = indata.mean(axis=1) if (indata.ndim > 1 and indata.shape[1] > 1) else indata.reshape(-1)
             cb_queue.put(mono.copy())
 
-        # The stream is opened AND closed on this thread (the context manager),
-        # so there are no cross-thread sounddevice calls to crash PortAudio.
         with sd.InputStream(samplerate=RECORD_SAMPLE_RATE, channels=channels, device=device, dtype="float32", callback=callback):
             blocks, blen = [], 0
             while self._running:
@@ -188,24 +159,15 @@ class AudioWorker(QThread):
     # ---- transcription (consumer) --------------------------------------
 
     def _consume(self) -> None:
-        # When local is the speech engine, load + warm the model now (on this
-        # thread) so the slow first-inference CUDA warmup overlaps with the first
-        # chunk being recorded, instead of stalling that chunk's transcription.
-        if not self.speech_api_key:
-            try:
-                self._ensure_model()
-            except Exception as e:
-                print(f"[Audio] model preload failed: {e}")
         while True:
             item = self._queue.get()
             if item is None:
                 break
             audio, chunk_start = item
             if self._is_silent(audio):
-                text = ""  # don't transcribe silence (avoids hallucinated gibberish)
+                text = ""
                 print(f"[Audio timing] chunk@{chunk_start:.1f}s skipped (silent)")
             else:
-                # Tell the UI a chunk for this moment is being transcribed.
                 self.chunk_pending.emit(chunk_start)
                 t0 = time.time()
                 try:
@@ -214,10 +176,6 @@ class AudioWorker(QThread):
                     print(f"[Audio] transcription error: {e}")
                     text = ""
                 print(f"[Audio timing] chunk@{chunk_start:.1f}s transcribed in {time.time()-t0:.2f}s")
-            # Attach this speech to the slide on screen when the audio window STARTED.
-            # Using chunk_start (not chunk_start+interval) means we look up whatever
-            # slide was active when the person began speaking, which is almost always
-            # the right one — even if a transition happened near the end of the chunk.
             self.chunk_ready.emit(chunk_start, text)
 
     def _is_silent(self, audio: np.ndarray) -> bool:
@@ -249,22 +207,19 @@ class AudioWorker(QThread):
         return f"[{m}:{s:02d}]"
 
     def _transcribe(self, audio: np.ndarray, chunk_start: float) -> str:
-        if self._api_available():
-            try:
-                # Send a downsampled 16kHz WAV — ~5× smaller payload than 44100Hz,
-                # which significantly cuts Gemini API round-trip latency.
-                text, model = self._transcribe_api(self._to_wav_bytes_16k(audio), chunk_start)
-                from core.gemini import pretty_model
-                self._emit_engine(pretty_model(model))
-                return text
-            except Exception as e:
-                print(f"[Audio] API failed ({e}); using local for ~{API_COOLDOWN_SECONDS}s")
-                self._api_cooldown_until = time.time() + API_COOLDOWN_SECONDS
-                from core.api_errors import classify_api_error
-                self.api_error.emit(classify_api_error(e))
-        text = self._transcribe_local(audio, chunk_start)
-        self._emit_engine(self._local_engine_label)
-        return text
+        if not self._api_available():
+            return ""
+        try:
+            text, model = self._transcribe_api(self._to_wav_bytes_16k(audio), chunk_start)
+            from core.gemini import pretty_model
+            self._emit_engine(pretty_model(model))
+            return text
+        except Exception as e:
+            print(f"[Audio] API failed ({e}); cooling down for ~{API_COOLDOWN_SECONDS}s")
+            self._api_cooldown_until = time.time() + API_COOLDOWN_SECONDS
+            from core.api_errors import classify_api_error
+            self.api_error.emit(classify_api_error(e))
+            return ""
 
     def _api_available(self) -> bool:
         return bool(self.speech_api_key) and time.time() >= self._api_cooldown_until
@@ -273,88 +228,6 @@ class AudioWorker(QThread):
         if name != self._last_engine:
             self._last_engine = name
             self.engine_fallback.emit(name)
-
-    def _ensure_model(self):
-        if self.model is not None:
-            return self.model
-        from faster_whisper import WhisperModel
-        from core.models import ensure_model
-        from core.applog import get_logger
-        log = get_logger()
-
-        # The chosen model is honoured on whichever device is available. A legacy
-        # "auto" (from settings saved by older builds) resolves per-device below
-        # (big on GPU, tiny on CPU); new installs always store a concrete model.
-        chosen = self.speech_model if self.speech_model != "auto" else None
-
-        # Prefer the GPU: a CUDA device lets us run a large, accurate English model in
-        # real time. "Device present" doesn't guarantee the cuBLAS/cuDNN runtime
-        # actually loads (e.g. unsupported GPU), so we fall back to CPU if it raises.
-        from core.cuda_setup import prepare_cuda
-        if prepare_cuda() and not self._gpu_disabled:
-            # "Automatic" → best model for the detected GPU's VRAM (not always the biggest).
-            from core.hardware import auto_gpu_model
-            model_id = chosen or auto_gpu_model()
-            # On first use this downloads the model (can be hundreds of MB) before it
-            # loads — surface that so the empty transcript doesn't look like a freeze.
-            self._emit_engine(f"faster-whisper · loading {model_id}…")
-            # Make sure model.bin is fully on disk *before* handing it to CUDA — a partial /
-            # broken-symlink cache is what masqueraded as a CUDA failure on first launch.
-            model_dir = ensure_model(model_id, log)
-            if model_dir is not None:
-                try:
-                    t0 = time.time()
-                    model = WhisperModel(model_dir, device="cuda", compute_type="float16")
-                    self._warmup(model)
-                    log.info("loaded %s on GPU in %.1fs", model_id, time.time() - t0)
-                    self.model = model
-                    self._local_engine_label = f"faster-whisper · {model_id} · GPU"
-                    self._emit_engine(self._local_engine_label)
-                    return self.model
-                except Exception as e:
-                    log.warning("GPU model load failed (%s); falling back to CPU", e)
-            else:
-                log.warning("GPU model %s unavailable (download/cache); trying CPU", model_id)
-            self._gpu_disabled = True  # don't re-attempt GPU on every chunk (footer flap)
-
-        # CPU fallback (int8, greedy). "auto" → tiny.en, else the user's choice (which
-        # may be slow on CPU — that's their call; the UI flags GPU-oriented models).
-        model_id = chosen or CPU_WHISPER_MODEL
-        self._emit_engine(f"faster-whisper · loading {model_id}…")
-        model_dir = ensure_model(model_id, log)
-        if model_dir is None:
-            # Both paths failed to get the model on disk — almost always offline with an
-            # empty cache. Raise instead of silently re-looping every chunk.
-            log.error("CPU model %s unavailable (offline / broken cache)", model_id)
-            self._emit_engine("faster-whisper · model unavailable (offline?)")
-            raise RuntimeError(f"speech model {model_id} unavailable")
-        self.model = WhisperModel(model_dir, device="cpu", compute_type="int8")
-        self._local_engine_label = f"faster-whisper · {model_id} · CPU"
-        self._emit_engine(self._local_engine_label)
-        return self.model
-
-    def _warmup(self, model) -> None:
-        # First CUDA inference JITs kernels / autotunes cuDNN (several seconds). Run a
-        # short dummy clip (no VAD, so the encoder definitely runs) to pay that cost
-        # up front rather than on the user's first real chunk.
-        dummy = (np.random.randn(WHISPER_SAMPLE_RATE).astype(np.float32)) * 0.01
-        list(model.transcribe(dummy, beam_size=1, language="en")[0])
-
-    def _transcribe_local(self, audio: np.ndarray, chunk_start: float) -> str:
-        try:
-            model = self._ensure_model()
-            # Feed a 16 kHz float32 array directly (no WAV encode/decode round-trip).
-            # vad_filter drops non-speech segments (extra hallucination guard).
-            segments, _info = model.transcribe(
-                self._to_16k_array(audio), beam_size=1, language="en", vad_filter=True
-            )
-            out = ""
-            for segment in segments:
-                out += f"{self._fmt_ts(chunk_start + segment.start)} {segment.text.strip()}\n"
-            return out
-        except Exception as e:
-            print(f"[Audio] local transcription error: {e}")
-            return ""
 
     def _transcribe_api(self, wav_bytes: bytes, chunk_start: float) -> tuple[str, str]:
         """Returns (formatted_transcript, model_id)."""
@@ -375,13 +248,11 @@ class AudioWorker(QThread):
 
     @property
     def engine_name(self) -> str:
-        return "gemini" if self.speech_api_key else "faster-whisper"
+        return "gemini" if self.speech_api_key else ""
 
     def stop(self) -> None:
         self._running = False
-        # Drop chunks still waiting to be transcribed so shutdown is quick, then
-        # wake the consumer. The capture loop notices _running and closes its own
-        # stream within ~0.2s — no cross-thread sounddevice calls.
+        # Drop chunks still waiting to be transcribed so shutdown is quick.
         try:
             while True:
                 self._queue.get_nowait()
