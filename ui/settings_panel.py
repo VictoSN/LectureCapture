@@ -135,8 +135,7 @@ class SettingsPanel(QWidget):
         self.gemini_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.api_layout.addWidget(self.gemini_input, 0, 1)
 
-        api_note = QLabel("Get a free key at aistudio.google.com. Required for audio transcription, "
-                          "summarization, Translate / Define, and for OCR in API mode.")
+        api_note = QLabel("Get a free key at 'aistudio.google.com/api-keys'. Required for all the features to work.")
         api_note.setWordWrap(True)
         api_note.setObjectName("muted")
         self.api_layout.addWidget(api_note, 1, 0, 1, 2)
