@@ -2,7 +2,7 @@ import time
 import zipfile, json
 
 from qframelesswindow import FramelessMainWindow
-from PyQt6.QtWidgets import QMessageBox, QFileDialog, QApplication, QInputDialog
+from PyQt6.QtWidgets import QMessageBox, QFileDialog, QApplication, QInputDialog, QDialog
 from ui.grip_splitter import GripSplitter
 from PyQt6.QtGui import QShortcut, QKeySequence, QGuiApplication, QCursor, QIcon
 from PyQt6.QtCore import Qt, QTimer, QUrl, QSettings
@@ -15,7 +15,7 @@ from models.lecture import Session, OCRCapture
 from storage.database import Storage
 from core.resources import resource_root
 from core.ocr import OCRWorker
-from core.audio import AudioWorker, DEFAULT_SPEECH_MODEL
+from core.audio import AudioWorker, MediaImportWorker, DEFAULT_SPEECH_MODEL
 from core.api_errors import SHORT_STATUS
 from core.summarizer import SummarizeWorker
 from core.quiz import QuizWorker, source_hash
@@ -72,6 +72,13 @@ class MainWindow(FramelessMainWindow):
         # call doesn't freeze the UI. Held here so the QThread isn't garbage-collected
         # mid-run, and to prevent overlapping summarize requests.
         self._summarize_worker = None
+
+        # Media-import transcription worker (Issue #9). Held so the QThread isn't GC'd
+        # mid-run and to prevent a second import starting while one is in progress.
+        self._import_worker = None
+        # True while an import is running — lets shared handlers (API-error banner) treat
+        # an import like a recording even though is_recording stays False.
+        self._import_active = False
 
         # True while a speech model is downloading (from the settings dropdown). Local
         # recording is blocked meanwhile because it would stall on the shared model lock.
@@ -190,6 +197,9 @@ class MainWindow(FramelessMainWindow):
         self.transcript_panel.pause_clicked.connect(self.on_pause_clicked)
         self.transcript_panel.summary_panel.summarize_clicked.connect(self.on_summarize_clicked)
         self.transcript_panel.quiz_clicked.connect(self.on_quiz_clicked)
+        self.transcript_panel.import_clicked.connect(self.on_import_media_clicked)
+        self.transcript_panel.import_pause_clicked.connect(self.on_import_pause_clicked)
+        self.transcript_panel.import_stop_clicked.connect(self.on_import_stop_clicked)
         self.transcript_panel.capture_deleted.connect(self.storage.delete_capture)
 
         ## Translate / define on a text selection in any panel
@@ -655,7 +665,145 @@ class MainWindow(FramelessMainWindow):
     def on_record_cancelled(self) -> None:
         self.show_panel("transcript")
         self.is_recording_open = False
-    
+
+    # ---- media import (Issue #9) ---------------------------------------
+
+    def on_import_media_clicked(self) -> None:
+        """Pick a local audio/video file, preview it, and transcribe it into the session.
+
+        The file is split into interval-sized segments; each becomes one capture card with
+        the segment's audio transcribed (local Whisper or Gemini, per Settings) and — for a
+        video — a frame grabbed and OCR'd, exactly like a live recording. A preview dialog
+        lets the user scrub to where transcription should start (skip an intro)."""
+        if not self.current_session:
+            print("Need to select session first")
+            return
+        # Don't allow importing while recording or while another import is running, and
+        # respect the same model-download lock that gates local recording.
+        if self.is_recording or self._import_worker is not None:
+            return
+        if self._local_recording_blocked():
+            QMessageBox.information(
+                self, "Speech model downloading",
+                "A speech model is still downloading. Importing transcribes through the "
+                "same engine, so try again once it finishes — or switch Audio to the "
+                "Gemini API in Settings."
+            )
+            return
+
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import media file", "",
+            "Media files (*.mp3 *.wav *.m4a *.aac *.ogg *.flac *.mp4 *.m4v *.mov *.avi *.mkv *.webm);;All files (*.*)"
+        )
+        if not path:
+            return
+
+        # Preview + pick the start point. Cancel aborts the whole import.
+        from ui.media_import_dialog import MediaImportDialog
+        dialog = MediaImportDialog(path, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        self._start_media_import(path, dialog.start_seconds())
+
+    def _set_import_locked(self, locked: bool) -> None:
+        """Lock the app for an import the same way a live recording does: no session
+        switching, no new session / settings / help / properties, and the nav shortcuts
+        off. The only live controls are the import row's Pause/Stop and the panel toggles."""
+        self.sidebar.set_recording_locked(locked)
+        self.transcript_panel.set_properties_locked(locked)
+        self.titleBar.new_session_button.setDisabled(locked)
+        self.titleBar.settings_button.setDisabled(locked)
+        self.titleBar.help_button.setDisabled(locked)
+        # Disable the shortcuts that would otherwise bypass the locked buttons.
+        self.create_session_shortcut.setEnabled(not locked)
+        self.settings_shortcut.setEnabled(not locked)
+        self.properties_shortcut.setEnabled(not locked)
+        self.recording_shortcut.setEnabled(not locked)
+
+    def _start_media_import(self, path: str, start_offset: float) -> None:
+        # Each segment becomes its own capture card; 10 s gives a sensible card granularity.
+        interval = 10
+        offset = self.current_session.length
+        self._import_active = True
+        self.is_paused = False
+        self.transcript_panel.set_import_active(True)
+        self._set_import_locked(True)
+        self.transcript_panel.clear_connection_warning()
+        # The footer clock tracks how much MEDIA has been transcribed (driven by progress).
+        self.transcript_panel.recording_time_label.setText("00:00")
+
+        self._import_worker = MediaImportWorker(
+            self.current_session.id, self.storage.base_dir, interval, path,
+            time.time(), offset,
+            speech_api_key=self._effective_api_key("speech"),
+            speech_model=str(self.settings.value("speech_model", DEFAULT_SPEECH_MODEL)),
+            ocr_api_key=self._effective_api_key("ocr"),
+            start_offset=start_offset,
+        )
+        # Each finished segment is a normal capture — reuse the recording path that saves it
+        # and adds the card to both panels.
+        self._import_worker.capture_ready.connect(self.on_capture_ready)
+        self._import_worker.progress.connect(self.on_import_progress)
+        self._import_worker.import_finished.connect(self.on_import_finished)
+        self._import_worker.import_failed.connect(self.on_import_failed)
+        # Footer engine labels stay accurate: speech via the inherited signal, OCR via the
+        # import worker's forwarded OCR signal.
+        self._import_worker.engine_fallback.connect(self._on_speech_engine_fallback)
+        self._import_worker.ocr_engine_fallback.connect(self._on_ocr_engine_fallback)
+        self._import_worker.api_error.connect(self._on_api_error)
+        self._import_worker.finished.connect(self._on_import_thread_done)
+        self._import_worker.start()
+
+        # Show the configured engines up front (the workers refine these as they resolve).
+        self.transcript_panel.update_engine_labels(
+            pretty_model(FREQUENT_MODEL_CHAIN[0]) if self._effective_api_key("ocr") else "pytesseract",
+            self._speech_engine_label(),
+        )
+
+    def on_import_progress(self, processed_s: float, total_s: float) -> None:
+        self.transcript_panel.set_import_progress(processed_s, total_s)
+        # Run the footer clock off transcribed-media time so it "counts up" during import.
+        m, s = int(processed_s) // 60, int(processed_s) % 60
+        self.transcript_panel.recording_time_label.setText(f"{m:02}:{s:02}")
+
+    def on_import_pause_clicked(self) -> None:
+        if self._import_worker is None:
+            return
+        self.is_paused = not self.is_paused
+        self._import_worker.set_paused(self.is_paused)
+        self.transcript_panel.set_import_paused(self.is_paused)
+
+    def on_import_stop_clicked(self) -> None:
+        # Stop after the current segment; keeps everything transcribed so far. Teardown
+        # happens in _on_import_thread_done when the worker thread actually exits.
+        if self._import_worker is not None:
+            self._import_worker.stop()
+            self.transcript_panel.import_status.setText("Stopping…")
+
+    def on_import_finished(self, transcribed_s: float) -> None:
+        # Extend the session length by the transcribed span so the timeline (and any later
+        # recording) continues past the imported media.
+        self.current_session.length += int(transcribed_s)
+        self.storage.update_session(self.current_session)
+
+    def on_import_failed(self, message: str) -> None:
+        QMessageBox.warning(self, "Import failed", message)
+
+    def _on_import_thread_done(self) -> None:
+        # Worker thread has fully finished. Tear down and re-enable the UI.
+        self._import_worker = None
+        self._import_active = False
+        self.is_paused = False
+        self.transcript_panel.set_import_active(False)
+        self._set_import_locked(False)
+        self.transcript_panel.recording_time_label.setText("00:00")
+        # An import gives content, so summarize becomes available (quiz still needs a summary).
+        has_content = (self.transcript_panel.ocr_panel.has_content()
+                       or self.transcript_panel.speech_panel.has_content())
+        self.transcript_panel.summary_panel.summary_button.setDisabled(not has_content)
+        self.transcript_panel.summary_panel.summary.setReadOnly(not has_content)
+
+
     def on_capture_ready(self, capture: OCRCapture) -> None:
         self.storage.create_ocr_capture(capture)
         # Attach any speech that arrived before this slide was captured.
@@ -1169,9 +1317,9 @@ class MainWindow(FramelessMainWindow):
         self._maybe_clear_api_warning(engine)
 
     def _on_api_error(self, status: str) -> None:
-        """A worker's API call failed mid-recording — surface it as the red banner.
+        """A worker's API call failed mid-recording/import — surface it as the red banner.
         Guarded so a signal queued just before stop can't raise it afterwards."""
-        if not self.is_recording:
+        if not self.is_recording and not self._import_active:
             return
         self.transcript_panel.show_connection_warning(
             SHORT_STATUS.get(status, "Connection problem")

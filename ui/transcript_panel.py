@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (
-    QWidget, QLabel, QVBoxLayout, QHBoxLayout, QFrame, QPushButton, QSizePolicy
+    QWidget, QLabel, QVBoxLayout, QHBoxLayout, QFrame, QPushButton, QSizePolicy, QProgressBar
 )
 from ui.grip_splitter import GripSplitter
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
@@ -19,6 +19,9 @@ class TranscriptPanel(QWidget):
     capture_deleted = pyqtSignal(int)
     quiz_clicked = pyqtSignal()            # open the quiz workspace
     pause_clicked = pyqtSignal()           # pause/resume an active recording
+    import_clicked = pyqtSignal()          # import a local media file to transcribe
+    import_pause_clicked = pyqtSignal()    # pause/resume an in-progress import
+    import_stop_clicked = pyqtSignal()     # stop an in-progress import
     
     def __init__(self, base_dir, icons_dir) -> None:
         super().__init__()
@@ -72,6 +75,11 @@ class TranscriptPanel(QWidget):
         self.quiz_button = create_button(icons_dir / 'question.svg', self.quiz_clicked, text="Quiz", width=90)
         self.quiz_button.setToolTip("Generate a quiz from this session")
         header.addWidget(self.quiz_button)
+
+        # Import a local audio/video file and transcribe it into this session.
+        self.import_button = create_button(icons_dir / 'import.svg', self.import_clicked, text="Import", width=96)
+        self.import_button.setToolTip("Import an audio/video file and transcribe it")
+        header.addWidget(self.import_button)
 
         # These are toggles driven by click or Shift+1/2/3, so they don't need to keep
         # keyboard focus — and the focus border (coral) would otherwise look identical
@@ -168,9 +176,33 @@ class TranscriptPanel(QWidget):
         self._connection_close.clicked.connect(self._dismiss_connection_warning)
         banner_layout.addWidget(self._connection_close)
 
+        # Media-import progress — a thin fixed-height row (label + bar + Pause/Stop) just
+        # above the footer, shown only while a file is being transcribed. Fixed vertical
+        # policy + capped height so it stays a single strip and never grabs panel space.
+        self.import_row = QWidget()
+        self.import_row.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.import_row.setMaximumHeight(34)
+        import_layout = QHBoxLayout(self.import_row)
+        import_layout.setContentsMargins(2, 2, 2, 2)
+        import_layout.setSpacing(10)
+        self.import_status = QLabel("Importing…")
+        self.import_progress = QProgressBar()
+        self.import_progress.setTextVisible(False)
+        self.import_progress.setFixedHeight(8)
+        self.import_pause_button = create_button(icons_dir / 'pause.svg', self.import_pause_clicked, text="Pause", width=104)
+        self.import_pause_button.setToolTip("Pause the import")
+        self.import_stop_button = create_button(icons_dir / 'x.svg', self.import_stop_clicked, text="Stop", width=96)
+        self.import_stop_button.setToolTip("Stop the import (keeps what's already transcribed)")
+        import_layout.addWidget(self.import_status)
+        import_layout.addWidget(self.import_progress, 1)
+        import_layout.addWidget(self.import_pause_button)
+        import_layout.addWidget(self.import_stop_button)
+        self.import_row.setVisible(False)
+
         main_layout.addLayout(header)
         main_layout.addWidget(self.splitter)
         main_layout.addWidget(self.connection_banner)
+        main_layout.addWidget(self.import_row)
         main_layout.addLayout(footer)
         self.setLayout(main_layout)
         
@@ -200,6 +232,8 @@ class TranscriptPanel(QWidget):
         """Show/hide the force-capture and pause controls based on recording state."""
         self.force_capture_button.setVisible(active)
         self.pause_button.setVisible(active)
+        # Can't import a file while a live recording is running (shared engines/timeline).
+        self.import_button.setDisabled(active)
         if active:
             self.set_paused(False)  # every recording starts unpaused
 
@@ -212,6 +246,36 @@ class TranscriptPanel(QWidget):
         self.pause_button.setIcon(load_icon(icon_path))
         self.pause_button.setToolTip("Resume recording" if paused else "Pause recording")
         self.force_capture_button.setDisabled(paused)
+
+    def set_import_active(self, active: bool) -> None:
+        """Show/hide the import progress row and disable Import + Record while a file is
+        being transcribed (you can't import two files, or record, at the same time)."""
+        self.import_row.setVisible(active)
+        self.import_button.setDisabled(active)
+        self.record_button.setDisabled(active)
+        if active:
+            self.set_import_paused(False)
+            self.import_status.setText("Importing…")
+            self.import_progress.setRange(0, 0)  # indeterminate until the first segment
+
+    def set_import_progress(self, processed_s: float, total_s: float) -> None:
+        """Report media-time progress as 'M:SS / M:SS' (clearer than a raw segment count)."""
+        total = max(1, int(round(total_s)))
+        self.import_progress.setRange(0, total)
+        self.import_progress.setValue(int(round(processed_s)))
+        self.import_status.setText(f"Transcribing… {self._fmt_clock(processed_s)} / {self._fmt_clock(total_s)}")
+
+    def set_import_paused(self, paused: bool) -> None:
+        self.import_pause_button.setText("Resume" if paused else "Pause")
+        icon_path = self._icons_dir / ('resume.svg' if paused else 'pause.svg')
+        self.import_pause_button._icon_path = icon_path
+        self.import_pause_button.setIcon(load_icon(icon_path))
+        self.import_pause_button.setToolTip("Resume the import" if paused else "Pause the import")
+
+    @staticmethod
+    def _fmt_clock(seconds: float) -> str:
+        s = max(0, int(round(seconds)))
+        return f"{s // 60}:{s % 60:02d}"
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -361,6 +425,7 @@ class TranscriptPanel(QWidget):
         self.speech_visibility_button.setDisabled(locked)
         self.summary_visibility_button.setDisabled(locked)
         self.quiz_button.setDisabled(locked)
+        self.import_button.setDisabled(locked)
         self.record_button.setDisabled(locked)
         
         self.ocr_panel.ocr_button.setDisabled(locked)

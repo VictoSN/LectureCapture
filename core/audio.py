@@ -12,6 +12,8 @@ import numpy as np
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
+from models.lecture import OCRCapture
+
 RECORD_SAMPLE_RATE = 44100
 # faster-whisper wants 16 kHz mono; resampling there cuts both local decode work
 # and the API payload size (~5× smaller than 44.1 kHz).
@@ -412,3 +414,162 @@ class AudioWorker(QThread):
             self._queue.put_nowait(None)
         except queue.Full:
             pass
+
+
+class MediaImportWorker(AudioWorker):
+    """Transcribe a local audio/video file in interval-sized segments (batch import).
+
+    An import behaves like a recording compressed in time: the file is split into
+    `interval`-second segments and each one becomes a single capture card. For a video,
+    a frame is grabbed at the segment start and OCR'd (Tesseract or Gemini vision, exactly
+    like a live recording); the segment's audio is transcribed (local Whisper or Gemini).
+    Speech + slide text + image all land on the *one* capture for that segment, so the
+    transcript is divided the same way recording divides it — not dumped into a single row.
+
+    Transcription reuse: this subclasses `AudioWorker` purely to inherit `_transcribe` /
+    `_ensure_model` / `_is_silent` / the `engine_fallback`+`api_error` signals. The whole
+    live-capture machinery (`run`/`_capture`/`_consume`/the queue) is replaced by `_process`.
+    """
+
+    # One finished capture (frame image + slide OCR + speech) per interval segment.
+    capture_ready = pyqtSignal(OCRCapture)
+    # processed_seconds, total_seconds — media-time progress (for "M:SS / M:SS" + the bar).
+    progress = pyqtSignal(float, float)
+    # Emitted when all segments are processed, carrying the transcribed media length so the
+    # controller can extend the session length.
+    import_finished = pyqtSignal(float)
+    # Decoding failed (unsupported/corrupt file). Carries a short message for the UI.
+    import_failed = pyqtSignal(str)
+    # OCR engine name for the footer (the inherited engine_fallback carries the SPEECH one).
+    ocr_engine_fallback = pyqtSignal(str)
+
+    # Frames bigger than this (longest side) are downscaled before OCR + saving, so a 4K
+    # video doesn't produce multi-MB slide images or stall Tesseract.
+    MAX_FRAME_SIDE = 1600
+
+    def __init__(self, session_id: int, base_dir: str, interval: int, file_path: str, start_time, offset: int, speech_api_key: str = "", speech_model: str = DEFAULT_SPEECH_MODEL, ocr_api_key: str = "", start_offset: float = 0.0) -> None:
+        # device is irrelevant for a file import — pass None.
+        super().__init__(session_id, base_dir, interval, None, start_time, offset, speech_api_key=speech_api_key, speech_model=speech_model)
+        self.file_path = file_path
+        self.ocr_api_key = ocr_api_key
+        # Media position (seconds) to begin transcribing from — lets the user skip an intro.
+        self.start_offset = max(0.0, float(start_offset))
+        self._ocr = None
+
+    def run(self) -> None:
+        try:
+            self._process()
+        except Exception as e:
+            print(f"[Import] worker error: {e}")
+            self.import_failed.emit("Could not process this media file.")
+
+    def _process(self) -> None:
+        import av
+        from faster_whisper.audio import decode_audio
+        from core.ocr import OCRWorker
+
+        # Decode the whole audio track once (PyAV under the hood — handles every common
+        # audio AND video container) at the pipeline's native rate.
+        try:
+            audio = np.asarray(decode_audio(self.file_path, sampling_rate=RECORD_SAMPLE_RATE), dtype=np.float32)
+        except Exception as e:
+            print(f"[Import] decode failed: {e}")
+            self.import_failed.emit("Could not read this media file (unsupported or corrupt).")
+            return
+        duration = len(audio) / RECORD_SAMPLE_RATE
+
+        # Open the video stream (if any) for per-segment frame grabs. Decoding only
+        # keyframes keeps seeking fast and is plenty for slide-style lecture video.
+        container = vstream = None
+        try:
+            container = av.open(self.file_path)
+            if container.streams.video:
+                vstream = container.streams.video[0]
+                vstream.codec_context.skip_frame = "NONKEY"
+        except Exception as e:
+            print(f"[Import] no video stream: {e}")
+            container = vstream = None
+
+        # OCR helper: a non-running OCRWorker (no screen region/hwnd) reused only for its
+        # text-extraction + Gemini-vision-cleanup logic. Forward its engine/error signals.
+        self._ocr = OCRWorker(self.session_id, self.base_dir, self.interval, None, 1, self.start_time, self.offset, ocr_api_key=self.ocr_api_key)
+        self._ocr.engine_fallback.connect(self.ocr_engine_fallback)
+        self._ocr.api_error.connect(self.api_error)
+        self.ocr_engine_fallback.emit(self._ocr.engine_name)  # announce the starting OCR engine
+
+        frames_per_seg = max(1, int(self.interval * RECORD_SAMPLE_RATE))
+        pos = min(len(audio), int(self.start_offset * RECORD_SAMPLE_RATE))
+        total = max(0.0, duration - self.start_offset)
+        processed = 0.0
+
+        try:
+            while pos < len(audio) and self._running:
+                # Honour pause without busy-spinning.
+                while self._paused and self._running:
+                    time.sleep(0.1)
+                if not self._running:
+                    break
+
+                media_t = pos / RECORD_SAMPLE_RATE
+                seg = audio[pos:pos + frames_per_seg]
+                # Timeline position within the session (continues after any prior content).
+                ts = self.offset + (media_t - self.start_offset)
+
+                speech = ""
+                if not self._is_silent(seg):
+                    try:
+                        speech = self._transcribe(seg, ts)
+                    except Exception as e:
+                        print(f"[Import] transcribe error: {e}")
+
+                image_name, ocr_text = "", ""
+                if vstream is not None:
+                    img = self._frame_at(container, vstream, media_t)
+                    if img is not None:
+                        try:
+                            ocr_text = self._ocr._maybe_clean(self._ocr._extract_text(img), img)
+                        except Exception as e:
+                            print(f"[Import] OCR error: {e}")
+                        image_name = self._save_frame(img)
+
+                self.capture_ready.emit(
+                    OCRCapture(ts, image_name, ocr_text, None, self.session_id, speech or None)
+                )
+
+                pos += frames_per_seg
+                processed = min(total, processed + self.interval)
+                self.progress.emit(processed, total)
+        finally:
+            if container is not None:
+                container.close()
+
+        self.import_finished.emit(total if self._running else processed)
+
+    def _frame_at(self, container, vstream, t: float):
+        """Grab the keyframe at or before media time `t` as a (possibly downscaled) PIL image."""
+        try:
+            target = int(t / vstream.time_base) + (vstream.start_time or 0)
+            container.seek(target, stream=vstream, backward=True, any_frame=False)
+            for frame in container.decode(vstream):
+                return self._fit_frame(frame.to_image())
+        except Exception as e:
+            print(f"[Import] frame grab failed at {t:.1f}s: {e}")
+        return None
+
+    def _fit_frame(self, pil_img):
+        w, h = pil_img.size
+        longest = max(w, h)
+        if longest > self.MAX_FRAME_SIDE:
+            scale = self.MAX_FRAME_SIDE / longest
+            from PIL import Image
+            pil_img = pil_img.resize((max(1, int(w * scale)), max(1, int(h * scale))), Image.LANCZOS)
+        return pil_img
+
+    def _save_frame(self, pil_img) -> str:
+        from datetime import datetime
+        from pathlib import Path
+        name = "IMP_" + datetime.now().strftime('%y%m%d_%H%M%S.%f')[:-3]
+        captures_dir = Path(self.base_dir) / 'sessions' / str(self.session_id) / 'captures'
+        captures_dir.mkdir(parents=True, exist_ok=True)
+        pil_img.save(str(captures_dir / f"{name}.png"))
+        return f"{name}.png"
