@@ -673,9 +673,9 @@ class SettingsPanel(QWidget):
         try:
             self._save_settings()
         except Exception as exc:  # noqa: BLE001 — surface any failure to the user
-            self.toast.show_message(f"Couldn't save settings: {exc}", Toast.ERROR)
+            self.toast.show_message(f"Couldn't save settings: {exc}")
         else:
-            self.toast.show_message("Settings saved successfully!", Toast.SUCCESS)
+            self.toast.show_message("Settings saved successfully!")
         finally:
             self.save_button.setText(original_text)
             self.save_button.setDisabled(False)

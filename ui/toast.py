@@ -48,11 +48,10 @@ class Toast(QLabel):
         self._fade.finished.connect(self._on_fade_finished)
         self._fading_out = False
 
-    def show_message(self, text: str, kind: str = SUCCESS, duration_ms: int = 3000) -> None:
+    def show_message(self, text: str, duration_ms: int = 3000) -> None:
         """Show `text` styled for `kind` (SUCCESS/ERROR) and auto-dismiss after duration_ms."""
-        colour = self._COLOURS.get(kind, self._COLOURS[self.SUCCESS])
         self.setStyleSheet(
-            f"background-color: {colour}; color: #ffffff; "
+            f"background-color: #c15f3c; color: #ffffff; "
             "border-radius: 8px; padding: 8px 8px; font-weight: 600;"
         )
         self.setText(text)
