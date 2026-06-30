@@ -96,7 +96,7 @@ def get_system_theme() -> str:
 def apply_theme(theme: str, themes_dir) -> None:
     if theme == "auto":
         theme = get_system_theme()
-    
+
     # theme = "dark" or "light"
     qss_path = themes_dir / f"{theme}.qss"
     if qss_path.exists():
@@ -107,6 +107,15 @@ def apply_theme(theme: str, themes_dir) -> None:
         QApplication.instance().setStyleSheet(qss.replace("__ASSETS__", assets))
     else:
         QApplication.instance().setStyleSheet("")
+
+    # Render rich-text links in the body text colour (Qt underlines them by default)
+    # rather than the default blue, which is hard to read on the light theme. Driven by
+    # the app palette's Link role so every QLabel picks it up and it refreshes on switch.
+    app = QApplication.instance()
+    palette = app.palette()
+    link_color = QColor("#ece7df" if theme == "dark" else "#423f37")
+    palette.setColor(QPalette.ColorRole.Link, link_color)
+    app.setPalette(palette)
 
 def check_theme(theme: str) -> bool:
     if theme == "dark":

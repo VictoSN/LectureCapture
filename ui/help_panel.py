@@ -117,6 +117,28 @@ CHAPTERS = [
         "The settings page",
         "settings.png",
     ),
+    (
+        "Getting a Gemini API Key",
+        "The AI features — Summary, Quiz, and Translate / Define — use Google's Gemini API, "
+        "which has a free tier. Here's how to get a key and add it to LectureCapture.",
+        [
+            'Go to <a href="https://aistudio.google.com/api-keys">AI Studio</a> and sign in '
+            "with a Google account (creating one is free).",
+            "Open the “Get API key” page (left sidebar, or the “Get API key” "
+            "button), then click “Create API key”. A long key starting with "
+            "“AIza…” is generated.",
+            "Copy the key, open LectureCapture’s Settings (gear icon / Ctrl+S), paste it "
+            "into the “Google Gemini API Key” box, and press Save.",
+            "Click “Test API Connection” in Settings to confirm the key works and "
+            "see which models are available on the free tier.",
+            "Troubleshooting — “invalid API key”: the key was mistyped or "
+            "revoked, so regenerate it. “Daily limit reached”: you’ve hit the "
+            "free-tier cap, which resets the next day. “Temporarily busy”: a "
+            "transient server issue, just retry.",
+        ],
+        "The AI Studio API key page",
+        "api_key.png",
+    ),
 ]
 
 
@@ -165,6 +187,8 @@ class HelpPanel(QWidget):
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         outer.addWidget(scroll)
+        self._scroll = scroll  # kept so scroll_to_api_key() can jump to a chapter
+        self._api_key_section = None
 
         content = QWidget()
         layout = QVBoxLayout(content)
@@ -197,7 +221,12 @@ class HelpPanel(QWidget):
         layout.addWidget(intro)
 
         for title_text, intro_text, paragraphs, image_caption, image_file in CHAPTERS:
-            layout.addWidget(self._chapter(title_text, intro_text, paragraphs, image_caption, image_file))
+            chapter = self._chapter(title_text, intro_text, paragraphs, image_caption, image_file)
+            layout.addWidget(chapter)
+            # Remember the API-key chapter so Settings' "step-by-step guide" link can jump
+            # straight to it (see scroll_to_api_key).
+            if title_text == "Getting a Gemini API Key":
+                self._api_key_section = chapter
 
         layout.addWidget(self._shortcuts_chapter())
         layout.addStretch()
@@ -236,6 +265,11 @@ class HelpPanel(QWidget):
         for para in paragraphs:
             p = QLabel("• " + para)
             p.setWordWrap(True)
+            # Only paragraphs that embed an <a> tag are treated as rich text + clickable,
+            # so plain steps with literal &, <, > stay safe.
+            if "<a " in para:
+                p.setTextFormat(Qt.TextFormat.RichText)
+                p.setOpenExternalLinks(True)
             col.addWidget(p)
         return box
 
@@ -267,6 +301,12 @@ class HelpPanel(QWidget):
         inner.setContentsMargins(3, 3, 3, 3)  # 3px coral mat
         inner.addWidget(ScalableImageLabel(pixmap))
         return frame
+
+    def scroll_to_api_key(self) -> None:
+        """Scroll the guide to the 'Getting a Gemini API Key' chapter. Used when the user
+        clicks the step-by-step link in Settings so they land on the relevant section."""
+        if self._api_key_section is not None:
+            self._scroll.ensureWidgetVisible(self._api_key_section)
 
     def refresh_theme(self, theme: str = None) -> None:
         """Swap every chapter screenshot to the folder matching the active theme."""

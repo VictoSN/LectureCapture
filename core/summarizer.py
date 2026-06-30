@@ -2,11 +2,8 @@ import re
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
-# Summarization is Gemini-only, the same as Quiz / Translate / Define. The previous
-# on-device sumy fallback was removed (Issue #6): it pulled in nltk + requests + urllib3
-# for a markedly lower-quality extractive summary, and the app already standardises every
-# other "understanding" feature on the Gemini API. OCR and speech keep their local engines;
-# summarization does not.
+# Summarization is Gemini-only, the same as Quiz / Translate / Define. OCR and speech keep
+# their local engines; summarization does not.
 
 
 def strip_code_fence(text: str) -> str:

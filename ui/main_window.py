@@ -19,7 +19,7 @@ from core.audio import AudioWorker, DEFAULT_SPEECH_MODEL
 from core.api_errors import SHORT_STATUS
 from core.summarizer import SummarizeWorker
 from core.quiz import QuizWorker, source_hash
-from core.gemini import MODEL_CHAIN, FREQUENT_MODEL_CHAIN, pretty_model
+from core.gemini import FREQUENT_MODEL_CHAIN, pretty_model
 from ui.title_bar import CustomTitleBar
 from ui.capture_overlay import CaptureOverlay
 from ui.sidebar import Sidebar
@@ -170,6 +170,7 @@ class MainWindow(FramelessMainWindow):
         self.settings_panel.import_clicked.connect(self.on_import_clicked)
         self.settings_panel.cancel_clicked.connect(self.on_settings_clicked)
         self.settings_panel.delete_clicked.connect(self.on_all_deleted_clicked)
+        self.settings_panel.help_requested.connect(self.on_settings_help_requested)
         
         self.splitter.addWidget(self.settings_panel)
         self.settings_panel.setVisible(False)
@@ -421,7 +422,6 @@ class MainWindow(FramelessMainWindow):
         self.transcript_panel.update_engine_labels(
             self.ocr_worker.engine_name,
             self._speech_engine_label(),
-            self._summarize_engine_label(),
         )
 
         # API selected but no key entered → warn now (the workers will run locally and
@@ -703,8 +703,8 @@ class MainWindow(FramelessMainWindow):
         # Ignore re-clicks while a summary is already being generated.
         if self._summarize_worker is not None:
             return
-        # Summarize is Gemini-only (the local sumy engine was removed in Issue #6), gated
-        # on a key like Quiz / Translate / Define — works in both Local and API modes.
+        # Summarize is Gemini-only, gated on a key like Quiz / Translate / Define —
+        # works in both Local and API modes.
         if not self.api_key:
             QMessageBox.information(
                 self, "Gemini API key needed",
@@ -733,11 +733,6 @@ class MainWindow(FramelessMainWindow):
         self._summarize_worker.start()
 
     def _on_summarize_done(self, summarized_text, engine) -> None:
-        self.transcript_panel.update_engine_labels(
-            self.transcript_panel.ocr_engine_label.text(),
-            self.transcript_panel.speech_engine_label.text(),
-            engine
-        )
         current = self.transcript_panel.summary_panel.current_source()
 
         # If the user has modified the summary, double confirm
@@ -1050,6 +1045,12 @@ class MainWindow(FramelessMainWindow):
         self.is_help_open = False
         self.show_panel("transcript")
 
+    def on_settings_help_requested(self) -> None:
+        """The 'step-by-step guide in Help' link in Settings → open Help on the API-key
+        chapter. Deferred a frame so the panel is laid out before we scroll to it."""
+        self.show_panel("help")
+        QTimer.singleShot(0, self.help_panel.scroll_to_api_key)
+
     def _maybe_show_onboarding(self) -> None:
         """On the very first launch, open the Help guide (its first chapter is a
         Getting Started walkthrough) instead of dropping the user on the empty
@@ -1079,12 +1080,6 @@ class MainWindow(FramelessMainWindow):
             return ""
         return self.api_key
 
-    def _summarize_engine_label(self) -> str:
-        # Summarize is Gemini-only now (no local engine). The placeholder names the primary
-        # model; once a summary runs the label shows the model that actually answered (which
-        # may be a fallback).
-        return pretty_model(MODEL_CHAIN[0])
-
     def _speech_engine_label(self) -> str:
         """Speech engine shown before a recording loads its model. For the local engine
         this includes the configured model (e.g. "faster-whisper · small.en"); once the
@@ -1102,13 +1097,12 @@ class MainWindow(FramelessMainWindow):
             speech_engine = self.transcript_panel.speech_engine_label.text()
         else:
             speech_engine = self._speech_engine_label()
-        self.transcript_panel.update_engine_labels(ocr_engine, speech_engine, self._summarize_engine_label())
+        self.transcript_panel.update_engine_labels(ocr_engine, speech_engine)
 
     def _on_ocr_engine_fallback(self, engine: str) -> None:
         self.transcript_panel.update_engine_labels(
             engine,
             self.transcript_panel.speech_engine_label.text(),
-            self.transcript_panel.summarize_engine_label.text(),
         )
         self._maybe_clear_api_warning(engine)
 
@@ -1116,7 +1110,6 @@ class MainWindow(FramelessMainWindow):
         self.transcript_panel.update_engine_labels(
             self.transcript_panel.ocr_engine_label.text(),
             engine,
-            self.transcript_panel.summarize_engine_label.text(),
         )
         self._maybe_clear_api_warning(engine)
 

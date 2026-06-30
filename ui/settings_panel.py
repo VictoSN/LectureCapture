@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import pyqtSignal, QSettings, QUrl, Qt, QThread
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
-from PyQt6.QtGui import QShortcut, QKeySequence
+from PyQt6.QtGui import QShortcut, QKeySequence, QDesktopServices
 
 from core.audio import DEFAULT_SPEECH_MODEL
 from models.lecture import Session
@@ -83,6 +83,7 @@ class SettingsPanel(QWidget):
     import_clicked = pyqtSignal()
     cancel_clicked = pyqtSignal()
     delete_clicked = pyqtSignal()
+    help_requested = pyqtSignal()  # open the Help panel at the API-key guide
     
     def __init__(self, sessions, base_dir, bundled_sounds_dir, icons_dir, themes_dir) -> None:
         super().__init__()
@@ -257,10 +258,21 @@ class SettingsPanel(QWidget):
         self.gemini_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.api_layout.addWidget(self.gemini_input, 6, 1)
 
-        api_note = QLabel("Get a free key at aistudio.google.com. Required for Translate / Define, "
-                          "and for any steps you run through Gemini in API mode.")
+        # Rich-text note with two links: an external one to AI Studio, and an internal
+        # "step-by-step guide" link that opens the Help panel at the API-key chapter.
+        # openExternalLinks is OFF so BOTH go through _on_api_note_link, which routes the
+        # internal "#help" href to the help_requested signal and opens real URLs itself.
+        api_note = QLabel(
+            'Need a key? Get one free at <a href="https://aistudio.google.com/api-keys">AI Studio</a>. '
+            'New to API keys? See the <a href="#help">step-by-step guide in Help</a>. '
+            'Required for Summary, Quiz, and Translate / Define, and for any steps you run '
+            'through Gemini in API mode.'
+        )
         api_note.setWordWrap(True)
         api_note.setObjectName("muted")
+        api_note.setTextFormat(Qt.TextFormat.RichText)
+        api_note.setOpenExternalLinks(False)
+        api_note.linkActivated.connect(self._on_api_note_link)
         self.api_layout.addWidget(api_note, 7, 0, 1, 2)
 
         # Per-engine API selection: each step can independently use the API or the
@@ -275,8 +287,8 @@ class SettingsPanel(QWidget):
         engines_layout.addWidget(use_label)
 
         # Only OCR and Speech have a local engine to toggle against. Summarize is
-        # Gemini-only (Issue #6 removed the local sumy engine), so it has no toggle —
-        # it always uses the Gemini key, like Quiz / Translate / Define.
+        # Gemini-only, so it has no toggle — it always uses the Gemini key, like Quiz /
+        # Translate / Define.
         self.api_use_ocr = QCheckBox("OCR (slides)")
         self.api_use_ocr.setToolTip("Use Gemini vision for slide OCR (captures math/symbols). Off = local Tesseract.")
         self.api_use_speech = QCheckBox("Audio (speech)")
@@ -663,6 +675,13 @@ class SettingsPanel(QWidget):
         self._preview_player.setSource(QUrl.fromLocalFile(path))
         self._preview_player.play()
     
+    def _on_api_note_link(self, href: str) -> None:
+        # "#help" opens the in-app guide; anything else is a real URL → open in the browser.
+        if href == "#help":
+            self.help_requested.emit()
+        else:
+            QDesktopServices.openUrl(QUrl(href))
+
     def _on_save(self) -> None:
         # Brief "Saving…" state on the button so a click always registers visibly, even
         # though the write itself is fast/synchronous. Restored in the finally block.

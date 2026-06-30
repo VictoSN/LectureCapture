@@ -129,9 +129,8 @@ class TranscriptPanel(QWidget):
         saved_w, self.saved_label = create_label(icons_dir / 'save.svg', 'Saved')
         ocr_w, self.ocr_engine_label = create_label(icons_dir / 'scan.svg', 'pytesseract')
         speech_w, self.speech_engine_label = create_label(icons_dir / 'microphone.svg', 'faster-whisper')
-        summary_w, self.summarize_engine_label = create_label(icons_dir / 'summarize.svg', 'Gemini')
 
-        for w in [clock_w, saved_w, ocr_w, speech_w, summary_w]:
+        for w in [clock_w, saved_w, ocr_w, speech_w]:
             footer.addWidget(w)
 
         footer.setSpacing(14)
@@ -379,10 +378,9 @@ class TranscriptPanel(QWidget):
         self.speech_panel.clear_captures()
         self.summary_panel.clear_summary()
 
-    def update_engine_labels(self, ocr_engine: str, speech_engine: str, summarize_engine: str) -> None:
+    def update_engine_labels(self, ocr_engine: str, speech_engine: str) -> None:
         self.ocr_engine_label.setText(ocr_engine)
         self.speech_engine_label.setText(speech_engine)
-        self.summarize_engine_label.setText(summarize_engine)
 
     def show_connection_warning(self, message: str) -> None:
         if self._banner_dismissed:  # user closed it; stay hidden until cleared/next recording
