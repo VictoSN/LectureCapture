@@ -216,9 +216,7 @@ class SettingsPanel(QWidget):
         for label, value in self._speech_model_items:
             self.speech_model_dropdown.addItem(label, value)
         self.speech_model_dropdown.setToolTip(
-            "Whisper model used for local speech-to-text. Larger models are more "
-            "accurate but heavier; on this machine the GPU runs even large models "
-            "near real time."
+            "Whisper model used for local speech-to-text. Larger models are more accurate but heavier"
         )
         # Picking a model downloads it now (activated = user choice only, not the
         # programmatic setCurrentIndex in load_settings / Apply Recommended).
@@ -570,7 +568,10 @@ class SettingsPanel(QWidget):
         main_layout.addWidget(self._section_header("Danger Zone", danger=True))
         main_layout.addLayout(delete_layout)
         main_layout.addStretch()
-        main_layout.addLayout(action_layout)
+        footer = QHBoxLayout()
+        footer.setContentsMargins(24, 8, 24, 12)
+        footer.addLayout(action_layout)
+        outer_layout.addLayout(footer)
 
         self.setup_sound_effects() # Populate dropdowns first
         self.load_settings() # Set values for the dropdown
