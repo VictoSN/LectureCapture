@@ -7,10 +7,12 @@ review UI and emits `completed(score, total)` so the score can be saved.
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QStackedWidget,
-    QRadioButton, QButtonGroup, QScrollArea, QFrame, QProgressBar
+    QRadioButton, QButtonGroup, QScrollArea, QFrame
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QShortcut, QKeySequence
+
+from ui.progress import indeterminate_progress_bar
 
 
 class QuizPanel(QWidget):
@@ -104,14 +106,10 @@ class QuizPanel(QWidget):
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(hint)
 
-        # Indeterminate progress bar (range 0..0 = continuous "busy" animation) so it's
-        # clear the app is working — quiz generation can take several seconds.
+        # Indeterminate progress bar — quiz generation can take several seconds.
         bar_row = QHBoxLayout()
         bar_row.addStretch()
-        self.loading_bar = QProgressBar()
-        self.loading_bar.setRange(0, 0)
-        self.loading_bar.setTextVisible(False)
-        self.loading_bar.setFixedWidth(260)
+        self.loading_bar = indeterminate_progress_bar(width=260)
         bar_row.addWidget(self.loading_bar)
         bar_row.addStretch()
         layout.addSpacing(6)

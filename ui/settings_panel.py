@@ -14,8 +14,23 @@ from models.lecture import Session
 from ui.setup_recording import setup_source, setup_audio, update_coord_ranges
 from ui.styles import apply_theme, create_button, create_button_label, get_system_theme, no_wheel
 from ui.toast import Toast
+from ui.progress import indeterminate_progress_bar
 
 from pathlib import Path
+
+# Hugging Face repo for each selectable speech model, used to check the local cache and
+# mark already-downloaded models in the dropdown (mirrors faster-whisper's own mapping —
+# note the distilled models live under "faster-distil-whisper-*").
+SPEECH_MODEL_REPOS = {
+    "tiny.en": "Systran/faster-whisper-tiny.en",
+    "base.en": "Systran/faster-whisper-base.en",
+    "small.en": "Systran/faster-whisper-small.en",
+    "distil-small.en": "Systran/faster-distil-whisper-small.en",
+    "medium.en": "Systran/faster-whisper-medium.en",
+    "distil-large-v3": "Systran/faster-distil-whisper-large-v3",
+    "large-v3": "Systran/faster-whisper-large-v3",
+}
+
 
 class ConnectionTestWorker(QThread):
     """Pings every Gemini model the app might use, off the GUI thread, reporting each
@@ -185,15 +200,19 @@ class SettingsPanel(QWidget):
         self.speech_model_dropdown = QComboBox()
         self.speech_model_dropdown.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         no_wheel(self.speech_model_dropdown)
-        for label, value in [
-            ("tiny.en — fastest, lowest accuracy", "tiny.en"),
-            ("base.en — fast", "base.en"),
-            ("small.en — balanced", "small.en"),
-            ("distil-small.en — fast, distilled", "distil-small.en"),
-            ("medium.en — accurate", "medium.en"),
-            ("distil-large-v3 — accurate + fast", "distil-large-v3"),
-            ("large-v3 — most accurate", "large-v3"),
-        ]:
+        # Approximate on-disk download size per model, shown in the dropdown so the user
+        # can weigh bandwidth/storage before picking one. Kept on self so install markers
+        # ("✓ installed") can be re-applied without losing the base label.
+        self._speech_model_items = [
+            ("tiny.en — fastest, lowest accuracy (~75 MB)", "tiny.en"),
+            ("base.en — fast (~145 MB)", "base.en"),
+            ("small.en — balanced (~488 MB)", "small.en"),
+            ("distil-small.en — fast, distilled (~332 MB)", "distil-small.en"),
+            ("medium.en — accurate (~1.5 GB)", "medium.en"),
+            ("distil-large-v3 — accurate + fast (~1.5 GB)", "distil-large-v3"),
+            ("large-v3 — most accurate (~3 GB)", "large-v3"),
+        ]
+        for label, value in self._speech_model_items:
             self.speech_model_dropdown.addItem(label, value)
         self.speech_model_dropdown.setToolTip(
             "Whisper model used for local speech-to-text. Larger models are more "
@@ -204,6 +223,9 @@ class SettingsPanel(QWidget):
         # programmatic setCurrentIndex in load_settings / Apply Recommended).
         self.speech_model_dropdown.activated.connect(self._on_speech_model_chosen)
         self._dl_workers = set()
+        # Models that have actually entered the "downloading" state (vs. an instant
+        # already-cached "ready"), so completion feedback only fires for real downloads.
+        self._downloading_models = set()
         self.api_layout.addWidget(self.speech_model_dropdown, 0, 1)
 
         # Note + a download-status line stacked together (the grid row is otherwise full).
@@ -223,6 +245,11 @@ class SettingsPanel(QWidget):
         self.speech_model_status.setObjectName("muted")
         self.speech_model_status.setVisible(False)
         note_layout.addWidget(self.speech_model_status)
+        # Indeterminate progress bar (huggingface_hub doesn't expose granular progress),
+        # shown only while a model is actively downloading.
+        self.speech_model_progress = indeterminate_progress_bar(height=6)
+        self.speech_model_progress.setVisible(False)
+        note_layout.addWidget(self.speech_model_progress)
         self.api_layout.addWidget(note_box, 1, 0, 1, 2)
 
         # Hardware detection — verify the GPU/CPU actually works and recommend a model.
@@ -768,6 +795,30 @@ class SettingsPanel(QWidget):
         # what's open right now (called each time the panel is shown).
         setup_source(self.source_dropdown, self.icons_dir)
         setup_audio(self.audio_dropdown, self.icons_dir)
+        # Refresh here (panel-open) rather than in __init__ so the cache lookup is off the
+        # startup path.
+        self._refresh_model_install_markers()
+
+    def _is_model_installed(self, model_id: str) -> bool:
+        """True if the model is already in the local Hugging Face cache. Uses
+        try_to_load_from_cache (a cheap filesystem lookup) so it never hits the network
+        and avoids importing the heavy faster-whisper stack just to check."""
+        repo = SPEECH_MODEL_REPOS.get(model_id)
+        if not repo:
+            return False
+        try:
+            from huggingface_hub import try_to_load_from_cache
+            path = try_to_load_from_cache(repo, "model.bin")
+            return isinstance(path, str) and Path(path).is_file() and Path(path).stat().st_size > 0
+        except Exception:
+            return False
+
+    def _refresh_model_install_markers(self) -> None:
+        """Append a "✓ installed" marker to the dropdown entries whose model is already
+        downloaded, so the user can tell at a glance what's local vs. needs fetching."""
+        for i, (label, value) in enumerate(self._speech_model_items):
+            suffix = "  ✓ installed" if self._is_model_installed(value) else ""
+            self.speech_model_dropdown.setItemText(i, label + suffix)
 
     def load_settings(self) -> None:
         self.proc_mode = str(self.settings.value("processing_mode", "local")) # local, api
@@ -939,12 +990,33 @@ class SettingsPanel(QWidget):
 
     def _on_model_download_status(self, model: str, state: str) -> None:
         if state == "downloading":
-            text = f"Downloading {model}… one-time, needs internet (this can take a while)."
-        elif state == "ready":
-            text = f"{model} is downloaded and ready for offline use."
+            self._downloading_models.add(model)
+            self.speech_model_status.setText(
+                f"Downloading {model}… one-time, needs internet (this can take a while)."
+            )
+            self.speech_model_progress.setVisible(True)
+            # Block re-picking mid-download so a second worker can't race the first.
+            self.speech_model_dropdown.setEnabled(False)
         else:
-            text = f"Couldn't download {model} — check your internet connection."
-        self.speech_model_status.setText(text)
+            # Only treat this as a finished *download* if it actually started one; an
+            # already-cached model reports "ready" immediately with no "downloading".
+            was_downloading = model in self._downloading_models
+            self._downloading_models.discard(model)
+            if state == "ready":
+                self.speech_model_status.setText(f"{model} is downloaded and ready for offline use.")
+                if was_downloading:
+                    self.toast.show_message(f"{model} downloaded and ready.")
+                # A newly-cached model should now show its installed marker.
+                self._refresh_model_install_markers()
+            else:
+                self.speech_model_status.setText(
+                    f"Couldn't download {model} — check your internet connection."
+                )
+                self.toast.show_message(f"Couldn't download {model}.")
+            # Restore the controls once nothing is left downloading.
+            if not self._downloading_models:
+                self.speech_model_progress.setVisible(False)
+                self.speech_model_dropdown.setEnabled(True)
         self.speech_model_status.setVisible(True)
 
     def deleteEvent(self) -> None:
