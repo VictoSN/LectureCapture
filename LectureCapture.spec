@@ -27,7 +27,7 @@ binaries = []
 hiddenimports = ["google.genai", "win32timezone"]
 
 # Packages with native libs / data files / dynamic submodules that need full collection.
-for pkg in ("faster_whisper", "ctranslate2", "google.genai", "sumy", "huggingface_hub"):
+for pkg in ("faster_whisper", "ctranslate2", "google.genai", "huggingface_hub"):
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b
@@ -49,22 +49,6 @@ if os.path.isdir(TESSERACT_DIR):
 for bin_dir in glob.glob(os.path.join(SITE, "nvidia", "*", "bin")):
     for dll in glob.glob(os.path.join(bin_dir, "*.dll")):
         datas.append((dll, "ctranslate2"))
-
-# nltk tokenizer data for sumy's local summary (its data lives in the user profile, not
-# the package). PyInstaller's nltk runtime hook adds _MEIPASS/nltk_data to the search path.
-try:
-    import nltk
-    for _base in nltk.data.path:
-        _tok = os.path.join(_base, "tokenizers")
-        if os.path.isdir(os.path.join(_tok, "punkt")) or os.path.isdir(os.path.join(_tok, "punkt_tab")):
-            for _name in ("punkt", "punkt_tab"):
-                _src = os.path.join(_tok, _name)
-                if os.path.isdir(_src):
-                    datas.append((_src, os.path.join("nltk_data", "tokenizers", _name)))
-            break
-except Exception:
-    pass
-
 
 a = Analysis(
     ["main.py"],

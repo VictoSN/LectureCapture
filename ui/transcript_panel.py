@@ -129,7 +129,7 @@ class TranscriptPanel(QWidget):
         saved_w, self.saved_label = create_label(icons_dir / 'save.svg', 'Saved')
         ocr_w, self.ocr_engine_label = create_label(icons_dir / 'scan.svg', 'pytesseract')
         speech_w, self.speech_engine_label = create_label(icons_dir / 'microphone.svg', 'faster-whisper')
-        summary_w, self.summarize_engine_label = create_label(icons_dir / 'summarize.svg', 'sumy')
+        summary_w, self.summarize_engine_label = create_label(icons_dir / 'summarize.svg', 'Gemini')
 
         for w in [clock_w, saved_w, ocr_w, speech_w, summary_w]:
             footer.addWidget(w)

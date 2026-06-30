@@ -2,12 +2,11 @@ import re
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
-# NOTE: sumy is imported lazily inside summarize_local (not at module top). It pulls in
-# nltk + requests + urllib3 — ~0.4s — and this module is imported at startup via
-# main_window, yet local summarization is an on-demand feature most sessions never use.
-# Deferring the import keeps that cost off every app launch. See tests/PERFORMANCE.md.
-
-LANGUAGE = "english"
+# Summarization is Gemini-only, the same as Quiz / Translate / Define. The previous
+# on-device sumy fallback was removed (Issue #6): it pulled in nltk + requests + urllib3
+# for a markedly lower-quality extractive summary, and the app already standardises every
+# other "understanding" feature on the Gemini API. OCR and speech keep their local engines;
+# summarization does not.
 
 
 def strip_code_fence(text: str) -> str:
@@ -26,22 +25,6 @@ def strip_code_fence(text: str) -> str:
         return "\n".join(lines[1:-1]).strip()
     return text
 
-def summarize_local(text: str, sentences: int = 5) -> str:
-    # Imported here, not at module top, so the heavy sumy/nltk stack only loads when a
-    # local summary is actually generated (see note above).
-    from sumy.parsers.plaintext import PlaintextParser
-    from sumy.nlp.tokenizers import Tokenizer
-    from sumy.summarizers.lsa import LsaSummarizer
-    from sumy.nlp.stemmers import Stemmer
-
-    summary = ""
-    parser = PlaintextParser.from_string(text, Tokenizer(LANGUAGE))
-    stemmer = Stemmer(LANGUAGE)
-    summarizer = LsaSummarizer(stemmer)
-    for sentence in summarizer(parser.document, sentences):
-        summary += str(sentence) + "\n"
-    return summary
-
 def summarize_api(text: str, api_key: str) -> tuple[str, str]:
     """Returns (summary_text, model_id)."""
     from core.gemini import generate
@@ -55,19 +38,17 @@ def summarize_api(text: str, api_key: str) -> tuple[str, str]:
     )
     return strip_code_fence(response.text), model
 
-def summarize(text: str, sentences: int = 5, api_key: str = "") -> tuple[str, str]:
+def summarize(text: str, api_key: str = "") -> tuple[str, str]:
     """
     Returns (summary_text, engine_name).
-    Uses Gemini API if api_key is provided, otherwise falls back to local sumy.
+    Gemini-only: a key is required. Raises ValueError when none is supplied so the
+    caller can surface the same "Gemini API key needed" prompt as Quiz / Translate.
     """
-    if api_key:
-        try:
-            from core.gemini import pretty_model
-            summary, model = summarize_api(text, api_key)
-            return summary, pretty_model(model)
-        except Exception as e:
-            print(f"[Summarizer] API failed, falling back to local: {e}")
-    return summarize_local(text, sentences), "sumy"
+    if not api_key:
+        raise ValueError("A Gemini API key is required to summarize.")
+    from core.gemini import pretty_model
+    summary, model = summarize_api(text, api_key)
+    return summary, pretty_model(model)
 
 
 class SummarizeWorker(QThread):
@@ -76,15 +57,14 @@ class SummarizeWorker(QThread):
     done = pyqtSignal(str, str)   # (summary_text, engine_name)
     failed = pyqtSignal(str)      # error message
 
-    def __init__(self, text: str, sentences: int = 5, api_key: str = "") -> None:
+    def __init__(self, text: str, api_key: str = "") -> None:
         super().__init__()
         self._text = text
-        self._sentences = sentences
         self._api_key = api_key
 
     def run(self) -> None:
         try:
-            summary, engine = summarize(self._text, self._sentences, self._api_key)
+            summary, engine = summarize(self._text, self._api_key)
         except Exception as e:
             self.failed.emit(str(e))
             return

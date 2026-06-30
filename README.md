@@ -9,7 +9,7 @@ LectureCapture is a Windows desktop app that turns an online lecture or meeting 
 - **Slide OCR** — reads text (and math, as LaTeX) from each captured slide, locally with Tesseract or via Google Gemini vision.
 - **Speech-to-text** — local, GPU-accelerated `faster-whisper`, or Gemini; English Whisper models from `tiny` up to `large`.
 - **Aligned transcript** — every spoken chunk is attached to the slide that was on screen when it was said.
-- **AI summary** — Gemini-generated Markdown notes, with a local `sumy` fallback when no API key is set.
+- **AI summary** — Gemini-generated Markdown notes (needs a free Gemini API key, like Quiz and Translate/Define).
 - **Quiz** — auto-generated multiple-choice + true/false questions from the session content, graded automatically.
 - **Translate / Define** — right-click any selected text for an instant Gemini lookup.
 - **Local-first or API** — run everything on-device (private, no internet) or send chosen steps to Gemini for higher accuracy, with per-engine toggles.
@@ -28,9 +28,9 @@ Prebuilt Windows installer: **[Releases](https://github.com/VictoSN/LectureCaptu
 3. **Speech** — audio chunks are transcribed by `faster-whisper` (via CTranslate2, GPU through the CUDA runtime) or by Gemini.
 4. **Alignment** — each transcript chunk is matched by timestamp to the most recent slide capture, so the slides and narration stay in sync.
 5. **Storage** — sessions, captures and transcripts live in a local SQLite database (under `%APPDATA%`), with slide images on disk.
-6. **AI** — summary, quiz and translate/define call Gemini through a model-fallback chain (if one model is rate-limited it tries the next); the summary falls back to on-device `sumy`.
+6. **AI** — summary, quiz and translate/define call Gemini through a model-fallback chain (if one model is rate-limited it tries the next).
 
-The app is **local-first**: with no API key it does OCR, transcription and summaries entirely on your machine.
+The app is **local-first** for capture: with no API key it still does OCR and speech transcription entirely on your machine. The AI features (summary, quiz, translate/define) use the Gemini API.
 
 ## Tech stack
 | Area | Library |
@@ -40,7 +40,6 @@ The app is **local-first**: with no API key it does OCR, transcription and summa
 | Audio | sounddevice, soundfile |
 | Local OCR | pytesseract (+ the Tesseract-OCR engine) |
 | Local speech-to-text | faster-whisper (CTranslate2); CUDA 12 runtime (nvidia-cublas-cu12 / nvidia-cudnn-cu12) for GPU |
-| Local summary | sumy (+ nltk) |
 | Cloud AI | google-genai (Google Gemini — OCR vision, speech, summary, quiz, translate/define) |
 | Imaging / math | Pillow, numpy |
 | Windows integration | pywin32 |
@@ -56,7 +55,7 @@ venv\Scripts\activate
 ```
 3. Install dependencies:
 ```bash
-pip install PyQt6 PyQt6-Frameless-Window numpy pytesseract Pillow mss sounddevice soundfile faster_whisper sumy pywin32 google-genai pylatexenc
+pip install PyQt6 PyQt6-Frameless-Window numpy pytesseract Pillow mss sounddevice soundfile faster_whisper pywin32 google-genai pylatexenc
 ```
 4. (Optional) For GPU-accelerated speech transcription on an NVIDIA GPU, also install the CUDA 12 runtime. Without these, transcription falls back to the CPU:
 ```bash

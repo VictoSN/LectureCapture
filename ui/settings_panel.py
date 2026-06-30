@@ -274,18 +274,18 @@ class SettingsPanel(QWidget):
         use_label = QLabel("Use API for:")
         engines_layout.addWidget(use_label)
 
+        # Only OCR and Speech have a local engine to toggle against. Summarize is
+        # Gemini-only (Issue #6 removed the local sumy engine), so it has no toggle —
+        # it always uses the Gemini key, like Quiz / Translate / Define.
         self.api_use_ocr = QCheckBox("OCR (slides)")
         self.api_use_ocr.setToolTip("Use Gemini vision for slide OCR (captures math/symbols). Off = local Tesseract.")
         self.api_use_speech = QCheckBox("Audio (speech)")
         self.api_use_speech.setToolTip("Use Gemini for speech-to-text. Off = local faster-whisper (recommended for live transcription).")
-        self.api_use_summarize = QCheckBox("Summary")
-        self.api_use_summarize.setToolTip("Use Gemini to write the session summary. Off = local sumy.")
 
         use_row = QHBoxLayout()
         use_row.setSpacing(16)
         use_row.addWidget(self.api_use_ocr)
         use_row.addWidget(self.api_use_speech)
-        use_row.addWidget(self.api_use_summarize)
         use_row.addStretch()
         use_row_widget = QWidget()
         use_row_widget.setLayout(use_row)
@@ -712,7 +712,6 @@ class SettingsPanel(QWidget):
         self.settings.setValue("api_key_gemini", gemini_key)
         self.settings.setValue("api_use_ocr", self.api_use_ocr.isChecked())
         self.settings.setValue("api_use_speech", self.api_use_speech.isChecked())
-        self.settings.setValue("api_use_summarize", self.api_use_summarize.isChecked())
         self.settings.setValue("speech_model", self.speech_model_dropdown.currentData())
         self.settings.sync()
         self.api_keys_changed.emit(gemini_key)
@@ -776,7 +775,6 @@ class SettingsPanel(QWidget):
         self.gemini_input.setText(self.settings.value("api_key_gemini", ""))
         self.api_use_ocr.setChecked(self.settings.value("api_use_ocr", True, type=bool))
         self.api_use_speech.setChecked(self.settings.value("api_use_speech", True, type=bool))
-        self.api_use_summarize.setChecked(self.settings.value("api_use_summarize", True, type=bool))
         sm_idx = self.speech_model_dropdown.findData(self.settings.value("speech_model", DEFAULT_SPEECH_MODEL))
         if sm_idx < 0:  # unknown/legacy value (e.g. the retired "auto") → fall back to default
             sm_idx = self.speech_model_dropdown.findData(DEFAULT_SPEECH_MODEL)

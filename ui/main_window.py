@@ -703,6 +703,14 @@ class MainWindow(FramelessMainWindow):
         # Ignore re-clicks while a summary is already being generated.
         if self._summarize_worker is not None:
             return
+        # Summarize is Gemini-only (the local sumy engine was removed in Issue #6), gated
+        # on a key like Quiz / Translate / Define — works in both Local and API modes.
+        if not self.api_key:
+            QMessageBox.information(
+                self, "Gemini API key needed",
+                "Add a Gemini API key in Settings to generate a summary."
+            )
+            return
 
         captures = self.storage.get_captures_by_session(self.current_session.id)
         total_text = ""
@@ -718,9 +726,7 @@ class MainWindow(FramelessMainWindow):
         button.setText("Summarizing…")
         self._set_summarizing(True)
 
-        self._summarize_worker = SummarizeWorker(
-            total_text, api_key=self._effective_api_key("summarize")
-        )
+        self._summarize_worker = SummarizeWorker(total_text, api_key=self.api_key)
         self._summarize_worker.done.connect(self._on_summarize_done)
         self._summarize_worker.failed.connect(self._on_summarize_failed)
         self._summarize_worker.finished.connect(self._on_summarize_finished)
@@ -1074,9 +1080,10 @@ class MainWindow(FramelessMainWindow):
         return self.api_key
 
     def _summarize_engine_label(self) -> str:
-        # API placeholder names the primary model; once a summary runs the label shows
-        # the model that actually answered (which may be a fallback).
-        return pretty_model(MODEL_CHAIN[0]) if self._effective_api_key("summarize") else "sumy"
+        # Summarize is Gemini-only now (no local engine). The placeholder names the primary
+        # model; once a summary runs the label shows the model that actually answered (which
+        # may be a fallback).
+        return pretty_model(MODEL_CHAIN[0])
 
     def _speech_engine_label(self) -> str:
         """Speech engine shown before a recording loads its model. For the local engine
