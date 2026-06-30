@@ -67,7 +67,7 @@ venv\Scripts\activate
 ```
 3. Install dependencies:
 ```bash
-pip install PyQt6 PyQt6-Frameless-Window numpy pytesseract Pillow mss sounddevice soundfile faster_whisper pywin32 google-genai pylatexenc
+pip install PyQt6 PyQt6-Frameless-Window numpy pytesseract Pillow mss sounddevice soundfile faster_whisper pywin32 google-genai pylatexenc pycaw comtypes
 ```
 4. (Optional) For GPU-accelerated speech transcription on an NVIDIA GPU, also install the CUDA 12 runtime. Without these, transcription falls back to the CPU:
 ```bash

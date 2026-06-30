@@ -51,9 +51,15 @@ class AudioWorker(QThread):
     # ("invalid_key" | "no_connection" | "other") so the UI can warn the user.
     api_error = pyqtSignal(str)
 
-    def __init__(self, session_id: int, base_dir: str, interval: int, device, start_time, offset: int, speech_api_key: str = "", speech_model: str = DEFAULT_SPEECH_MODEL) -> None:
+    def __init__(self, session_id: int, base_dir: str, interval: int, device, start_time, offset: int, speech_api_key: str = "", speech_model: str = DEFAULT_SPEECH_MODEL, loopback_pid: int | None = None) -> None:
         super().__init__()
         self._running = True
+
+        # When recording a specific window with system-audio loopback, this is the target
+        # window's process id. Set => capture ONLY that process (and its children) via
+        # WASAPI process loopback instead of the whole system mix. Falls back
+        # to system loopback if process capture can't start.
+        self.loopback_pid = loopback_pid
 
         # Pause support. While paused, captured audio is discarded (not transcribed), and
         # the total paused time is subtracted from chunk timestamps so the transcript
@@ -148,6 +154,15 @@ class AudioWorker(QThread):
             self._consumer.join(timeout=5)
 
     def _capture(self) -> None:
+        # Window-only + system-audio loopback: capture only the target window's process so
+        # other apps' audio (e.g. a YouTube tab in another browser) isn't recorded. If the
+        # per-process stream can't start (old Windows, no audio session yet), fall through
+        # to the ordinary system loopback so recording still works.
+        if self.loopback_pid:
+            if self._try_process_loopback():
+                return
+            print("[Audio] process loopback unavailable; using system loopback")
+
         device, channels = self._resolve_input()
         # Try the resolved config, then progressively safer fallbacks.
         for dev, ch in [(device, channels), (device, 1), (None, 1)]:
@@ -159,6 +174,55 @@ class AudioWorker(QThread):
             except Exception as e:
                 print(f"[Audio] input failed (device={dev}, {ch}ch): {e}")
         print("[Audio] no usable audio input")
+
+    def _try_process_loopback(self) -> bool:
+        """Capture the target process via WASAPI process loopback. Returns True if the
+        stream started (and was run to completion/stop), False if it couldn't start so the
+        caller can fall back to system loopback."""
+        from core.process_loopback import ProcessLoopbackRecorder
+        recorder = ProcessLoopbackRecorder(self.loopback_pid, samplerate=RECORD_SAMPLE_RATE)
+        try:
+            recorder.start()
+        except Exception as e:
+            print(f"[Audio] process loopback start failed for pid={self.loopback_pid}: {e}")
+            return False
+        print(f"[Audio] capturing process loopback for pid={self.loopback_pid}")
+        try:
+            self._drain_loopback(recorder)
+        except Exception as e:
+            print(f"[Audio] process loopback capture error: {e}")
+        finally:
+            recorder.stop()
+        return True
+
+    def _drain_loopback(self, recorder) -> None:
+        # Same chunking as _run_stream, but blocks come from the process-loopback recorder
+        # (mono float32 at RECORD_SAMPLE_RATE) instead of a sounddevice callback.
+        frames_per_chunk = int(self.interval * RECORD_SAMPLE_RATE)
+        blocks, blen = [], 0
+        while self._running:
+            block = recorder.read(timeout=0.2)
+            if block is None:
+                continue
+            # Drop audio captured while paused so the pause isn't transcribed.
+            if self._paused:
+                blocks, blen = [], 0
+                continue
+            blocks.append(block)
+            blen += len(block)
+            if blen < frames_per_chunk:
+                continue
+            buf = np.concatenate(blocks)
+            while len(buf) >= frames_per_chunk:
+                chunk = buf[:frames_per_chunk].copy()
+                buf = buf[frames_per_chunk:]
+                chunk_start = time.time() - self.start_time + self.offset - self.interval - self._paused_total
+                try:
+                    self._queue.put_nowait((chunk, chunk_start))
+                except queue.Full:
+                    print("[Audio] transcription backlog full, dropping chunk")
+            blocks = [buf] if len(buf) else []
+            blen = len(buf)
 
     def _run_stream(self, device, channels) -> None:
         import sounddevice as sd

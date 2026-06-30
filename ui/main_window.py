@@ -73,7 +73,7 @@ class MainWindow(FramelessMainWindow):
         # mid-run, and to prevent overlapping summarize requests.
         self._summarize_worker = None
 
-        # Media-import transcription worker (Issue #9). Held so the QThread isn't GC'd
+        # Media-import transcription worker. Held so the QThread isn't GC'd
         # mid-run and to prevent a second import starting while one is in progress.
         self._import_worker = None
         # True while an import is running — lets shared handlers (API-error banner) treat
@@ -425,11 +425,20 @@ class MainWindow(FramelessMainWindow):
         self.ocr_worker.api_error.connect(self._on_api_error)
         self.ocr_worker.start()
         
+        # Window-only recording with system-audio loopback → capture just that window's
+        # process, so audio from other apps isn't mixed in. Only applies when a
+        # window (hwnd) is the source AND the chosen audio device is the system loopback.
+        loopback_pid = None
+        if hwnd and isinstance(device, dict) and device.get("type") == "loopback":
+            from core.process_loopback import pid_from_hwnd
+            loopback_pid = pid_from_hwnd(hwnd)
+
         # Create audio worker thread
         self.audio_worker = AudioWorker(
             self.current_session.id, self.storage.base_dir, interval, device, start_time, self.current_session.length,
             speech_api_key=self._effective_api_key("speech"),
             speech_model=str(self.settings.value("speech_model", DEFAULT_SPEECH_MODEL)),
+            loopback_pid=loopback_pid,
         )
         self.audio_worker.chunk_ready.connect(self.on_chunk_ready)
         self.audio_worker.chunk_pending.connect(self.on_chunk_pending)
@@ -666,7 +675,7 @@ class MainWindow(FramelessMainWindow):
         self.show_panel("transcript")
         self.is_recording_open = False
 
-    # ---- media import (Issue #9) ---------------------------------------
+    # ---- media import --------------------------------------------------
 
     def on_import_media_clicked(self) -> None:
         """Pick a local audio/video file, preview it, and transcribe it into the session.

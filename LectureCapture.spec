@@ -27,11 +27,18 @@ binaries = []
 hiddenimports = ["google.genai", "win32timezone"]
 
 # Packages with native libs / data files / dynamic submodules that need full collection.
-for pkg in ("faster_whisper", "ctranslate2", "google.genai", "huggingface_hub"):
+# comtypes + pycaw back the WASAPI per-window audio capture (core/process_loopback); comtypes
+# generates interface code at runtime, so it needs full collection to work when frozen.
+for pkg in ("faster_whisper", "ctranslate2", "google.genai", "huggingface_hub", "comtypes", "pycaw"):
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b
     hiddenimports += h
+
+# QtMultimedia powers the media-import preview player (ui/media_import_dialog). PyInstaller's
+# PyQt6 hook pulls the multimedia module + its plugins from the imports, but if the frozen
+# build can't play media, force them in with: collect_all("PyQt6") or bundle the
+# Qt6/plugins/multimedia + the ffmpeg backend DLL explicitly.
 
 # Tesseract (the whole install — exe + dependent DLLs + tessdata) -> tesseract/
 if os.path.isdir(TESSERACT_DIR):
