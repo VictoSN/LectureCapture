@@ -122,7 +122,7 @@ CHAPTERS = [
         "The AI features — Summary, Quiz, and Translate / Define — use Google's Gemini API, "
         "which has a free tier. Here's how to get a key and add it to LectureCapture.",
         [
-            'Go to <a href="https://aistudio.google.com/api-keys">AI Studio</a> and sign in '
+            'Go to <a href="https://aistudio.google.com/api-keys" style="color:#c15f3c;">AI Studio</a> and sign in '
             "with a Google account (creating one is free).",
             "Open the “Get API key” page (left sidebar, or the “Get API key” "
             "button), then click “Create API key”. A long key starting with "

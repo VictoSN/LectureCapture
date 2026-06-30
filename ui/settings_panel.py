@@ -288,8 +288,10 @@ class SettingsPanel(QWidget):
         # openExternalLinks is OFF so BOTH go through _on_api_note_link, which routes the
         # internal "#help" href to the help_requested signal and opens real URLs itself.
         api_note = QLabel(
-            'Need a key? Get one free at <a href="https://aistudio.google.com/api-keys">AI Studio</a>. '
-            'New to API keys? See the <a href="#help">step-by-step guide in Help</a>. '
+            'Need a key? Get one free at '
+            '<a href="https://aistudio.google.com/api-keys" style="color:#c15f3c;">AI Studio</a>. '
+            'New to API keys? See the '
+            '<a href="#help" style="color:#c15f3c;">step-by-step guide in Help</a>. '
             'Required for Summary, Quiz, and Translate / Define, and for any steps you run '
             'through Gemini in API mode.'
         )
