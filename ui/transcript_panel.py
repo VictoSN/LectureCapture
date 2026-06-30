@@ -18,6 +18,7 @@ class TranscriptPanel(QWidget):
     force_capture_clicked = pyqtSignal()
     capture_deleted = pyqtSignal(int)
     quiz_clicked = pyqtSignal()            # open the quiz workspace
+    pause_clicked = pyqtSignal()           # pause/resume an active recording
     
     def __init__(self, base_dir, icons_dir) -> None:
         super().__init__()
@@ -82,6 +83,13 @@ class TranscriptPanel(QWidget):
         self.force_capture_button.setToolTip("Force a capture now (Ctrl+Return)")
         self.force_capture_button.setVisible(False)
         header.addWidget(self.force_capture_button)
+
+        # Pause/Resume an active recording — sits between Capture Now and Record; only
+        # shown while recording.
+        self.pause_button = create_button(icons_dir / 'pause.svg', self.pause_clicked, text="Pause", width=110)
+        self.pause_button.setToolTip("Pause recording")
+        self.pause_button.setVisible(False)
+        header.addWidget(self.pause_button)
 
         self.record_button = create_button(icons_dir / 'red_dot.svg', self._on_record_button_clicked, text="Record", width=120)
         self.record_button.setToolTip("Open recording panel (Ctrl+F)")
@@ -189,8 +197,21 @@ class TranscriptPanel(QWidget):
             self.record_clicked.emit()
 
     def set_recording_active(self, active: bool) -> None:
-        """Show/hide the force capture button based on recording state."""
+        """Show/hide the force-capture and pause controls based on recording state."""
         self.force_capture_button.setVisible(active)
+        self.pause_button.setVisible(active)
+        if active:
+            self.set_paused(False)  # every recording starts unpaused
+
+    def set_paused(self, paused: bool) -> None:
+        """Reflect paused/resumed state: toggle the button label/icon, show the badge,
+        and disable Capture Now (capture is paused)."""
+        self.pause_button.setText("Resume" if paused else "Pause")
+        icon_path = self._icons_dir / ('resume.svg' if paused else 'pause.svg')
+        self.pause_button._icon_path = icon_path  # keep theme refresh in sync
+        self.pause_button.setIcon(load_icon(icon_path))
+        self.pause_button.setToolTip("Resume recording" if paused else "Pause recording")
+        self.force_capture_button.setDisabled(paused)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)

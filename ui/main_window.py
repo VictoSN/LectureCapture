@@ -49,6 +49,7 @@ class MainWindow(FramelessMainWindow):
             self.settings.setValue("speech_model", DEFAULT_SPEECH_MODEL)
         self.current_session = None
         self.is_recording = False
+        self.is_paused = False
         self.is_new_session_open = False
         self.is_settings_open = False
         self.is_properties_open = False
@@ -186,6 +187,7 @@ class MainWindow(FramelessMainWindow):
         self.transcript_panel.record_clicked.connect(self.on_record_clicked)
         self.transcript_panel.stop_recording_clicked.connect(self.on_stop_recording_confirmation)
         self.transcript_panel.force_capture_clicked.connect(self.on_force_capture_clicked)
+        self.transcript_panel.pause_clicked.connect(self.on_pause_clicked)
         self.transcript_panel.summary_panel.summarize_clicked.connect(self.on_summarize_clicked)
         self.transcript_panel.quiz_clicked.connect(self.on_quiz_clicked)
         self.transcript_panel.capture_deleted.connect(self.storage.delete_capture)
@@ -450,16 +452,29 @@ class MainWindow(FramelessMainWindow):
         self.stop_recording_shortcut.setEnabled(True)
         self.capture_now_shortcut.setEnabled(True)
 
+    def on_pause_clicked(self) -> None:
+        # Toggle pause on an active recording: freeze the timer + capture, or resume both.
+        if not self.is_recording:
+            return
+        self.is_paused = not self.is_paused
+        self.ocr_worker.set_paused(self.is_paused)
+        self.audio_worker.set_paused(self.is_paused)
+        self.transcript_panel.set_paused(self.is_paused)
+        # Capture Now is meaningless while paused; gate its shortcut to match the button.
+        self.capture_now_shortcut.setEnabled(not self.is_paused)
+
     def update_timer(self) -> None:
-        if self.is_recording:
+        # Hold the clock while paused so it shows only active recording time.
+        if self.is_recording and not self.is_paused:
             self.elapse_s += 1
-            
+
             minutes = self.elapse_s // 60
             seconds = self.elapse_s % 60
             self.transcript_panel.recording_time_label.setText(f"{minutes:02}:{seconds:02}")
 
     def on_record_aborted(self) -> None:
         self.is_recording = False
+        self.is_paused = False
         self.timer.stop()
         self.elapse_s = 0
         
@@ -573,12 +588,15 @@ class MainWindow(FramelessMainWindow):
 
     def stop_recording(self) -> None:
         self.show_panel("transcript")
-        
-        # Stop Timer and reset time
-        self.timer.stop() 
+
+        # Stop Timer and reset time. elapse_s is the ACTIVE recording time (it doesn't
+        # advance while paused), so capture it for the session length before resetting.
+        self.timer.stop()
+        recorded_seconds = self.elapse_s
         self.elapse_s = 0
-        
+
         self.is_recording = False
+        self.is_paused = False
         self._play_effect(self.stop_audio)
         
         # Update labels
@@ -610,8 +628,8 @@ class MainWindow(FramelessMainWindow):
             self.transcript_panel.speech_panel.add_capture(orphan)
             self._pending_speech = ""
 
-        # save total length
-        self.current_session.length += int(time.time() - self.recording_start_time)
+        # save total length (active time only — excludes any paused spans)
+        self.current_session.length += recorded_seconds
         self.storage.update_session(self.current_session)
         
         # Assuming that recording will always give content, enable the summarize

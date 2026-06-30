@@ -51,6 +51,13 @@ class OCRWorker(QThread):
         self._running = True
         self._force = False
 
+        # Pause support: while paused, no screenshots are taken, and the total paused
+        # time is subtracted from capture timestamps so slides stay aligned with speech
+        # across pauses (both workers track their paused time the same way).
+        self._paused = False
+        self._paused_total = 0.0
+        self._pause_started = None
+
         self.session_id = session_id
         self.base_dir = base_dir
         self.interval = interval
@@ -128,7 +135,7 @@ class OCRWorker(QThread):
         # Stamp the capture at GRAB time, not save time. API OCR cleanup can take
         # several seconds; stamping after it would push the slide's timestamp past the
         # speech spoken while it was on screen, mis-attaching (or orphaning) that speech.
-        grab_ts = t0 - self.start_time + self.offset
+        grab_ts = t0 - self.start_time + self.offset - self._paused_total
         pil_img = self._grab_pil()
         if pil_img is None:
             return
@@ -361,6 +368,10 @@ class OCRWorker(QThread):
             # Create the mss instance on THIS (the worker) thread and keep it here.
             with mss.mss() as self.sct:
                 while self._running:
+                    # While paused, don't capture — just idle until resumed/stopped.
+                    if self._paused:
+                        time.sleep(0.1)
+                        continue
                     start = time.time()
                     forced = self._force
                     self._force = False
@@ -372,7 +383,7 @@ class OCRWorker(QThread):
                     # Sleep the remainder of the interval, staying responsive to
                     # stop() and force_capture() (checked every 100ms).
                     remaining = self.interval - (time.time() - start)
-                    while remaining > 0 and self._running and not self._force:
+                    while remaining > 0 and self._running and not self._force and not self._paused:
                         time.sleep(min(0.1, remaining))
                         remaining -= 0.1
         except Exception as e:
@@ -381,6 +392,15 @@ class OCRWorker(QThread):
     def force_capture(self) -> None:
         """Trigger an immediate screenshot and reset the interval countdown."""
         self._force = True
+
+    def set_paused(self, paused: bool) -> None:
+        """Pause/resume capture. Accumulates paused time so capture timestamps exclude it."""
+        if paused and not self._paused:
+            self._pause_started = time.time()
+        elif not paused and self._paused and self._pause_started is not None:
+            self._paused_total += time.time() - self._pause_started
+            self._pause_started = None
+        self._paused = paused
 
     def stop(self) -> None:
         self._running = False

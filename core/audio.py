@@ -53,6 +53,13 @@ class AudioWorker(QThread):
         super().__init__()
         self._running = True
 
+        # Pause support. While paused, captured audio is discarded (not transcribed), and
+        # the total paused time is subtracted from chunk timestamps so the transcript
+        # timeline stays continuous across pauses instead of jumping by the pause length.
+        self._paused = False
+        self._paused_total = 0.0
+        self._pause_started = None
+
         self.session_id = session_id
         self.base_dir = base_dir
         self.interval = interval
@@ -169,6 +176,11 @@ class AudioWorker(QThread):
                     block = cb_queue.get(timeout=0.2)
                 except queue.Empty:
                     continue
+                # While paused, drop captured audio and any partial buffer so nothing
+                # recorded during the pause is transcribed or leaks into the next chunk.
+                if self._paused:
+                    blocks, blen = [], 0
+                    continue
                 blocks.append(block)
                 blen += len(block)
                 if blen < frames_per_chunk:
@@ -177,7 +189,7 @@ class AudioWorker(QThread):
                 while len(buf) >= frames_per_chunk:
                     chunk = buf[:frames_per_chunk].copy()
                     buf = buf[frames_per_chunk:]
-                    chunk_start = time.time() - self.start_time + self.offset - self.interval
+                    chunk_start = time.time() - self.start_time + self.offset - self.interval - self._paused_total
                     try:
                         self._queue.put_nowait((chunk, chunk_start))
                     except queue.Full:
@@ -376,6 +388,15 @@ class AudioWorker(QThread):
     @property
     def engine_name(self) -> str:
         return "gemini" if self.speech_api_key else "faster-whisper"
+
+    def set_paused(self, paused: bool) -> None:
+        """Pause/resume capture. Accumulates paused time so chunk timestamps exclude it."""
+        if paused and not self._paused:
+            self._pause_started = time.time()
+        elif not paused and self._paused and self._pause_started is not None:
+            self._paused_total += time.time() - self._pause_started
+            self._pause_started = None
+        self._paused = paused
 
     def stop(self) -> None:
         self._running = False
