@@ -45,3 +45,52 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+{ Uninstalling the program folder leaves the user's data behind, in three places:
+    - saved sessions  -> %APPDATA%\LectureCapture (SQLite DB, slide images, custom sounds)
+    - settings        -> HKCU\Software\LectureCapture (QSettings)
+    - speech models   -> the Hugging Face cache under the user profile
+  On uninstall we offer to reclaim space by removing the settings and the (large) models,
+  while ALWAYS keeping the saved sessions. Defaults to "No" so a reinstall keeps everything.
+  Note: with an admin install these user-profile constants resolve for the uninstalling
+  user, which is the normal single-user case. }
+
+procedure DeleteCachedModels(HubDir, Pattern: String);
+var
+  FindRec: TFindRec;
+begin
+  if FindFirst(HubDir + '\' + Pattern, FindRec) then
+  begin
+    try
+      repeat
+        if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0 then
+          DelTree(HubDir + '\' + FindRec.Name, True, True, True);
+      until not FindNext(FindRec);
+    finally
+      FindClose(FindRec);
+    end;
+  end;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  HubDir: String;
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    if MsgBox('Also remove the downloaded speech models and app settings?' + #13#10#13#10 +
+              'Your saved sessions are always kept. Choose No to also keep the models ' +
+              '(useful if you plan to reinstall).',
+              mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
+    begin
+      { Settings (QSettings writes to HKCU\Software\LectureCapture\LectureCapture).
+        Sessions in %APPDATA%\LectureCapture are intentionally left untouched. }
+      RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\{#MyAppName}');
+      { Downloaded faster-whisper models in the Hugging Face cache. }
+      HubDir := ExpandConstant('{%USERPROFILE}\.cache\huggingface\hub');
+      DeleteCachedModels(HubDir, 'models--Systran--faster-whisper-*');
+      DeleteCachedModels(HubDir, 'models--Systran--faster-distil-whisper-*');
+    end;
+  end;
+end;

@@ -22,6 +22,18 @@ Prebuilt Windows installer: **[Releases](https://github.com/VictoSN/LectureCaptu
 - Speech models download automatically the first time you use them (needs internet once).
 - Gemini features (Translate/Define, Quiz, and any API-mode step) need a free [Google Gemini API key](https://aistudio.google.com).
 
+## Uninstalling
+Uninstall the normal Windows way — **Settings → Apps → Installed apps → LectureCapture → Uninstall**, or **Control Panel → Programs and Features**, or the Start-Menu uninstaller. All of these run the same uninstaller, so you get the same result; there's no separate tool to find.
+
+During uninstall you'll be asked:
+
+> **Also remove the downloaded speech models and app settings?** *Your saved sessions are always kept.*
+
+- **No** (default) — removes only the program files. Your settings and downloaded speech models stay, so a reinstall picks up where you left off.
+- **Yes** — also deletes the app settings and the downloaded speech models (which can be several GB) to reclaim space.
+
+**Your recorded sessions (transcripts, slides, summaries) are never deleted by the uninstaller** — they live in `%APPDATA%\LectureCapture` and are kept either way. To remove them too, delete that folder manually after uninstalling.
+
 ## How it works
 1. **Capture** — `mss` grabs slide snapshots on an interval and `sounddevice` records the audio in chunks. Each runs on its own worker thread so the UI stays responsive.
 2. **OCR** — each slide image is read by `pytesseract` (local) or Gemini vision (API), preserving layout and rendering equations as LaTeX.
