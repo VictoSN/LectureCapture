@@ -2,7 +2,8 @@ import shutil
 
 from PyQt6.QtWidgets import (
     QWidget, QLabel, QPushButton, QComboBox, QVBoxLayout, QHBoxLayout, QGridLayout, QSpinBox,
-    QFileDialog, QLineEdit, QMessageBox, QScrollArea, QTextEdit, QCheckBox, QFrame, QSizePolicy
+    QFileDialog, QLineEdit, QMessageBox, QScrollArea, QTextEdit, QCheckBox, QFrame, QSizePolicy,
+    QApplication
 )
 from PyQt6.QtCore import pyqtSignal, QSettings, QUrl, Qt, QThread
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
@@ -12,6 +13,7 @@ from core.audio import DEFAULT_SPEECH_MODEL
 from models.lecture import Session
 from ui.setup_recording import setup_source, setup_audio, update_coord_ranges
 from ui.styles import apply_theme, create_button, create_button_label, get_system_theme, no_wheel
+from ui.toast import Toast
 
 from pathlib import Path
 
@@ -538,6 +540,15 @@ class SettingsPanel(QWidget):
         QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self._on_cancel)
         QShortcut(QKeySequence(Qt.Key.Key_Return), self, activated=self._on_save)
 
+        # Transient save-confirmation banner, floated over the panel (see _on_save).
+        self.toast = Toast(self)
+
+    def resizeEvent(self, event) -> None:
+        # Keep the floating toast anchored to the bottom-centre as the panel resizes.
+        super().resizeEvent(event)
+        if getattr(self, "toast", None) is not None and self.toast.isVisible():
+            self.toast.reposition()
+
     def _section_header(self, text: str, danger: bool = False) -> QLabel:
         label = QLabel(text)
         label.setObjectName("dangerHeader" if danger else "sectionHeader")
@@ -653,13 +664,30 @@ class SettingsPanel(QWidget):
         self._preview_player.play()
     
     def _on_save(self) -> None:
+        # Brief "Saving…" state on the button so a click always registers visibly, even
+        # though the write itself is fast/synchronous. Restored in the finally block.
+        original_text = self.save_button.text()
+        self.save_button.setDisabled(True)
+        self.save_button.setText("Saving…")
+        QApplication.processEvents()  # paint the disabled/"Saving…" state before we block
+        try:
+            self._save_settings()
+        except Exception as exc:  # noqa: BLE001 — surface any failure to the user
+            self.toast.show_message(f"Couldn't save settings: {exc}", Toast.ERROR)
+        else:
+            self.toast.show_message("Settings saved successfully!", Toast.SUCCESS)
+        finally:
+            self.save_button.setText(original_text)
+            self.save_button.setDisabled(False)
+
+    def _save_settings(self) -> None:
         # Save preferences mode
         self.settings.setValue("preferences_mode", self.pref_mode)
-        
+
         # Save theme
         self.settings.setValue("theme", self.theme)
 
-        # Save Recording Preferences        
+        # Save Recording Preferences
         self.settings.setValue("default_interval", self.interval_input.value())
         self.settings.setValue("default_capture_method", self.capture_method_dropdown.currentText())
         self.settings.setValue("default_source", self.source_dropdown.currentText())
@@ -670,10 +698,10 @@ class SettingsPanel(QWidget):
             "height": self.height_dimension.value()
         })
         self.settings.setValue("default_audio", self.audio_dropdown.currentText())
-        
+
         # Ensure that its saved
         self.settings.sync()
-        
+
         # Save Sound Effects
         start = self.start_sound_dropdown.currentData() or ""
         stop = self.stop_sound_dropdown.currentData() or ""
