@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QFileDialog, QLineEdit, QMessageBox, QScrollArea, QTextEdit, QCheckBox, QFrame, QSizePolicy,
     QApplication
 )
-from PyQt6.QtCore import pyqtSignal, QSettings, QUrl, Qt, QThread
+from PyQt6.QtCore import pyqtSignal, QSettings, QUrl, Qt, QThread, QTimer
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtGui import QShortcut, QKeySequence, QDesktopServices
 
@@ -13,7 +13,6 @@ from core.audio import DEFAULT_SPEECH_MODEL
 from models.lecture import Session
 from ui.setup_recording import setup_source, setup_audio, update_coord_ranges
 from ui.styles import apply_theme, create_button, create_button_label, get_system_theme, no_wheel
-from ui.toast import Toast
 from ui.progress import indeterminate_progress_bar
 
 from pathlib import Path
@@ -568,8 +567,19 @@ class SettingsPanel(QWidget):
         main_layout.addWidget(self._section_header("Danger Zone", danger=True))
         main_layout.addLayout(delete_layout)
         main_layout.addStretch()
+        
+        # Footer pinned below the scroll area (outside it) — Close/Save stay reachable
+        # without scrolling. status_label shows save/download feedback as plain text,
+        # left of the buttons.
+        self.status_label = QLabel("")
+        self._status_timer = QTimer(self)
+        self._status_timer.setSingleShot(True)
+        self._status_timer.timeout.connect(lambda: self.status_label.setText(""))
+
         footer = QHBoxLayout()
-        footer.setContentsMargins(24, 8, 24, 12)
+        footer.setContentsMargins(4, 8, 24, 12)
+        footer.addWidget(self.status_label)
+        footer.addStretch()
         footer.addLayout(action_layout)
         outer_layout.addLayout(footer)
 
@@ -580,15 +590,6 @@ class SettingsPanel(QWidget):
 
         QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self._on_cancel)
         QShortcut(QKeySequence(Qt.Key.Key_Return), self, activated=self._on_save)
-
-        # Transient save-confirmation banner, floated over the panel (see _on_save).
-        self.toast = Toast(self)
-
-    def resizeEvent(self, event) -> None:
-        # Keep the floating toast anchored to the bottom-centre as the panel resizes.
-        super().resizeEvent(event)
-        if getattr(self, "toast", None) is not None and self.toast.isVisible():
-            self.toast.reposition()
 
     def _section_header(self, text: str, danger: bool = False) -> QLabel:
         label = QLabel(text)
@@ -721,9 +722,9 @@ class SettingsPanel(QWidget):
         try:
             self._save_settings()
         except Exception as exc:  # noqa: BLE001 — surface any failure to the user
-            self.toast.show_message(f"Couldn't save settings: {exc}")
+            self._show_status(f"Couldn't save settings: {exc}")
         else:
-            self.toast.show_message("Settings saved successfully!")
+            self._show_status("Settings saved successfully!")
         finally:
             self.save_button.setText(original_text)
             self.save_button.setDisabled(False)
@@ -764,6 +765,10 @@ class SettingsPanel(QWidget):
         self.settings.sync()
         self.api_keys_changed.emit(gemini_key)
         self.processing_mode_changed.emit(self.proc_mode)
+    
+    def _show_status(self, text: str, duration_ms: int = 3000) -> None:
+        self.status_label.setText(text)
+        self._status_timer.start(duration_ms)
     
     def import_sound(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Import Sound", "", "WAV Files (*.wav)")
@@ -1012,14 +1017,14 @@ class SettingsPanel(QWidget):
             if state == "ready":
                 self.speech_model_status.setText(f"{model} is downloaded and ready for offline use.")
                 if was_downloading:
-                    self.toast.show_message(f"{model} downloaded and ready.")
+                    self._show_status(f"{model} downloaded and ready.")
                 # A newly-cached model should now show its installed marker.
                 self._refresh_model_install_markers()
             else:
                 self.speech_model_status.setText(
                     f"Couldn't download {model} — check your internet connection."
                 )
-                self.toast.show_message(f"Couldn't download {model}.")
+                self._show_status(f"Couldn't download {model}.")
             # Restore the controls once nothing is left downloading.
             if not self._downloading_models:
                 self.speech_model_progress.setVisible(False)
