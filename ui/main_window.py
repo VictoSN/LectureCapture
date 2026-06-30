@@ -283,6 +283,10 @@ class MainWindow(FramelessMainWindow):
         self.capture_now_shortcut.activated.connect(self.on_force_capture_clicked)
         self.capture_now_shortcut.setEnabled(False)
 
+        # First-run onboarding: send brand-new users to the Help guide rather than the
+        # empty transcript. Done last so every panel is built before we switch to one.
+        self._maybe_show_onboarding()
+
     def handle_record_shortcut(self) -> None:
         # Used by Ctrl + F
         if self.is_recording_open:
@@ -1039,6 +1043,19 @@ class MainWindow(FramelessMainWindow):
     def on_help_close(self) -> None:
         self.is_help_open = False
         self.show_panel("transcript")
+
+    def _maybe_show_onboarding(self) -> None:
+        """On the very first launch, open the Help guide (its first chapter is a
+        Getting Started walkthrough) instead of dropping the user on the empty
+        transcript. A persisted QSettings flag makes this a one-time redirect; the
+        Help button in the title bar reopens the guide any time afterwards."""
+        if self.settings.value("onboarding_seen", False, type=bool):
+            return
+        # Record that we've shown it before navigating, so a crash mid-launch can't
+        # trap the user in a repeating redirect.
+        self.settings.setValue("onboarding_seen", True)
+        self.settings.sync()
+        self.show_panel("help")
 
     def _load_api_keys(self) -> None:
         self.api_key = str(self.settings.value("api_key_gemini", ""))
