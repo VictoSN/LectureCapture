@@ -99,6 +99,7 @@ class SettingsPanel(QWidget):
     cancel_clicked = pyqtSignal()
     delete_clicked = pyqtSignal()
     help_requested = pyqtSignal()  # open the Help panel at the API-key guide
+    model_download_active = pyqtSignal(bool)  # True while a speech model is downloading
     
     def __init__(self, sessions, base_dir, bundled_sounds_dir, icons_dir, themes_dir) -> None:
         super().__init__()
@@ -990,6 +991,7 @@ class SettingsPanel(QWidget):
 
     def _on_model_download_status(self, model: str, state: str) -> None:
         if state == "downloading":
+            first = not self._downloading_models
             self._downloading_models.add(model)
             self.speech_model_status.setText(
                 f"Downloading {model}… one-time, needs internet (this can take a while)."
@@ -997,6 +999,10 @@ class SettingsPanel(QWidget):
             self.speech_model_progress.setVisible(True)
             # Block re-picking mid-download so a second worker can't race the first.
             self.speech_model_dropdown.setEnabled(False)
+            # Tell the app a download is in progress so it can block local recording
+            # (which would otherwise stall on the shared model-download lock).
+            if first:
+                self.model_download_active.emit(True)
         else:
             # Only treat this as a finished *download* if it actually started one; an
             # already-cached model reports "ready" immediately with no "downloading".
@@ -1017,6 +1023,7 @@ class SettingsPanel(QWidget):
             if not self._downloading_models:
                 self.speech_model_progress.setVisible(False)
                 self.speech_model_dropdown.setEnabled(True)
+                self.model_download_active.emit(False)
         self.speech_model_status.setVisible(True)
 
     def deleteEvent(self) -> None:

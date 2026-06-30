@@ -72,6 +72,10 @@ class MainWindow(FramelessMainWindow):
         # mid-run, and to prevent overlapping summarize requests.
         self._summarize_worker = None
 
+        # True while a speech model is downloading (from the settings dropdown). Local
+        # recording is blocked meanwhile because it would stall on the shared model lock.
+        self._model_download_active = False
+
         # Window details
         self.setWindowIcon(QIcon(str(ICONS_DIR / 'logo.ico')))
         self.setWindowTitle("LectureCapture")
@@ -171,6 +175,7 @@ class MainWindow(FramelessMainWindow):
         self.settings_panel.cancel_clicked.connect(self.on_settings_clicked)
         self.settings_panel.delete_clicked.connect(self.on_all_deleted_clicked)
         self.settings_panel.help_requested.connect(self.on_settings_help_requested)
+        self.settings_panel.model_download_active.connect(self.on_model_download_active)
         
         self.splitter.addWidget(self.settings_panel)
         self.settings_panel.setVisible(False)
@@ -383,7 +388,9 @@ class MainWindow(FramelessMainWindow):
         
         self.properties_shortcut.setEnabled(True)
         self.recording_shortcut.setEnabled(True)
-        
+        # load_session re-enables Record; keep it disabled if a download is still blocking.
+        self._apply_record_download_lock()
+
     def start_recording(self, interval, region, monitor, device, hwnd=None) -> None:
         start_time = time.time()
         self.recording_start_time = start_time
@@ -494,10 +501,40 @@ class MainWindow(FramelessMainWindow):
             )
         self.show_panel("transcript")
 
+    def _local_recording_blocked(self) -> bool:
+        """Local recording needs the speech model, which a download holds a lock on. With
+        a download in progress, transcription would stall and drop audio — so block it.
+        API-mode speech (Gemini) doesn't touch the model, so it's unaffected."""
+        return self._model_download_active and not self._effective_api_key("speech")
+
+    def _apply_record_download_lock(self) -> None:
+        """Disable Record while a model download blocks local recording; otherwise restore
+        it (only when a session is loaded and nothing else is running)."""
+        btn = self.transcript_panel.record_button
+        if self._local_recording_blocked():
+            btn.setDisabled(True)
+            btn.setToolTip("Downloading speech model… recording is available once it finishes")
+        else:
+            if (self.current_session is not None and not self.is_recording
+                    and self._summarize_worker is None):
+                btn.setDisabled(False)
+            btn.setToolTip("Open recording panel (Ctrl+F)")
+
+    def on_model_download_active(self, active: bool) -> None:
+        self._model_download_active = active
+        self._apply_record_download_lock()
+
     def on_record_clicked(self) -> None:
         # Opens the recording panel. Does NOT stop recording — that goes through confirmation
         if not self.current_session:
             print('Need to select session first')
+            return
+        if self._local_recording_blocked():
+            QMessageBox.information(
+                self, "Speech model downloading",
+                "A speech model is still downloading. Local recording will be available "
+                "once it finishes — or switch Audio to the Gemini API in Settings."
+            )
             return
         if not self.is_recording:
             self.show_panel("recording")
@@ -1130,6 +1167,8 @@ class MainWindow(FramelessMainWindow):
     def on_processing_mode_changed(self, mode: str) -> None:
         self.processing_mode = mode
         self._refresh_engine_labels()
+        # Switching Audio between local and Gemini changes whether a download blocks Record.
+        self._apply_record_download_lock()
 
     def on_api_keys_changed(self, key: str) -> None:
         self.api_key = key
