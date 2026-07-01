@@ -447,6 +447,7 @@ class TranscriptPanel(QWidget):
         self.record_button.setDisabled(locked)
         self.sync_scroll_button.setDisabled(locked)
         self.quiz_button.setDisabled(locked)
+        self.import_button.setDisabled(locked)
 
         # Edit-mode toggles (buttons + shortcuts) off; both feeds forced read-only.
         self.ocr_shortcut.setEnabled(not locked)
