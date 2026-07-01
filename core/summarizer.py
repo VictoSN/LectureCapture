@@ -63,6 +63,11 @@ class SummarizeWorker(QThread):
         try:
             summary, engine = summarize(self._text, self._api_key)
         except Exception as e:
-            self.failed.emit(str(e))
+            # Turn raw client exceptions (no internet, bad key) into the same friendly
+            # sentence Translate / Define show; anything unclassified falls back to the
+            # raw text so we don't hide an unexpected error.
+            from core.api_errors import classify_api_error, status_message
+            status = classify_api_error(e)
+            self.failed.emit(status_message(status) if status != "other" else str(e))
             return
         self.done.emit(summary or "", engine)
