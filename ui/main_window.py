@@ -266,8 +266,8 @@ class MainWindow(FramelessMainWindow):
         self._refresh_engine_labels()
         
         # Shortcuts
-        # Shift+4 — Toggle sidebar (always active)
-        self.sidebar_shortcut = QShortcut(QKeySequence("Shift+4"), self)
+        # Shift+1 — Toggle sidebar (always active)
+        self.sidebar_shortcut = QShortcut(QKeySequence("Shift+1"), self)
         self.sidebar_shortcut.activated.connect(self._toggle_sidebar)
         self.sidebar_shortcut.setEnabled(True)
 

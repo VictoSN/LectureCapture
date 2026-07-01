@@ -53,7 +53,7 @@ CHAPTERS = [
     (
         "The Workspace: OCR · Audio · Summary",
         "An open session shows three panels side by side. Toggle any of them with the header "
-        "buttons or Shift+1 / Shift+2 / Shift+3.",
+        "buttons or Shift+2 / Shift+3 / Shift+4.",
         [
             "OCR shows each captured slide and the text read from it. Audio shows the spoken "
             "transcript, lined up with the slide that was on screen. Summary holds the AI "
@@ -148,13 +148,13 @@ SHORTCUT_SECTIONS = [
         ("Ctrl+S",  "Settings"),
         ("Ctrl+D",  "Session properties"),
         ("Ctrl+F",  "Recording panel"),
-        ("Shift+4", "Toggle sidebar"),
         ("Esc",     "Close the current panel"),
     ]),
     ("Panels", [
-        ("Shift+1", "Toggle OCR panel"),
-        ("Shift+2", "Toggle Audio panel"),
-        ("Shift+3", "Toggle Summary panel"),
+        ("Shift+1", "Toggle sidebar"),
+        ("Shift+2", "Toggle OCR panel"),
+        ("Shift+3", "Toggle Audio panel"),
+        ("Shift+4", "Toggle Summary panel"),
     ]),
     ("During Recording", [
         ("Return",      "Stop recording (with confirmation)"),

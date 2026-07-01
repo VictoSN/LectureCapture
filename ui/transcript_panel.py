@@ -61,15 +61,15 @@ class TranscriptPanel(QWidget):
         header.addWidget(self.sync_scroll_button)
 
         self.ocr_visibility_button = create_button(icons_dir / 'scan.svg', lambda: self._panel_visibility(self.ocr_panel), text="OCR", width=80)
-        self.ocr_visibility_button.setToolTip("Toggle OCR panel (Shift+1)")
+        self.ocr_visibility_button.setToolTip("Toggle OCR panel (Shift+2)")
         header.addWidget(self.ocr_visibility_button)
 
         self.speech_visibility_button = create_button(icons_dir / 'microphone.svg', lambda: self._panel_visibility(self.speech_panel), text="Audio", width=80)
-        self.speech_visibility_button.setToolTip("Toggle Audio panel (Shift+2)")
+        self.speech_visibility_button.setToolTip("Toggle Audio panel (Shift+3)")
         header.addWidget(self.speech_visibility_button)
 
         self.summary_visibility_button = create_button(icons_dir / 'summarize.svg', lambda: self._panel_visibility(self.summary_panel), text="Summary", width=110)
-        self.summary_visibility_button.setToolTip("Toggle Summary panel (Shift+3)")
+        self.summary_visibility_button.setToolTip("Toggle Summary panel (Shift+4)")
         header.addWidget(self.summary_visibility_button)
 
         self.quiz_button = create_button(icons_dir / 'question.svg', self.quiz_clicked, text="Quiz", width=90)
@@ -81,7 +81,7 @@ class TranscriptPanel(QWidget):
         self.import_button.setToolTip("Import an audio/video file and transcribe it")
         header.addWidget(self.import_button)
 
-        # These are toggles driven by click or Shift+1/2/3, so they don't need to keep
+        # These are toggles driven by click or Shift+2/3/4, so they don't need to keep
         # keyboard focus — and the focus border (coral) would otherwise look identical
         # to the "panel open" highlight, hiding the open/closed state.
         for _b in (self.ocr_visibility_button, self.speech_visibility_button, self.summary_visibility_button):
@@ -207,15 +207,15 @@ class TranscriptPanel(QWidget):
         self.setLayout(main_layout)
         
         # Shortcuts
-        self.ocr_shortcut = QShortcut(QKeySequence("Shift+1"), self)
+        self.ocr_shortcut = QShortcut(QKeySequence("Shift+2"), self)
         self.ocr_shortcut.activated.connect(lambda: self._panel_visibility(self.ocr_panel))
         self.ocr_shortcut.setEnabled(True)
         
-        self.speech_shortcut = QShortcut(QKeySequence("Shift+2"), self)
+        self.speech_shortcut = QShortcut(QKeySequence("Shift+3"), self)
         self.speech_shortcut.activated.connect(lambda: self._panel_visibility(self.speech_panel))
         self.speech_shortcut.setEnabled(True)
         
-        self.summary_shortcut = QShortcut(QKeySequence("Shift+3"), self)
+        self.summary_shortcut = QShortcut(QKeySequence("Shift+4"), self)
         self.summary_shortcut.activated.connect(lambda: self._panel_visibility(self.summary_panel))
         self.summary_shortcut.setEnabled(True)
 

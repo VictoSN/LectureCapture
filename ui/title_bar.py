@@ -15,13 +15,12 @@ class CustomTitleBar(TitleBar):
         self.title_logo = QLabel()
         self.title_logo._icon_path = icons_dir / "logo.png"
         self.title_logo.setPixmap(
-            load_icon(icons_dir / "logo.png").pixmap(24, 24)
+            load_icon(icons_dir / "logo.png").pixmap(20, 20)
         )
-        self.title_logo.setContentsMargins(10, 0, 0, 0)
-        self.title_label = QLabel("LectureCapture")
+        self.title_logo.setContentsMargins(16, 0, 0, 0)
 
         self.sidebar_button = create_button(icons_dir / 'sidebar.svg', icon_size=20)
-        self.sidebar_button.setToolTip("Toggle sidebar (Shift+4)")
+        self.sidebar_button.setToolTip("Toggle sidebar (Shift+1)")
         self.new_session_button = create_button(icons_dir / 'plus.svg')
         self.new_session_button.setToolTip("New session (Ctrl+T)")
         self.settings_button = create_button(icons_dir / 'settings.svg')
@@ -35,7 +34,6 @@ class CustomTitleBar(TitleBar):
 
         # Insert before the min/max/close buttons
         self.hBoxLayout.insertWidget(0, self.title_logo)
-        self.hBoxLayout.insertWidget(1, self.title_label)
         self.hBoxLayout.insertWidget(self.hBoxLayout.count() - 3, self.sidebar_button)
         self.hBoxLayout.insertWidget(self.hBoxLayout.count() - 3, self.new_session_button)
         self.hBoxLayout.insertWidget(self.hBoxLayout.count() - 3, self.settings_button)
