@@ -176,9 +176,13 @@ class SettingsPanel(QWidget):
         processing_layout.addWidget(processing_label)
         
         self.local_button = create_button_label(icons_dir / "local.svg", "Local", lambda: self.set_proc_mode("local"))
+        self.local_button.setToolTip("Process everything on this device — private and offline. "
+                                     "Local OCR (Tesseract) and speech (Whisper).")
         processing_button_layout.addWidget(self.local_button)
 
         self.api_button = create_button_label(icons_dir / "server.svg", "API", lambda: self.set_proc_mode("api"))
+        self.api_button.setToolTip("Send the steps you choose to Google Gemini for higher accuracy. "
+                                   "Needs an API key and an internet connection.")
         processing_button_layout.addWidget(self.api_button)
         processing_layout.addLayout(processing_button_layout)
 
@@ -281,6 +285,8 @@ class SettingsPanel(QWidget):
         self.gemini_input = QLineEdit()
         self.gemini_input.setPlaceholderText("AIza...")
         self.gemini_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.gemini_input.setToolTip("Your Google Gemini API key. Powers Summary, Quiz, and "
+                                     "Translate / Define, plus any step set to API above.")
         self.api_layout.addWidget(self.gemini_input, 6, 1)
 
         # Rich-text note with two links: an external one to AI Studio, and an internal
@@ -369,12 +375,15 @@ class SettingsPanel(QWidget):
         
         theme = get_system_theme()
         self.auto_button = create_button_label(icons_dir / f"{theme}_mode.svg", "Automatic", lambda: self.set_theme("auto"))
+        self.auto_button.setToolTip("Follow the system's light/dark setting automatically.")
         theme_buttons_layout.addWidget(self.auto_button)
-        
+
         self.light_button = create_button_label(icons_dir / "light_mode.svg", "Light Theme", lambda: self.set_theme("light"))
+        self.light_button.setToolTip("Always use the light theme.")
         theme_buttons_layout.addWidget(self.light_button)
 
         self.dark_button = create_button_label(icons_dir / "dark_mode.svg", "Dark Theme", lambda: self.set_theme("dark"))
+        self.dark_button.setToolTip("Always use the dark theme.")
         theme_buttons_layout.addWidget(self.dark_button)
         theme_layout.addLayout(theme_buttons_layout)
         
@@ -384,12 +393,15 @@ class SettingsPanel(QWidget):
         preferences_layout.addWidget(preferences_label)
 
         self.last_button = create_button_label(icons_dir / "history.svg", "Last Used", lambda: self.set_pref_mode("last"))
+        self.last_button.setToolTip("Pre-fill the recording panel with whatever you used last time.")
         preferences_buttons_layout.addWidget(self.last_button)
 
         self.default_button = create_button_label(icons_dir / "sliders.svg", "Default", lambda: self.set_pref_mode("default"))
+        self.default_button.setToolTip("Pre-fill the recording panel with the default values set below.")
         preferences_buttons_layout.addWidget(self.default_button)
 
         self.clear_button = create_button_label(icons_dir / "clear.svg", "Empty", lambda: self.set_pref_mode("empty"))
+        self.clear_button.setToolTip("Start the recording panel blank each time.")
         preferences_buttons_layout.addWidget(self.clear_button)
         preferences_layout.addLayout(preferences_buttons_layout)
 
@@ -400,13 +412,19 @@ class SettingsPanel(QWidget):
         preferences_note.setObjectName("muted")
         preferences_layout.addWidget(preferences_note)
 
+        # These mirror the recording panel's fields — they set the values that panel is
+        # pre-filled with when Recording preference is "Default".
         ## Interval
-        self.interval_label = QLabel("Default Interval:")
+        self.interval_label = QLabel("Default Interval (s):")
         self.default_layout.addWidget(self.interval_label, 0, 0)
 
         self.interval_input = QSpinBox()
         self.interval_input.setRange(1, 30)
         self.default_layout.addWidget(self.interval_input, 0, 1)
+        interval_tip = ("Default seconds between slide snapshots (1–30).\nA shorter interval "
+                        "catches more slide changes but makes more captures.")
+        self.interval_label.setToolTip(interval_tip)
+        self.interval_input.setToolTip(interval_tip)
 
         ## Control Dropdown
         self.capture_method_label = QLabel("Default Capture Method:")
@@ -417,6 +435,12 @@ class SettingsPanel(QWidget):
         self.capture_method_dropdown.addItems(["Mouse Select", "Coordinates", "Full Window"])
         self.capture_method_dropdown.currentTextChanged.connect(self.update_ui)
         self.default_layout.addWidget(self.capture_method_dropdown, 1, 1)
+        capture_tip = ("Default area to capture each interval:\n"
+                       "• Mouse Select — drag out a region on screen when recording starts\n"
+                       "• Coordinates — a fixed rectangle set with the X/Y/Width/Height fields\n"
+                       "• Full Window — the entire monitor or window chosen as the Source")
+        self.capture_method_label.setToolTip(capture_tip)
+        self.capture_method_dropdown.setToolTip(capture_tip)
 
         ## Source Dropdown
         self.source_label = QLabel("Default Source:")
@@ -426,6 +450,9 @@ class SettingsPanel(QWidget):
         no_wheel(self.source_dropdown)
         setup_source(self.source_dropdown, icons_dir)
         self.default_layout.addWidget(self.source_dropdown, 2, 1)
+        source_tip = "The monitor or open window to capture slides from by default."
+        self.source_label.setToolTip(source_tip)
+        self.source_dropdown.setToolTip(source_tip)
 
         ## Coords Layout
         self.x_label = QLabel("Default X Coordinate:")
@@ -433,24 +460,36 @@ class SettingsPanel(QWidget):
 
         self.x_coords = QSpinBox()
         self.default_layout.addWidget(self.x_coords, 3, 1)
+        x_tip = "Left edge of the capture rectangle, in pixels from the source's left side."
+        self.x_label.setToolTip(x_tip)
+        self.x_coords.setToolTip(x_tip)
 
         self.y_label = QLabel("Default Y Coordinate:")
         self.default_layout.addWidget(self.y_label, 4, 0)
 
         self.y_coords = QSpinBox()
         self.default_layout.addWidget(self.y_coords, 4, 1)
+        y_tip = "Top edge of the capture rectangle, in pixels from the source's top."
+        self.y_label.setToolTip(y_tip)
+        self.y_coords.setToolTip(y_tip)
 
         self.width_label = QLabel("Default Width:")
         self.default_layout.addWidget(self.width_label, 5, 0)
 
         self.width_dimension = QSpinBox()
         self.default_layout.addWidget(self.width_dimension, 5, 1)
+        width_tip = "Width of the capture rectangle, in pixels."
+        self.width_label.setToolTip(width_tip)
+        self.width_dimension.setToolTip(width_tip)
 
         self.height_label = QLabel("Default Height:")
         self.default_layout.addWidget(self.height_label, 6, 0)
 
         self.height_dimension = QSpinBox()
         self.default_layout.addWidget(self.height_dimension, 6, 1)
+        height_tip = "Height of the capture rectangle, in pixels."
+        self.height_label.setToolTip(height_tip)
+        self.height_dimension.setToolTip(height_tip)
 
         ## Audio
         self.audio_label = QLabel("Default Audio:")
@@ -460,6 +499,10 @@ class SettingsPanel(QWidget):
         no_wheel(self.audio_dropdown)
         setup_audio(self.audio_dropdown, icons_dir)
         self.default_layout.addWidget(self.audio_dropdown, 7, 1)
+        audio_tip = ("Default audio input to record and transcribe — a microphone, or a system/"
+                     "loopback device to capture what's playing on your computer.")
+        self.audio_label.setToolTip(audio_tip)
+        self.audio_dropdown.setToolTip(audio_tip)
 
         self.source_dropdown.currentIndexChanged.connect(self._on_source_changed)
         self._on_source_changed()
@@ -474,6 +517,7 @@ class SettingsPanel(QWidget):
         
         self.start_sound_dropdown = QComboBox()
         no_wheel(self.start_sound_dropdown)
+        self.start_sound_dropdown.setToolTip("Sound played when a recording starts. Preview with the play button.")
         sound_grid_layout.addWidget(self.start_sound_dropdown, 0, 1)
         
         self.start_sound_button = create_button(icons_dir / "play.svg", lambda: self.play_sound(self.start_sound_dropdown), width=90)
@@ -485,6 +529,7 @@ class SettingsPanel(QWidget):
 
         self.stop_sound_dropdown = QComboBox()
         no_wheel(self.stop_sound_dropdown)
+        self.stop_sound_dropdown.setToolTip("Sound played when a recording stops. Preview with the play button.")
         sound_grid_layout.addWidget(self.stop_sound_dropdown, 1, 1)
 
         self.stop_sound_button = create_button(icons_dir / "play.svg", lambda: self.play_sound(self.stop_sound_dropdown), width=90)
@@ -504,6 +549,7 @@ class SettingsPanel(QWidget):
         
         self.export_dropdown = QComboBox()
         no_wheel(self.export_dropdown)
+        self.export_dropdown.setToolTip("The session to export to a shareable file.")
         export_layout.addWidget(self.export_dropdown)
         
         self.export_button = create_button(icons_dir / "export.svg", self._emit_export, width=90)
@@ -545,7 +591,7 @@ class SettingsPanel(QWidget):
         action_layout.addWidget(self.cancel_button)
 
         self.save_button = QPushButton("Save")
-        self.save_button.setToolTip("Save settings (Return)")
+        self.save_button.setToolTip("Save settings (Enter)")
         action_layout.addWidget(self.save_button)
         self.save_button.clicked.connect(self._on_save)
         action_layout.insertStretch(0)

@@ -85,6 +85,7 @@ class LookupPopup(QDialog):
         footer = QHBoxLayout()
         footer.addStretch()
         self.copy_btn = QPushButton("Copy")
+        self.copy_btn.setToolTip("Copy the result to the clipboard.")
         self.copy_btn.setEnabled(False)
         self.copy_btn.clicked.connect(self._copy)
         footer.addWidget(self.copy_btn)

@@ -87,7 +87,7 @@ class TranscriptPanel(QWidget):
             _b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
         self.force_capture_button = create_button(icons_dir / 'scan.svg', self.force_capture_clicked, text="Capture Now", width=132)
-        self.force_capture_button.setToolTip("Force a capture now (Ctrl+Return)")
+        self.force_capture_button.setToolTip("Force a capture now (Ctrl+Enter)")
         self.force_capture_button.setVisible(False)
         header.addWidget(self.force_capture_button)
 

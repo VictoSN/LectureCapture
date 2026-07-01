@@ -1,7 +1,7 @@
 """A category chooser: a dropdown of existing categories plus an "Add new…" entry
 that reveals a line edit for typing a brand-new one.
 
-Used for both the session and group category on the New Session and Properties
+Used for both the session and module category on the New Session and Properties
 panels. Matching is case-sensitive ("Lab" and "lab" are different categories), and
 typing a name that already exists just re-selects it — no duplicate is created.
 """
@@ -54,7 +54,7 @@ class CategoryPicker(QWidget):
     _ADD_NEW = "\x00__add_new__"
 
     def __init__(self, add_label: str, new_placeholder: str,
-                 include_blank: bool = False, parent=None) -> None:
+                 include_blank: bool = False, tooltip: str = "", parent=None) -> None:
         super().__init__(parent)
         self._add_label = add_label
         self._include_blank = include_blank
@@ -72,6 +72,11 @@ class CategoryPicker(QWidget):
         self.new_edit.setPlaceholderText(new_placeholder)
         self.new_edit.setVisible(False)
         layout.addWidget(self.new_edit)
+
+        # Same hint on both parts so hovering the dropdown or the "add new" field helps.
+        if tooltip:
+            self.combo.setToolTip(tooltip)
+            self.new_edit.setToolTip(tooltip)
 
     def set_categories(self, categories: list[str], select: str | None = None) -> None:
         """Repopulate the dropdown, preserving the current selection unless `select`

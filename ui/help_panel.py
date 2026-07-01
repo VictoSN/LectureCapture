@@ -44,8 +44,8 @@ CHAPTERS = [
             "Pick a capture source — a screen region (Mouse Select), a specific window, or a "
             "whole monitor — and an audio input. Set the capture interval (how often a slide "
             "snapshot is taken).",
-            "While recording, use Capture Now (Ctrl+Return) to grab a slide immediately, and "
-            "Return to stop (with a confirmation).",
+            "While recording, use Capture Now (Ctrl+Enter) to grab a slide immediately, and "
+            "Enter to stop (with a confirmation).",
         ],
         "The recording setup panel",
         "recording.png",
@@ -146,6 +146,7 @@ SHORTCUT_SECTIONS = [
     ("General", [
         ("Ctrl+T",  "New session"),
         ("Ctrl+S",  "Settings"),
+        ("Ctrl+G",  "Help & guide"),
         ("Ctrl+D",  "Session properties"),
         ("Ctrl+F",  "Recording panel"),
         ("Esc",     "Close the current panel"),
@@ -157,8 +158,8 @@ SHORTCUT_SECTIONS = [
         ("Shift+4", "Toggle Summary panel"),
     ]),
     ("During Recording", [
-        ("Return",      "Stop recording (with confirmation)"),
-        ("Ctrl+Return", "Capture now"),
+        ("Enter",      "Stop recording (with confirmation)"),
+        ("Ctrl+Enter", "Capture now"),
     ]),
     ("In a Quiz", [
         ("Enter", "Next question"),

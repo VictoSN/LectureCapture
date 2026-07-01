@@ -9,7 +9,7 @@ class Session:
     session_category: str
     length: int
     id: int | None = None
-    group_category: str | None = None
+    module_category: str | None = None
     summary: str | None = None
     summary_generated_at: datetime | None = None
     # Saved quiz: JSON list of questions, the last score (correct count), a hash of the

@@ -9,7 +9,7 @@ class NewSessionPanel(QWidget):
     create_clicked = pyqtSignal(str, str, str)
     cancel_clicked = pyqtSignal()
 
-    def __init__(self, session_categories: list[str] = None, group_categories: list[str] = None) -> None:
+    def __init__(self, session_categories: list[str] = None, module_categories: list[str] = None) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(24, 24, 24, 24)
@@ -32,6 +32,7 @@ class NewSessionPanel(QWidget):
         
         self.session_name = QLineEdit()
         self.session_name.setPlaceholderText("Session name...")
+        self.session_name.setToolTip("A name for this session, e.g. the lecture topic or date.")
         grid_layout.addWidget(self.session_name, 0, 1)
 
         ## Session Category
@@ -39,20 +40,24 @@ class NewSessionPanel(QWidget):
         grid_layout.addWidget(session_category_label, 1, 0)
 
         self.session_category = CategoryPicker(
-            "+ Add new session category…", "New session category…"
+            "+ Add new session category…", "New session category…",
+            tooltip="What kind of session this is (Lecture, Lab, Tutorial…).\n"
+                    "Pick one or add your own.",
         )
         grid_layout.addWidget(self.session_category, 1, 1)
 
-        ## Group Category
-        group_category_label = QLabel("Group Category:")
-        grid_layout.addWidget(group_category_label, 2, 0)
+        ## Module Category
+        module_category_label = QLabel("Module Category:")
+        grid_layout.addWidget(module_category_label, 2, 0)
 
-        self.group_category = CategoryPicker(
-            "+ Add new group category…", "New group category…", include_blank=True
+        self.module_category = CategoryPicker(
+            "+ Add new module category…", "New module category…", include_blank=True,
+            tooltip="Which module or course this belongs to (optional).\n"
+                    "Used to group and filter sessions in the sidebar.",
         )
-        grid_layout.addWidget(self.group_category, 2, 1)
+        grid_layout.addWidget(self.module_category, 2, 1)
 
-        self.set_categories(session_categories, group_categories)
+        self.set_categories(session_categories, module_categories)
 
         # Actions Buttons
         self.cancel_button = QPushButton("Cancel")
@@ -61,7 +66,7 @@ class NewSessionPanel(QWidget):
         button_layout.addWidget(self.cancel_button)
 
         self.create_button = QPushButton("Create")
-        self.create_button.setToolTip("Create session (Return)")
+        self.create_button.setToolTip("Create session (Enter)")
         self.create_button.clicked.connect(self._on_save)
         button_layout.addWidget(self.create_button)
 
@@ -75,12 +80,12 @@ class NewSessionPanel(QWidget):
         QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self._on_cancel)
         QShortcut(QKeySequence(Qt.Key.Key_Return), self, activated=self._on_save)
     
-    def set_categories(self, session_categories: list[str] = None, group_categories: list[str] = None) -> None:
+    def set_categories(self, session_categories: list[str] = None, module_categories: list[str] = None) -> None:
         # Built-in defaults first, then any custom categories the user has added.
         defaults = DEFAULT_SESSION_CATEGORIES
         merged = defaults + [c for c in (session_categories or []) if c not in defaults]
         self.session_category.set_categories(merged)
-        self.group_category.set_categories(group_categories or [])
+        self.module_category.set_categories(module_categories or [])
 
     def _on_save(self) -> None:
         if not self.session_name.text().strip():
@@ -89,7 +94,7 @@ class NewSessionPanel(QWidget):
         self.create_clicked.emit(
             self.session_name.text(),
             session_cat,
-            self.group_category.value(),
+            self.module_category.value(),
         )
 
     def _on_cancel(self) -> None:
@@ -99,4 +104,4 @@ class NewSessionPanel(QWidget):
     def reset_form(self):
         self.session_name.clear()
         self.session_category.set_value("")
-        self.group_category.set_value("")
+        self.module_category.set_value("")

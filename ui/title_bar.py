@@ -29,7 +29,7 @@ class CustomTitleBar(TitleBar):
         self.settings_button = create_button(icons_dir / 'settings.svg')
         self.settings_button.setToolTip("Settings (Ctrl+S)")
         self.help_button = create_button(icons_dir / 'question.svg', icon_size=22)
-        self.help_button.setToolTip("Help & guide")
+        self.help_button.setToolTip("Help & guide (Ctrl+G)")
 
         # Flat, borderless icon buttons in the title bar (filled buttons look heavy here).
         for _btn in (self.sidebar_button, self.new_session_button, self.settings_button, self.help_button):
@@ -37,7 +37,7 @@ class CustomTitleBar(TitleBar):
 
         # Insert before the min/max/close buttons
         self.hBoxLayout.insertWidget(0, self.title_logo)
-        self.hBoxLayout.insertWidget(self.hBoxLayout.count() - 3, self.sidebar_button)
+        self.hBoxLayout.insertWidget(1, self.sidebar_button)
         self.hBoxLayout.insertWidget(self.hBoxLayout.count() - 3, self.new_session_button)
         self.hBoxLayout.insertWidget(self.hBoxLayout.count() - 3, self.settings_button)
         self.hBoxLayout.insertWidget(self.hBoxLayout.count() - 3, self.help_button)

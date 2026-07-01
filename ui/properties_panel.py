@@ -14,7 +14,7 @@ class PropertiesPanel(QWidget):
     saved_clicked = pyqtSignal(str, str, str)
     cancel_clicked = pyqtSignal()
 
-    def __init__(self, session: Session, session_categories: list[str] = None, group_categories: list[str] = None) -> None:
+    def __init__(self, session: Session, session_categories: list[str] = None, module_categories: list[str] = None) -> None:
         super().__init__()
         self.setObjectName("propertiesPanel")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -40,6 +40,7 @@ class PropertiesPanel(QWidget):
         self.session_name = QLineEdit()
         self.session_name.setPlaceholderText("Session name...")
         self.session_name.setText(session.name or "")
+        self.session_name.setToolTip("Rename this session.")
         grid_layout.addWidget(self.session_name, 0, 1)
 
         ## Session Category
@@ -49,20 +50,24 @@ class PropertiesPanel(QWidget):
         defaults = DEFAULT_SESSION_CATEGORIES
         merged = defaults + [c for c in (session_categories or []) if c not in defaults]
         self.session_category = CategoryPicker(
-            "+ Add new session category…", "New session category…"
+            "+ Add new session category…", "New session category…",
+            tooltip="What kind of session this is (Lecture, Lab, Tutorial…).\n"
+                    "Pick one or add your own.",
         )
         self.session_category.set_categories(merged, select=session.session_category or "")
         grid_layout.addWidget(self.session_category, 1, 1)
 
-        ## Group Category
-        group_category_label = QLabel("Group Category:")
-        grid_layout.addWidget(group_category_label, 2, 0)
+        ## Module Category
+        module_category_label = QLabel("Module Category:")
+        grid_layout.addWidget(module_category_label, 2, 0)
 
-        self.group_category = CategoryPicker(
-            "+ Add new group category…", "New group category…", include_blank=True
+        self.module_category = CategoryPicker(
+            "+ Add new module category…", "New module category…", include_blank=True,
+            tooltip="Which module or course this belongs to (optional).\n"
+                    "Used to group and filter sessions in the sidebar.",
         )
-        self.group_category.set_categories(group_categories or [], select=session.group_category or "")
-        grid_layout.addWidget(self.group_category, 2, 1)
+        self.module_category.set_categories(module_categories or [], select=session.module_category or "")
+        grid_layout.addWidget(self.module_category, 2, 1)
 
         # Date Recorded
         date_recorded_label = QLabel("Date Recorded:")
@@ -109,7 +114,7 @@ class PropertiesPanel(QWidget):
         button_layout.addWidget(self.duplicate_button)
 
         self.save_button = QPushButton("Save")
-        self.save_button.setToolTip("Save changes (Return)")
+        self.save_button.setToolTip("Save changes (Enter)")
         self.save_button.clicked.connect(self._on_save)
         button_layout.addWidget(self.save_button)
 
@@ -151,5 +156,5 @@ class PropertiesPanel(QWidget):
         self.saved_clicked.emit(
             self.session_name.text(),
             session_cat,
-            self.group_category.value(),
+            self.module_category.value(),
         )

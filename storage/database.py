@@ -27,15 +27,16 @@ class Storage:
         self.create_table()
 
     def _wipe_if_old_schema(self) -> None:
-        """The quiz columns were added without a migration (agreed: wipe rather than
-        migrate). CREATE TABLE IF NOT EXISTS can't add columns to an existing table, so
-        if we find the pre-quiz schema we drop the tables and clear stored captures."""
+        """Some schema changes were made without a migration (agreed: wipe rather than
+        migrate) — the quiz columns, and later the group_category → module_category
+        rename. CREATE TABLE IF NOT EXISTS can't alter an existing table, so if we find a
+        pre-current schema we drop the tables and clear stored captures."""
         self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='session'")
         if not self.cursor.fetchone():
             return  # fresh database — nothing to wipe
         self.cursor.execute("PRAGMA table_info(session)")
         columns = {row[1] for row in self.cursor.fetchall()}
-        if "quiz_generated_at" in columns:
+        if "quiz_generated_at" in columns and "module_category" in columns:
             return  # already on the current schema
         self.cursor.execute("DROP TABLE IF EXISTS ocrcapture")
         self.cursor.execute("DROP TABLE IF EXISTS session")
@@ -50,7 +51,7 @@ class Storage:
                                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 name TEXT NOT NULL,
                                 session_category TEXT NOT NULL,
-                                group_category TEXT,
+                                module_category TEXT,
                                 date_recorded TEXT NOT NULL,
                                 date_modified TEXT NOT NULL,
                                 length INTEGER NOT NULL,
@@ -103,8 +104,8 @@ class Storage:
 
         # Quiz columns are carried too, so an imported/duplicated session keeps its quiz.
         self.cursor.execute(
-            "INSERT INTO session (name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash, quiz_generated_at, quiz_answers) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (session.name, session.session_category, session.group_category, date_recorded, date_modified, session.length, session.summary, summary_generated_at, session.quiz, session.quiz_score, session.quiz_source_hash, quiz_generated_at, session.quiz_answers)
+            "INSERT INTO session (name, session_category, module_category, date_recorded, date_modified, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash, quiz_generated_at, quiz_answers) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (session.name, session.session_category, session.module_category, date_recorded, date_modified, session.length, session.summary, summary_generated_at, session.quiz, session.quiz_score, session.quiz_source_hash, quiz_generated_at, session.quiz_answers)
         )
     
         self.conn.commit()
@@ -128,7 +129,7 @@ class Storage:
             session_category=row[2],
             length=row[6],
             id=row[0],
-            group_category=row[3],
+            module_category=row[3],
             summary=row[7],
             summary_generated_at=self._parse_datetime(row[8]),
             quiz=row[9],
@@ -139,21 +140,21 @@ class Storage:
         )
 
     def get_all_sessions(self) -> list[Session]:
-        self.cursor.execute("SELECT id, name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash, quiz_generated_at, quiz_answers FROM session")
+        self.cursor.execute("SELECT id, name, session_category, module_category, date_recorded, date_modified, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash, quiz_generated_at, quiz_answers FROM session")
         return [self._row_to_session(session) for session in self.cursor.fetchall()]        
 
     def get_session(self, id: int) -> Session:
-        self.cursor.execute("SELECT id, name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash, quiz_generated_at, quiz_answers FROM session WHERE id = ?", (id,))
+        self.cursor.execute("SELECT id, name, session_category, module_category, date_recorded, date_modified, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash, quiz_generated_at, quiz_answers FROM session WHERE id = ?", (id,))
         row = self.cursor.fetchone()
         return self._row_to_session(row) if row else None
 
     def update_session(self, session: Session) -> None:
         self.cursor.execute(
-            "UPDATE session SET name = ?, session_category = ?, group_category = ?, date_recorded = ?, date_modified = ?, length = ?, summary = ?, summary_generated_at = ? WHERE id = ?", 
+            "UPDATE session SET name = ?, session_category = ?, module_category = ?, date_recorded = ?, date_modified = ?, length = ?, summary = ?, summary_generated_at = ? WHERE id = ?", 
             (
                 session.name,
                 session.session_category,
-                session.group_category,
+                session.module_category,
                 session.date_recorded.isoformat() if isinstance(session.date_recorded, datetime) else session.date_recorded,
                 datetime.now().isoformat(), # Always now
                 session.length,
@@ -300,8 +301,8 @@ class Storage:
         
         self.conn.commit()
 
-    def get_group_categories(self) -> list[str]:
-        self.cursor.execute("SELECT DISTINCT group_category FROM session WHERE group_category IS NOT NULL")
+    def get_module_categories(self) -> list[str]:
+        self.cursor.execute("SELECT DISTINCT module_category FROM session WHERE module_category IS NOT NULL")
         return [row[0] for row in self.cursor.fetchall()]
 
     def get_session_categories(self) -> list[str]:
@@ -313,8 +314,8 @@ class Storage:
         )
         return [row[0] for row in self.cursor.fetchall()]
 
-    def search_sessions(self, name, session_category, group_category) -> list[Session]:
-        query = "SELECT id, name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash, quiz_generated_at, quiz_answers FROM session WHERE 1=1"
+    def search_sessions(self, name, session_category, module_category) -> list[Session]:
+        query = "SELECT id, name, session_category, module_category, date_recorded, date_modified, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash, quiz_generated_at, quiz_answers FROM session WHERE 1=1"
         params = []
         
         if name:
@@ -325,9 +326,9 @@ class Storage:
             query += " AND session_category = ?"
             params.append(session_category)
             
-        if group_category and group_category != "All":
-            query += " AND group_category = ?"
-            params.append(group_category)
+        if module_category and module_category != "All":
+            query += " AND module_category = ?"
+            params.append(module_category)
         
         self.cursor.execute(query, params)
         return [self._row_to_session(captures) for captures in self.cursor.fetchall()]
@@ -336,8 +337,8 @@ class Storage:
         # Copy session and captures in database
         now = datetime.now().isoformat()
         self.cursor.execute("""
-            INSERT INTO session (name, session_category, group_category, date_recorded, date_modified, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash, quiz_generated_at, quiz_answers)
-            SELECT name || ' (Copy)', session_category, group_category, ?, ?, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash, quiz_generated_at, quiz_answers
+            INSERT INTO session (name, session_category, module_category, date_recorded, date_modified, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash, quiz_generated_at, quiz_answers)
+            SELECT name || ' (Copy)', session_category, module_category, ?, ?, length, summary, summary_generated_at, quiz, quiz_score, quiz_source_hash, quiz_generated_at, quiz_answers
             FROM session WHERE id = ?
         """, (now, now, id))
 

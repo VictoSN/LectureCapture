@@ -35,9 +35,9 @@ class SessionCard(QWidget):
         name_label.setStyleSheet("font-weight: 600;")
         name_category_layout.addWidget(name_label)
 
-        group_category_label = QLabel(self.session.group_category or "")
-        group_category_label.setObjectName("muted")
-        name_category_layout.addWidget(group_category_label)
+        module_category_label = QLabel(self.session.module_category or "")
+        module_category_label.setObjectName("muted")
+        name_category_layout.addWidget(module_category_label)
 
         main_layout.addStretch()
         date_modified_label = QLabel(str(FormatTime(self.session.date_modified)))

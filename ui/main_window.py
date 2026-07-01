@@ -124,7 +124,7 @@ class MainWindow(FramelessMainWindow):
         
         self.filter_name = ""
         self.filter_category = ""
-        self.filter_group = ""
+        self.filter_module = ""
 
         # Title Bar
         self.setTitleBar(CustomTitleBar(self, ICONS_DIR))
@@ -145,8 +145,8 @@ class MainWindow(FramelessMainWindow):
         self.elapse_s = 0
 
         sessions = self.storage.get_all_sessions()
-        group_categories = self.storage.get_group_categories() # Get all group categories
-        self.sidebar = Sidebar(sessions, self.on_session_selected, self._session_categories(), group_categories, ICONS_DIR)
+        module_categories = self.storage.get_module_categories() # Get all module categories
+        self.sidebar = Sidebar(sessions, self.on_session_selected, self._session_categories(), module_categories, ICONS_DIR)
         self.sidebar.new_session_clicked.connect(self.on_new_session_clicked)
         self.sidebar.settings_clicked.connect(self.on_settings_clicked)
         self.splitter.addWidget(self.sidebar)
@@ -160,12 +160,12 @@ class MainWindow(FramelessMainWindow):
         
         self.sidebar.search_changed.connect(self.on_search_changed)
         self.sidebar.category_filter_changed.connect(self.on_category_filter_changed)
-        self.sidebar.group_filter_changed.connect(self.on_group_filter_changed)
+        self.sidebar.module_filter_changed.connect(self.on_module_filter_changed)
 
         # New Session Panel
-        self.new_session_panel = NewSessionPanel(self._session_categories(), self.storage.get_group_categories())
+        self.new_session_panel = NewSessionPanel(self._session_categories(), self.storage.get_module_categories())
         self.new_session_panel.create_clicked.connect(
-            lambda session_name, session_category, group_category: self.on_new_session_create(session_name, session_category, group_category)
+            lambda session_name, session_category, module_category: self.on_new_session_create(session_name, session_category, module_category)
         )
         self.new_session_panel.cancel_clicked.connect(self.on_new_session_cancelled)
         
@@ -288,7 +288,12 @@ class MainWindow(FramelessMainWindow):
         self.settings_shortcut = QShortcut(QKeySequence("Ctrl+S"), self)
         self.settings_shortcut.activated.connect(self.on_settings_clicked)
         self.settings_shortcut.setEnabled(True)
-        
+
+        # Ctrl+G — Help & guide (always active)
+        self.help_shortcut = QShortcut(QKeySequence("Ctrl+G"), self)
+        self.help_shortcut.activated.connect(self.on_help_clicked)
+        self.help_shortcut.setEnabled(True)
+
         # Ctrl+D — Properties
         self.properties_shortcut = QShortcut(QKeySequence("Ctrl+D"), self)
         self.properties_shortcut.activated.connect(self.on_properties_clicked)
@@ -299,12 +304,12 @@ class MainWindow(FramelessMainWindow):
         self.recording_shortcut.activated.connect(self.handle_record_shortcut)
         self.recording_shortcut.setEnabled(False)
 
-        # Ctrl+Return — Stop recording (with confirmation), only active while recording
+        # Enter — Stop recording (with confirmation), only active while recording
         self.stop_recording_shortcut = QShortcut(QKeySequence("Return"), self)
         self.stop_recording_shortcut.activated.connect(self.on_stop_recording_confirmation)
         self.stop_recording_shortcut.setEnabled(False)
 
-        # Ctrl+Shift+Return — Force capture now, only active while recording
+        # Ctrl+Enter — Force capture now, only active while recording
         self.capture_now_shortcut = QShortcut(QKeySequence("Ctrl+Return"), self)
         self.capture_now_shortcut.activated.connect(self.on_force_capture_clicked)
         self.capture_now_shortcut.setEnabled(False)
@@ -342,22 +347,22 @@ class MainWindow(FramelessMainWindow):
         else:
             # Pick up categories added since the panel was built (it's created once).
             self.new_session_panel.set_categories(
-                self._session_categories(), self.storage.get_group_categories()
+                self._session_categories(), self.storage.get_module_categories()
             )
 
         self.is_new_session_open = not self.is_new_session_open
         self.is_properties_open = False # Close Properties when opening new session
         self.show_panel("new_session" if self.is_new_session_open else "transcript")
         
-    def on_new_session_create(self, session_name, session_category, group_category) -> None:
+    def on_new_session_create(self, session_name, session_category, module_category) -> None:
         # Used data to build a new session
         current_time = datetime.now()
         
         # Create new session using gathered data
-        new_session = Session(session_name, current_time, current_time, session_category, 0, None, group_category, None, None)
+        new_session = Session(session_name, current_time, current_time, session_category, 0, None, module_category, None, None)
         self.storage.create_session(new_session)
         self.sidebar.refresh(self.storage.get_all_sessions())
-        self.sidebar.update_categories(self._session_categories(), self.storage.get_group_categories())
+        self.sidebar.update_categories(self._session_categories(), self.storage.get_module_categories())
         self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
 
         # Clear the form so the next new session starts blank.
@@ -376,7 +381,7 @@ class MainWindow(FramelessMainWindow):
     def rebuild_properties_panel(self) -> None:
         if self.properties_panel:
             self.splitter.widget(self.splitter.indexOf(self.properties_panel)).setParent(None)
-        self.properties_panel = PropertiesPanel(self.current_session, self._session_categories(), self.storage.get_group_categories())
+        self.properties_panel = PropertiesPanel(self.current_session, self._session_categories(), self.storage.get_module_categories())
         self.properties_panel.delete_clicked.connect(self.on_properties_deleted)
         self.properties_panel.duplicate_clicked.connect(self.on_properties_duplicated)
         self.properties_panel.saved_clicked.connect(
@@ -1170,12 +1175,12 @@ class MainWindow(FramelessMainWindow):
         self.filter_category = category
         self.apply_filters()
 
-    def on_group_filter_changed(self, group) -> None:
-        self.filter_group = group
+    def on_module_filter_changed(self, module) -> None:
+        self.filter_module = module
         self.apply_filters()
 
     def apply_filters(self) -> None:
-        sessions = self.storage.search_sessions(self.filter_name, self.filter_category, self.filter_group)
+        sessions = self.storage.search_sessions(self.filter_name, self.filter_category, self.filter_module)
         self.sidebar.refresh(sessions)
         
     def on_properties_clicked(self) -> None:
@@ -1188,15 +1193,15 @@ class MainWindow(FramelessMainWindow):
         self.is_properties_open = False
         self.show_panel("transcript")
 
-    def on_properties_saved(self, session_name, session_category, group_category) -> None:        
+    def on_properties_saved(self, session_name, session_category, module_category) -> None:        
         # Used data to update session info
         self.current_session.name = session_name
         self.current_session.date_modified = datetime.now()
         self.current_session.session_category = session_category
-        self.current_session.group_category = group_category
+        self.current_session.module_category = module_category
         self.storage.update_session(self.current_session)
         self.sidebar.refresh(self.storage.get_all_sessions())
-        self.sidebar.update_categories(self._session_categories(), self.storage.get_group_categories())
+        self.sidebar.update_categories(self._session_categories(), self.storage.get_module_categories())
         self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
     
     def on_properties_deleted(self) -> None:
@@ -1207,14 +1212,14 @@ class MainWindow(FramelessMainWindow):
         # operate on a deleted session.
         self.current_session = None
         self.sidebar.refresh(self.storage.get_all_sessions())
-        self.sidebar.update_categories(self._session_categories(), self.storage.get_group_categories())
+        self.sidebar.update_categories(self._session_categories(), self.storage.get_module_categories())
         self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
         self.transcript_panel.clear_panels()
     
     def on_properties_duplicated(self) -> None:
         self.current_session = self.storage.duplicate_sessions(self.current_session.id)
         self.sidebar.refresh(self.storage.get_all_sessions())
-        self.sidebar.update_categories(self._session_categories(), self.storage.get_group_categories())
+        self.sidebar.update_categories(self._session_categories(), self.storage.get_module_categories())
         self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
         self.on_session_selected(self.current_session)
     
@@ -1390,7 +1395,7 @@ class MainWindow(FramelessMainWindow):
         session_data = {
             "name": session.name,
             "session_category": session.session_category,
-            "group_category": session.group_category,
+            "module_category": session.module_category,
             "date_recorded": session.date_recorded.isoformat(),
             "date_modified": session.date_modified.isoformat(),
             "length": session.length,
@@ -1434,7 +1439,7 @@ class MainWindow(FramelessMainWindow):
             new_session = Session(
                 name=session_data["name"],
                 session_category=session_data["session_category"],
-                group_category=session_data.get("group_category"),
+                module_category=session_data.get("module_category"),
                 date_recorded=datetime.fromisoformat(session_data["date_recorded"]),
                 date_modified=datetime.now(),
                 length=session_data["length"],
@@ -1465,14 +1470,14 @@ class MainWindow(FramelessMainWindow):
                 )
                 self.storage.create_ocr_capture(capture)
         self.sidebar.refresh(self.storage.get_all_sessions())
-        self.sidebar.update_categories(self._session_categories(), self.storage.get_group_categories())
+        self.sidebar.update_categories(self._session_categories(), self.storage.get_module_categories())
         self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
 
     def on_all_deleted_clicked(self) -> None:
         self.storage.delete_all_sessions()
         self.current_session = None
         self.sidebar.refresh(self.storage.get_all_sessions())
-        self.sidebar.update_categories(self._session_categories(), self.storage.get_group_categories())
+        self.sidebar.update_categories(self._session_categories(), self.storage.get_module_categories())
         self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
         self.transcript_panel.clear_panels()
 

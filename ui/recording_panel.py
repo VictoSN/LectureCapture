@@ -36,22 +36,32 @@ class RecordingPanel(QWidget):
         # Input Fields
         # Used QSpinBox for integer validation
         ## Interval
-        self.interval_label = QLabel("Interval:")
+        self.interval_label = QLabel("Interval (s):")
         self.default_layout.addWidget(self.interval_label, 0, 0)
-        
+
         self.session_interval = QSpinBox()
         self.session_interval.setRange(1, 30)
         self.default_layout.addWidget(self.session_interval, 0, 1)
-        
+        interval_tip = ("How often a slide snapshot is taken, in seconds (1–30).\n"
+                        "A shorter interval catches more slide changes but makes more captures.")
+        self.interval_label.setToolTip(interval_tip)
+        self.session_interval.setToolTip(interval_tip)
+
         ## Capture Method Dropdown
         self.capture_method_label = QLabel("Capture Method:")
         self.default_layout.addWidget(self.capture_method_label, 1, 0)
-        
+
         self.capture_method_dropdown = QComboBox()
         no_wheel(self.capture_method_dropdown)
         self.capture_method_dropdown.addItems(["Mouse Select", "Coordinates", "Full Window"])
         self.capture_method_dropdown.currentTextChanged.connect(self.set_user_option)
         self.default_layout.addWidget(self.capture_method_dropdown, 1, 1)
+        capture_tip = ("What area to capture each interval:\n"
+                       "• Mouse Select — drag out a region on screen when recording starts\n"
+                       "• Coordinates — a fixed rectangle you set with the X/Y/Width/Height fields\n"
+                       "• Full Window — the entire monitor or window chosen as the Source")
+        self.capture_method_label.setToolTip(capture_tip)
+        self.capture_method_dropdown.setToolTip(capture_tip)
 
         ## Source Dropdown
         self.source_label = QLabel("Source:")
@@ -61,6 +71,9 @@ class RecordingPanel(QWidget):
         no_wheel(self.source_dropdown)
         setup_source(self.source_dropdown, icons_dir)
         self.default_layout.addWidget(self.source_dropdown, 2, 1)
+        source_tip = "The monitor or open window to capture slides from."
+        self.source_label.setToolTip(source_tip)
+        self.source_dropdown.setToolTip(source_tip)
 
         ## Coords Layout
         self.x_label = QLabel("X Coordinate:")
@@ -68,24 +81,36 @@ class RecordingPanel(QWidget):
 
         self.x_coords = QSpinBox()
         self.default_layout.addWidget(self.x_coords, 3, 1)
+        x_tip = "Left edge of the capture rectangle, in pixels from the source's left side."
+        self.x_label.setToolTip(x_tip)
+        self.x_coords.setToolTip(x_tip)
 
         self.y_label = QLabel("Y Coordinate:")
         self.default_layout.addWidget(self.y_label, 4, 0)
 
         self.y_coords = QSpinBox()
         self.default_layout.addWidget(self.y_coords, 4, 1)
+        y_tip = "Top edge of the capture rectangle, in pixels from the source's top."
+        self.y_label.setToolTip(y_tip)
+        self.y_coords.setToolTip(y_tip)
 
         self.width_label = QLabel("Width:")
         self.default_layout.addWidget(self.width_label, 5, 0)
 
         self.width_dimension = QSpinBox()
         self.default_layout.addWidget(self.width_dimension, 5, 1)
+        width_tip = "Width of the capture rectangle, in pixels."
+        self.width_label.setToolTip(width_tip)
+        self.width_dimension.setToolTip(width_tip)
 
         self.height_label = QLabel("Height:")
         self.default_layout.addWidget(self.height_label, 6, 0)
 
         self.height_dimension = QSpinBox()
         self.default_layout.addWidget(self.height_dimension, 6, 1)
+        height_tip = "Height of the capture rectangle, in pixels."
+        self.height_label.setToolTip(height_tip)
+        self.height_dimension.setToolTip(height_tip)
 
         self.source_dropdown.currentIndexChanged.connect(self._on_source_changed)
         self._on_source_changed()
@@ -97,7 +122,11 @@ class RecordingPanel(QWidget):
         self.audio_dropdown = QComboBox()
         no_wheel(self.audio_dropdown)
         setup_audio(self.audio_dropdown, icons_dir)
-        self.default_layout.addWidget(self.audio_dropdown, 7, 1)        
+        self.default_layout.addWidget(self.audio_dropdown, 7, 1)
+        audio_tip = ("The audio input to record and transcribe. \nA microphone, or a system/"
+                     "loopback device to capture what's playing on your computer.")
+        self.audio_label.setToolTip(audio_tip)
+        self.audio_dropdown.setToolTip(audio_tip)
 
         # Need to call 'update_coord_ranges' before calling setValue
         self.load_preferences()
@@ -109,7 +138,7 @@ class RecordingPanel(QWidget):
         action_layout.addWidget(cancel_button)
 
         start_button = QPushButton("Start Recording")
-        start_button.setToolTip("Start recording (Return)")
+        start_button.setToolTip("Start recording (Enter)")
         start_button.clicked.connect(self.try_record)
         action_layout.addWidget(start_button)
 
