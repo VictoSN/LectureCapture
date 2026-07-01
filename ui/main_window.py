@@ -87,7 +87,7 @@ class MainWindow(FramelessMainWindow):
         # Window details
         self.setWindowIcon(QIcon(str(ICONS_DIR / 'logo.ico')))
         self.setWindowTitle("LectureCapture")
-        self.setMinimumSize(800, 600)
+        self.setMinimumSize(800, 300)
         self.resize(1300, 800)
         
         # Move it to the middle
@@ -95,6 +95,9 @@ class MainWindow(FramelessMainWindow):
         frame = self.frameGeometry()
         frame.moveCenter(screen.center())
         self.move(frame.topLeft())
+        
+        # Restore last window geometry/maximized state, if we have one saved.
+        self._restore_window_state()
         
         # Default Sound Effects
         self.DEFAULT_START_SOUND = str(BUNDLED_SOUNDS_DIR / 'Beep 1 (Default).wav')
@@ -1558,6 +1561,22 @@ class MainWindow(FramelessMainWindow):
             sizes[0] = self._sidebar_width
             self.splitter.setSizes(sizes)
 
+    def _restore_window_state(self) -> None:
+        # restoreGeometry() replays the size, position AND maximized/fullscreen state that
+        # saveGeometry() captured. It does NOT show the window — Qt applies the geometry
+        # (maximizing if that was the saved state) when the window is first shown by
+        # main.py. So no explicit showMaximized() here: calling that mid-__init__, before
+        # the title bar/central widget exist, is what stopped the restore from sticking.
+        geometry = self.settings.value("windowGeometry")
+        if geometry is not None:
+            self.restoreGeometry(geometry)
+
+    def _save_window_state(self) -> None:
+        # Save unconditionally: saveGeometry() already encodes the maximized state, so the
+        # old "skip while maximized" branch left a stale geometry behind and never recorded
+        # that the window was maximized. One call captures everything restore needs.
+        self.settings.setValue("windowGeometry", self.saveGeometry())
+
     def closeEvent(self, event) -> None:
         if self._summarize_worker is not None:
             reply = QMessageBox.question(
@@ -1592,9 +1611,11 @@ class MainWindow(FramelessMainWindow):
                 self.ocr_worker.wait()
                 self.audio_worker.wait()
                 self.storage.close()
+                self._save_window_state()
                 event.accept()
             else:
                 event.ignore()
         else:
             self.storage.close()
+            self._save_window_state()
             event.accept()
