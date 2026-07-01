@@ -150,11 +150,11 @@ class QuizPanel(QWidget):
         layout.addStretch()
 
         nav = QHBoxLayout()
+        nav.addStretch()
         self.prev_button = QPushButton("Previous")
         self.prev_button.setToolTip("Previous question (Esc)")
         self.prev_button.clicked.connect(self._prev)
         nav.addWidget(self.prev_button)
-        nav.addStretch()
         self.next_button = QPushButton("Next")
         self.next_button.setToolTip("Next question (Enter)")
         self.next_button.clicked.connect(self._next)
