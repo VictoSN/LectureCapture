@@ -57,26 +57,6 @@ QPushButton:disabled {
     border-color: #e3ddce;
 }
 
-/* Panel-visibility toggles (transcript header): lit when the panel is shown,
-   muted when it's collapsed — so the button itself signals the panel's state.
-   :enabled-scoped so it never overrides the disabled/locked look. */
-QPushButton[panelOpen="true"]:enabled {
-    border-color: #c15f3c;
-    background-color: #efe7d6;
-}
-QPushButton[panelOpen="true"]:enabled:hover {
-    border-color: #ab5333;
-    background-color: #e1dbc9;
-}
-QPushButton[panelOpen="false"]:enabled {
-    color: #9a9384;
-    background-color: #efece2;
-}
-QPushButton[panelOpen="false"]:enabled:hover {
-    color: #837c6c;
-    background-color: #e1dbc9;
-}
-
 /* Flat icon buttons in the title bar */
 QPushButton#titleBarButton {
     background: transparent;

@@ -202,6 +202,14 @@ class MainWindow(FramelessMainWindow):
         self.transcript_panel.import_stop_clicked.connect(self.on_import_stop_clicked)
         self.transcript_panel.capture_deleted.connect(self.storage.delete_capture)
 
+        # The OCR / Audio / Summary toggles live in the title bar, not the transcript
+        # header — hand the (title-bar-owned placement of the) transcript's buttons over.
+        self.titleBar.add_panel_buttons([
+            self.transcript_panel.ocr_visibility_button,
+            self.transcript_panel.speech_visibility_button,
+            self.transcript_panel.summary_visibility_button,
+        ])
+
         ## Translate / define on a text selection in any panel
         self.transcript_panel.ocr_panel.lookup_requested.connect(self.on_lookup_requested)
         self.transcript_panel.speech_panel.lookup_requested.connect(self.on_lookup_requested)

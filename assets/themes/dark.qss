@@ -57,26 +57,6 @@ QPushButton:disabled {
     border-color: #2c2924;
 }
 
-/* Panel-visibility toggles (transcript header): lit when the panel is shown,
-   muted when it's collapsed — so the button itself signals the panel's state.
-   :enabled-scoped so it never overrides the disabled/locked look. */
-QPushButton[panelOpen="true"]:enabled {
-    border-color: #d97757;
-    background-color: #2f2a24;
-}
-QPushButton[panelOpen="true"]:enabled:hover {
-    border-color: #e28a6b;
-    background-color: #322e29;
-}
-QPushButton[panelOpen="false"]:enabled {
-    color: #8a8377;
-    background-color: #211f1c;
-}
-QPushButton[panelOpen="false"]:enabled:hover {
-    color: #ada695;
-    background-color: #2a2723;
-}
-
 /* Flat icon buttons in the title bar */
 QPushButton#titleBarButton {
     background: transparent;
@@ -261,6 +241,12 @@ QMenu::item {
 }
 QMenu::item:selected {
     background-color: #322e29;
+}
+
+QScrollArea {
+    border: 1px solid #38332c;
+    border-radius: 6px;
+    background-color: #1c1b18;
 }
 
 /* ---- Scrollbars ---- */

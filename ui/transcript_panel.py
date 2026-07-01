@@ -60,17 +60,17 @@ class TranscriptPanel(QWidget):
         self.sync_scroll_button.setToolTip("Sync OCR and Audio scroll positions")
         header.addWidget(self.sync_scroll_button)
 
-        self.ocr_visibility_button = create_button(icons_dir / 'scan.svg', lambda: self._panel_visibility(self.ocr_panel), text="OCR", width=80)
+        # The three panel-toggle buttons live in the title bar (added there by MainWindow),
+        # not this header — hence icon-only and no header.addWidget. MainWindow gives them
+        # the flat titleBarButton look so they match the other title-bar icons.
+        self.ocr_visibility_button = create_button(icons_dir / 'scan.svg', lambda: self._panel_visibility(self.ocr_panel))
         self.ocr_visibility_button.setToolTip("Toggle OCR panel (Shift+2)")
-        header.addWidget(self.ocr_visibility_button)
 
-        self.speech_visibility_button = create_button(icons_dir / 'microphone.svg', lambda: self._panel_visibility(self.speech_panel), text="Audio", width=80)
+        self.speech_visibility_button = create_button(icons_dir / 'microphone.svg', lambda: self._panel_visibility(self.speech_panel))
         self.speech_visibility_button.setToolTip("Toggle Audio panel (Shift+3)")
-        header.addWidget(self.speech_visibility_button)
 
-        self.summary_visibility_button = create_button(icons_dir / 'summarize.svg', lambda: self._panel_visibility(self.summary_panel), text="Summary", width=110)
+        self.summary_visibility_button = create_button(icons_dir / 'summarize.svg', lambda: self._panel_visibility(self.summary_panel))
         self.summary_visibility_button.setToolTip("Toggle Summary panel (Shift+4)")
-        header.addWidget(self.summary_visibility_button)
 
         self.quiz_button = create_button(icons_dir / 'question.svg', self.quiz_clicked, text="Quiz", width=90)
         self.quiz_button.setToolTip("Generate a quiz from this session")
@@ -81,9 +81,8 @@ class TranscriptPanel(QWidget):
         self.import_button.setToolTip("Import an audio/video file and transcribe it")
         header.addWidget(self.import_button)
 
-        # These are toggles driven by click or Shift+2/3/4, so they don't need to keep
-        # keyboard focus — and the focus border (coral) would otherwise look identical
-        # to the "panel open" highlight, hiding the open/closed state.
+        # These are toggles driven by click or Shift+2/3/4, so they don't need to grab
+        # keyboard focus (the focus ring would just clutter the title bar).
         for _b in (self.ocr_visibility_button, self.speech_visibility_button, self.summary_visibility_button):
             _b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
@@ -220,7 +219,6 @@ class TranscriptPanel(QWidget):
         self.summary_shortcut.setEnabled(True)
 
         self._toggle_sync_scroll()
-        self._refresh_panel_buttons()  # reflect the initial (all-open) panel state
 
     def _on_record_button_clicked(self) -> None:
         if self.record_button.text() == "Recording":
@@ -284,12 +282,6 @@ class TranscriptPanel(QWidget):
         # resize/drag settles rather than on every intermediate event.
         self._resync_timer.start()
 
-    def showEvent(self, event) -> None:
-        super().showEvent(event)
-        # A child's isVisible() only reads true once this panel is itself shown, so
-        # refresh the toggle highlights after the show propagates (one frame later).
-        QTimer.singleShot(0, self._refresh_panel_buttons)
-
     def _on_capture_deleted(self, capture_id: int) -> None:
         """Remove the matching row from both panels and notify the controller."""
         for panel in (self.ocr_panel, self.speech_panel):
@@ -345,20 +337,6 @@ class TranscriptPanel(QWidget):
     def _panel_visibility(self, panel: QWidget):
         panel.setVisible(not panel.isVisible())
         self._rebalance_splitter()
-        self._refresh_panel_buttons()
-
-    def _refresh_panel_buttons(self) -> None:
-        # Reflect each panel's open/closed state on its toggle button: the QSS lights
-        # the button (coral) when the panel is shown and mutes it when hidden, so the
-        # button itself tells you what's collapsed. Repolish so the change applies now.
-        for btn, panel in (
-            (self.ocr_visibility_button, self.ocr_panel),
-            (self.speech_visibility_button, self.speech_panel),
-            (self.summary_visibility_button, self.summary_panel),
-        ):
-            btn.setProperty("panelOpen", panel.isVisible())
-            btn.style().unpolish(btn)
-            btn.style().polish(btn)
 
     def _rebalance_splitter(self):
         panels = [self.ocr_panel, self.speech_panel, self.summary_panel]
