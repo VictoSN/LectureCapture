@@ -6,7 +6,7 @@ class Session:
     name: str
     date_recorded: datetime
     date_modified: datetime
-    session_category: str
+    activity_category: str
     length: int
     id: int | None = None
     module_category: str | None = None

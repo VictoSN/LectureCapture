@@ -392,6 +392,29 @@ QLabel#kbd {
     font-size: 12px;
 }
 
+/* Help guide — clickable chapter cards on the main help page */
+QFrame#helpRow {
+    background-color: #eae5d7;
+    border: 1px solid #ddd6c4;
+    border-radius: 10px;
+}
+QFrame#helpRow:hover {
+    background-color: #e1dbc9;
+    border-color: #c15f3c;
+}
+QLabel#helpRowTitle {
+    font-size: 14px;
+    font-weight: 600;
+}
+/* Coral number chips echoing the screenshot callout circles */
+QLabel#helpNum {
+    color: #c15f3c;
+    border: 2px solid #c15f3c;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
 /* Session cards are transparent so the list row's hover/selection shows through */
 SessionCard {
     background: transparent;

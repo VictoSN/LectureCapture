@@ -1,7 +1,7 @@
 """A category chooser: a dropdown of existing categories plus an "Add new…" entry
 that reveals a line edit for typing a brand-new one.
 
-Used for both the session and module category on the New Session and Properties
+Used for both the activity and module category on the New Session and Properties
 panels. Matching is case-sensitive ("Lab" and "lab" are different categories), and
 typing a name that already exists just re-selects it — no duplicate is created.
 """
@@ -12,8 +12,8 @@ from PyQt6.QtWidgets import QWidget, QComboBox, QLineEdit, QVBoxLayout
 
 from ui.styles import no_wheel
 
-# Always-available session categories, even before any session uses them.
-DEFAULT_SESSION_CATEGORIES = ["Lab", "Tutorial", "Lecture", "Workshop"]
+# Always-available activity categories, even before any session uses them.
+DEFAULT_ACTIVITY_CATEGORIES = ["Lab", "Tutorial", "Lecture", "Workshop"]
 
 # Fixed strip colours for the built-in categories.
 CATEGORY_COLORS = {
@@ -39,7 +39,7 @@ _CUSTOM_CATEGORY_COLORS = [
 
 
 def category_color(category: str) -> str:
-    """Strip colour for a session category. Built-ins are fixed; a custom category gets
+    """Strip colour for an activity category. Built-ins are fixed; a custom category gets
     a stable colour picked from its name. Returns '' for an empty category."""
     if not category:
         return ""

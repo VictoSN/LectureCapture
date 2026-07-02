@@ -61,8 +61,15 @@ class ScalableImageLabel(QLabel):
         self._last_w = w
         h = self._aspect_h(w)
         self.setMaximumHeight(h)
-        self.setPixmap(self._pixmap.scaled(
-            w, h,
+        # Scale in device pixels, not logical ones: on a scaled display (e.g. 125%)
+        # a pixmap scaled to the logical width gets stretched back up by the DPR
+        # and turns blurry. Tagging the result with the DPR keeps its on-screen
+        # (logical) size the same while giving the screen every physical pixel.
+        dpr = self.devicePixelRatioF()
+        scaled = self._pixmap.scaled(
+            round(w * dpr), round(h * dpr),
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
-        ))
+        )
+        scaled.setDevicePixelRatio(dpr)
+        self.setPixmap(scaled)

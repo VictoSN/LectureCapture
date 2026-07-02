@@ -6,7 +6,7 @@ from PyQt6.QtGui import QShortcut, QKeySequence
 
 from models.lecture import Session
 from ui.format_time import FormatDetailedTime
-from ui.category_picker import CategoryPicker, DEFAULT_SESSION_CATEGORIES
+from ui.category_picker import CategoryPicker, DEFAULT_ACTIVITY_CATEGORIES
 
 class PropertiesPanel(QWidget):
     delete_clicked = pyqtSignal()
@@ -14,7 +14,7 @@ class PropertiesPanel(QWidget):
     saved_clicked = pyqtSignal(str, str, str)
     cancel_clicked = pyqtSignal()
 
-    def __init__(self, session: Session, session_categories: list[str] = None, module_categories: list[str] = None) -> None:
+    def __init__(self, session: Session, activity_categories: list[str] = None, module_categories: list[str] = None) -> None:
         super().__init__()
         self.setObjectName("propertiesPanel")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -43,19 +43,19 @@ class PropertiesPanel(QWidget):
         self.session_name.setToolTip("Rename this session.")
         grid_layout.addWidget(self.session_name, 0, 1)
 
-        ## Session Category
-        session_category_label = QLabel("Session Category:")
-        grid_layout.addWidget(session_category_label, 1, 0)
+        ## Activity Category
+        activity_category_label = QLabel("Activity Category:")
+        grid_layout.addWidget(activity_category_label, 1, 0)
 
-        defaults = DEFAULT_SESSION_CATEGORIES
-        merged = defaults + [c for c in (session_categories or []) if c not in defaults]
-        self.session_category = CategoryPicker(
-            "+ Add new session category…", "New session category…",
+        defaults = DEFAULT_ACTIVITY_CATEGORIES
+        merged = defaults + [c for c in (activity_categories or []) if c not in defaults]
+        self.activity_category = CategoryPicker(
+            "+ Add new activity category…", "New activity category…",
             tooltip="What kind of session this is (Lecture, Lab, Tutorial…).\n"
                     "Pick one or add your own.",
         )
-        self.session_category.set_categories(merged, select=session.session_category or "")
-        grid_layout.addWidget(self.session_category, 1, 1)
+        self.activity_category.set_categories(merged, select=session.activity_category or "")
+        grid_layout.addWidget(self.activity_category, 1, 1)
 
         ## Module Category
         module_category_label = QLabel("Module Category:")
@@ -152,7 +152,7 @@ class PropertiesPanel(QWidget):
             self.delete_clicked.emit()
     
     def _on_save(self) -> None:
-        session_cat = self.session_category.value() or DEFAULT_SESSION_CATEGORIES[0]
+        session_cat = self.activity_category.value() or DEFAULT_ACTIVITY_CATEGORIES[0]
         self.saved_clicked.emit(
             self.session_name.text(),
             session_cat,

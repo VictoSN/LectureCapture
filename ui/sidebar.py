@@ -18,7 +18,7 @@ class Sidebar(QWidget):
     category_filter_changed = pyqtSignal(str)
     module_filter_changed = pyqtSignal(str)
     
-    def __init__(self, sessions: list[Session], on_session_selected, session_categories: list[str], module_categories: list[str], icons_dir) -> None:
+    def __init__(self, sessions: list[Session], on_session_selected, activity_categories: list[str], module_categories: list[str], icons_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(14, 14, 14, 4)
@@ -47,14 +47,14 @@ class Sidebar(QWidget):
         self.filter_button.setToolTip("Filter by category")
         search_layout.addWidget(self.filter_button)
 
-        self.session_category = QComboBox()
-        no_wheel(self.session_category)
-        self.session_category.setToolTip("Show only sessions of this category. “All” shows everything.")
-        self.session_category.addItems(["All"] + [c for c in session_categories if c])
-        self.session_category.currentTextChanged.connect(self.category_filter_changed)
-        self.session_category.currentTextChanged.connect(self._update_filter_button)
-        self.session_category.setVisible(False)
-        header.addWidget(self.session_category)
+        self.activity_category = QComboBox()
+        no_wheel(self.activity_category)
+        self.activity_category.setToolTip("Show only sessions of this activity category. “All” shows everything.")
+        self.activity_category.addItems(["All"] + [c for c in activity_categories if c])
+        self.activity_category.currentTextChanged.connect(self.category_filter_changed)
+        self.activity_category.currentTextChanged.connect(self._update_filter_button)
+        self.activity_category.setVisible(False)
+        header.addWidget(self.activity_category)
 
         self.module_category = QComboBox()
         no_wheel(self.module_category)
@@ -135,11 +135,11 @@ class Sidebar(QWidget):
         self._populate_list(sessions, selected_id)
         self.lecture_list.verticalScrollBar().setValue(scroll)
 
-    def update_categories(self, session_categories: list[str], module_categories: list[str]) -> None:
+    def update_categories(self, activity_categories: list[str], module_categories: list[str]) -> None:
         """Rebuild the filter dropdowns when categories change, keeping the current
         selection if it still exists. Signals are blocked so this doesn't re-trigger
         filtering (which would call back into refresh)."""
-        for combo, values in ((self.session_category, session_categories),
+        for combo, values in ((self.activity_category, activity_categories),
                               (self.module_category, module_categories)):
             current = combo.currentText()
             combo.blockSignals(True)
@@ -152,29 +152,29 @@ class Sidebar(QWidget):
     def set_recording_locked(self, locked: bool) -> None:
         self.filter_button.setDisabled(locked)
         self.session_search.setDisabled(locked)
-        self.session_category.setDisabled(locked)
+        self.activity_category.setDisabled(locked)
         self.module_category.setDisabled(locked)
         self.lecture_list.setDisabled(locked)
     
     def _show_filter(self) -> None:
-        current_visibility = self.session_category.isVisible()
+        current_visibility = self.activity_category.isVisible()
 
-        self.session_category.setVisible(not current_visibility)
+        self.activity_category.setVisible(not current_visibility)
         self.module_category.setVisible(not current_visibility)
 
         if current_visibility:
-            self.session_category.setCurrentIndex(0)
+            self.activity_category.setCurrentIndex(0)
             self.module_category.setCurrentIndex(0)
 
     def _is_filter_active(self) -> bool:
-        return (self.session_category.currentText() != "All"
+        return (self.activity_category.currentText() != "All"
                 or self.module_category.currentText() != "All")
 
     def _on_filter_button(self) -> None:
         # While a filter is applied the button is an ✕ that clears it; otherwise it
         # toggles the category/module dropdowns.
         if self._is_filter_active():
-            self.session_category.setCurrentIndex(0)
+            self.activity_category.setCurrentIndex(0)
             self.module_category.setCurrentIndex(0)
         else:
             self._show_filter()
