@@ -47,7 +47,9 @@ def _number_chip(number: str) -> QLabel:
 #                                      Mode.drawio.png", matched to the active theme
 #   ("items", [(num, name, text)])   — numbered notes matching the screenshot callouts
 #   ("figure", base, caption, items) — notes on the left, screenshot on the right, so
-#                                      the callouts and their explanations share the view
+#                                      the callouts and their explanations share the
+#                                      view; an item is (num, name, text) for a numbered
+#                                      note, or a plain string for a paragraph
 # blocks=None marks a chapter that hasn't been written yet (placeholder page).
 CHAPTERS = [
     (
@@ -101,10 +103,10 @@ CHAPTERS = [
         "first recording.",
         [
             ("p",
-             "Before your first recording, open Settings (gear icon or Ctrl+S) and "
-             "choose how recordings get processed — either download a local speech "
-             "model or add a Gemini API key. The six controls below are the ones "
-             "worth understanding up front."),
+             "Before you can record, the app needs a way to turn audio into text: "
+             "open Settings (gear icon or Ctrl+S) and either download a local "
+             "speech model or add a Gemini API key first. The six controls below "
+             "are the ones worth understanding up front."),
             ("figure", "Help Panel 11", "The Settings page", [
                 ("1", "Processing mode",
                  "Where your recordings are processed. Local runs everything on "
@@ -160,8 +162,8 @@ CHAPTERS = [
                  "in the sidebar. Optional: “None” leaves it unassigned."),
             ]),
             ("p",
-             "Create saves the session and it appears in the sidebar, ready to "
-             "record into. Cancel backs out without saving."),
+             "“Create” saves the session and it appears in the sidebar, ready to "
+             "record into. “Cancel” backs out without saving."),
         ],
     ),
     (
@@ -169,8 +171,8 @@ CHAPTERS = [
         "Choose what to capture and control the recording.",
         [
             ("p",
-             "With a session open, press Record (or Ctrl+F) to set up what gets "
-             "captured. Start Recording begins the capture; Cancel backs out "
+             "With a session open, press “Record” (or Ctrl+F) to set up what gets "
+             "captured. “Start Recording” begins the capture; “Cancel” backs out "
              "without starting."),
             ("figure", "Help Panel 3", "The recording setup form", [
                 ("1", "Interval (s)",
@@ -197,54 +199,195 @@ CHAPTERS = [
     (
         "After Recording",
         "What a finished session looks like in the workspace.",
-        None,
+        [
+            ("figure", "Help Panel 4", "A freshly recorded session", [
+                "When a recording stops, the session is already filled in — "
+                "nothing else to do. Every snapshot became a panel in Screen OCR: "
+                "the slide image with the text read from it underneath, stamped "
+                "with when it appeared. The trash button removes a bad capture; "
+                "the collapse button shrinks one you don't need open.",
+                "The Audio transcript holds everything that was said, timestamped "
+                "and lined up with the slide that was on screen at the time. Turn "
+                "on “Scroll Sync” to scroll slides and speech together.",
+                "Both panels start at “Locked” so nothing gets nudged by "
+                "accident — click “Locked” to switch the panel to “Editable” and "
+                "fix any misread or misheard text. Changes save automatically. "
+                "The AI summary stays empty until you press “Summarize” (see the "
+                "Summarization chapter).",
+            ]),
+        ],
     ),
     (
         "Session Properties",
         "View and edit a session's details.",
-        None,
+        [
+            ("p",
+             "Press “Properties” (or Ctrl+D) to open the session's details next "
+             "to the workspace."),
+            ("figure", "Help Panel 5", "The Properties panel", [
+                ("1", "Session Name",
+                 "Rename the session — the sidebar updates on save."),
+                ("2", "Activity Category",
+                 "Change the kind of class this was (Lab, Lecture, your own…) — "
+                 "it recolours the session's sidebar stripe."),
+                ("3", "Module Category",
+                 "Change which course or module the session belongs to."),
+                ("4", "Dates",
+                 "A read-only record of the session: when it was recorded, last "
+                 "modified, and when its summary and quiz were generated."),
+                ("5", "Delete · Duplicate",
+                 "“Delete” removes the session and everything in it (asks "
+                 "first). “Duplicate” makes a full copy — captures, summary, "
+                 "quiz and all."),
+            ]),
+            ("p",
+             "“Save” applies your changes; “Close” dismisses the panel without "
+             "saving them."),
+        ],
     ),
     (
         "Summarization",
         "Condense a session into structured AI notes.",
-        None,
+        [
+            ("p",
+             "The AI summary panel turns the whole session — slides and speech — "
+             "into a compact set of revision notes."),
+            ("figure", "Help Panel 6", "A generated summary", [
+                ("1", "Summarize",
+                 "Generates the notes. With a Gemini key you get structured "
+                 "markdown with headings and key terms; without one, a quick "
+                 "on-device summary is used instead. Run it again after editing "
+                 "the session to refresh the notes."),
+                ("2", "Preview / Edit",
+                 "Switches the summary between the rendered view and plain text "
+                 "you can edit yourself — your edits are saved with the session."),
+            ]),
+        ],
     ),
     (
         "Translate & Define",
         "Look up or translate any text you select.",
-        None,
+        [
+            ("p",
+             "Select any text in a panel — a term on a slide, a phrase in the "
+             "transcript or summary — and right-click to look it up with Gemini. "
+             "This needs a Gemini API key, but works whether you're in Local or "
+             "API mode."),
+            ("figure", "Help Panel 7", "The right-click lookup menu", [
+                ("1", "Define",
+                 "Asks for a short explanation of the selected word or phrase, in "
+                 "the context it appeared in."),
+                ("2", "Translate to",
+                 "Opens a list of languages — pick one, or type your own at the "
+                 "bottom of the list."),
+            ]),
+            ("figure", "Help Panel 7.1", "A definition result", [
+                ("1", "Definition card",
+                 "The explanation appears in a small pop-up card over the "
+                 "workspace — “Copy” puts it on the clipboard, and it closes "
+                 "with the ✕ or a click elsewhere."),
+            ]),
+            ("figure", "Help Panel 7.2", "A translation result", [
+                ("1", "Translation card",
+                 "Translations appear the same way, with the target language in "
+                 "the title."),
+            ]),
+        ],
     ),
     (
         "Importing Media",
         "Bring an existing audio or video file into the app.",
-        None,
+        [
+            ("p",
+             "Already have the lecture as a file — a recorded video or audio? "
+             "Open the session it belongs in, press “Import”, and pick the file. "
+             "It's processed just like a live recording: speech is transcribed, "
+             "and video frames become slide captures with their text read."),
+            ("figure", "Help Panel 8", "The Import media dialog", [
+                ("1", "Playback",
+                 "Play the file and drag the slider to find where the actual "
+                 "lecture starts."),
+                ("2", "Start point",
+                 "Transcription begins from the position you've seeked to — handy "
+                 "for skipping intros or dead air at the start."),
+                ("3", "Transcribe from here",
+                 "Press “Transcribe from here” to start processing the file from "
+                 "that point."),
+            ]),
+            ("figure", "Help Panel 8.1", "An import in progress", [
+                ("1", "Progress",
+                 "The footer shows how far through the file the transcription "
+                 "has got — the session fills in as it goes."),
+                ("2", "Pause · Stop",
+                 "“Pause” suspends the import; “Stop” ends it early, keeping "
+                 "everything processed so far."),
+            ]),
+        ],
     ),
     (
         "Quiz",
         "Generate a self-test from a session's content.",
-        None,
+        [
+            ("p",
+             "Press “Quiz” to test yourself on a session. It needs the session's "
+             "summary to exist first (press “Summarize” if you haven't) and a "
+             "Gemini API key."),
+            ("figure", "Help Panel 9", "The quiz start page", [
+                ("1", "Generate Quiz",
+                 "Builds a fresh quiz from the session's content with Gemini. The "
+                 "number of questions scales with how much material there is."),
+            ]),
+            ("figure", "Help Panel 9.1", "Generating the quiz", [
+                "Generation takes a few seconds — the page shows which Gemini "
+                "model is writing your questions.",
+            ]),
+            ("figure", "Help Panel 9.2", "Answering a question", [
+                "Questions are a mix of multiple choice and true / false. Pick an "
+                "answer and move on — Enter (or “Next”) advances, Esc (or "
+                "“Previous”) goes back if you want to change something.",
+            ]),
+            ("figure", "Help Panel 9.3", "The results review", [
+                "At the end you get a score and a card per question: your answer, "
+                "the correct one, and a short explanation. “Retake” runs the same "
+                "quiz again, and the quiz is saved with the session so you can "
+                "review it any time — or regenerate it after the content changes.",
+            ]),
+        ],
     ),
     (
         "Getting a Gemini API Key",
         "Get a free key from Google AI Studio for the AI features.",
         [
             ("p",
-             "The AI features — Summary, Quiz, and Translate / Define — use Google's "
-             "Gemini API, which has a free tier. Here's how to get a key and add it "
-             "to LectureCapture."),
-            ("p",
-             'Go to <a href="https://aistudio.google.com/api-keys" style="color:#c15f3c;">AI Studio</a> and sign in '
-             "with a Google account (creating one is free)."),
-            ("p",
-             "Open the “Get API key” page (left sidebar, or the “Get API key” "
-             "button), then click “Create API key”. A long key starting with "
-             "“AIza…” is generated."),
-            ("p",
-             "Copy the key, open LectureCapture’s Settings (gear icon / Ctrl+S), "
-             "paste it into the “Google Gemini API Key” box, and press Save."),
-            ("p",
-             "Click “Test API Connection” in Settings to confirm the key works and "
-             "see which models are available on the free tier."),
+             "The AI features — Summary, Quiz, and Translate / Define — use "
+             "Google's Gemini API, which has a free tier. Go to "
+             '<a href="https://aistudio.google.com/api-keys" style="color:#c15f3c;">AI Studio</a> '
+             "and sign in with a Google account (creating one is free), then "
+             "follow the steps below."),
+            ("figure", "Help Panel 10", "The AI Studio API Keys page", [
+                ("1", "Create API key",
+                 "On the API Keys page, press “Create API key” (top right) to "
+                 "start."),
+            ]),
+            ("figure", "Help Panel 10.1", "Naming the key and picking a project", [
+                ("1", "Choose a project",
+                 "A key must belong to a Google Cloud project. If the dropdown "
+                 "says “No Cloud Projects Available”, open it…"),
+                ("2", "Create project",
+                 "…and pick “Create project” — AI Studio makes one for you on "
+                 "the spot. Name the key anything you like."),
+            ]),
+            ("figure", "Help Panel 10.2", "Creating the key", [
+                ("1", "Create key",
+                 "With a name and project set, press “Create key”. A long key "
+                 "starting with “AIza…” is generated."),
+            ]),
+            ("figure", "Help Panel 10.3", "Copying the finished key", [
+                ("1", "Copy key",
+                 "Copy it, then in LectureCapture open Settings (Ctrl+S), paste "
+                 "it into the “Google Gemini API Key” box, press Save, and run "
+                 "“Test API Connection” to confirm it works."),
+            ]),
             ("p",
              "Troubleshooting — “invalid API key”: the key was mistyped or "
              "revoked, so regenerate it. “Daily limit reached”: you’ve hit the "
@@ -519,8 +662,13 @@ class HelpPanel(QWidget):
             row.setSpacing(18)
             notes = QVBoxLayout()
             notes.setSpacing(10)
-            for num, name, text in items:
-                notes.addWidget(self._numbered_item(num, name, text))
+            for item in items:
+                if isinstance(item, str):
+                    p = QLabel(item)
+                    p.setWordWrap(True)
+                    notes.addWidget(p)
+                else:
+                    notes.addWidget(self._numbered_item(*item))
             notes.addStretch()
             row.addLayout(notes, 35)
             holder = QVBoxLayout()
