@@ -57,143 +57,174 @@ CHAPTERS = [
         "A tour of the main window and what every button does.",
         [
             ("p",
-             "LectureCapture records what's on your screen and what's said during a "
-             "lecture, then turns it into searchable notes, summaries, and quizzes. "
-             "Everything starts from this window — each number in the screenshot is "
-             "explained beside it."),
+             "LectureCapture records what's on your screen and what's being said "
+             "during an online/hybrid lecture, then turns all of it into notes you can search, "
+             "a summary, and a quiz. Everything happens in this one window, so "
+             "here's a quick tour of it. Each number in the screenshot is "
+             "explained next to it."),
             ("figure", "Help Panel 1", "The main window with every control numbered", [
                 ("1", "Panel toggles",
-                 "Show or hide the sidebar and the three workspace panels — Screen "
-                 "OCR, Audio transcript, and AI summary (Shift+1 to Shift+4)."),
+                 "These four buttons show and hide the big parts of the window: "
+                 "the sidebar, the Screen OCR panel, the Audio transcript panel, "
+                 "and the AI summary panel. Useful when you want more room for "
+                 "one of them. Shift+1 to Shift+4 do the same thing."),
                 ("2", "Session list",
-                 "Every saved session, grouped by date. Click one to open it in the "
-                 "workspace."),
+                 "Every session you've made, grouped by date. A session is one "
+                 "lecture: its slides, transcript, summary and quiz all live in "
+                 "it. Click one to open it. The search box above finds sessions "
+                 "by name, and the funnel button filters the list by activity or "
+                 "module."),
                 ("3", "Screen OCR panel",
-                 "Each slide captured during a recording, along with the text read "
-                 "from it."),
+                 "Every slide captured during the recording, each with the text "
+                 "the app read off it shown underneath."),
                 ("4", "Audio transcript panel",
-                 "Everything that was said, transcribed and lined up with the slide "
-                 "that was on screen at the time."),
+                 "Everything that was said in the lecture, written out with "
+                 "timestamps, sitting next to the slide that was up at the time."),
                 ("5", "AI summary panel",
-                 "The generated notes for the session — see the Summarization "
-                 "chapter."),
+                 "The AI-written notes for this session. It stays empty until you "
+                 "press “Summarize”. There's a whole chapter on it."),
                 ("6", "Properties button",
-                 "Opens the session's details — name, category, and more (Ctrl+D)."),
+                 "Opens the session's details, like its name and categories "
+                 "(Ctrl+D)."),
                 ("7", "Scroll Sync button",
-                 "Locks the slides and transcript together so they scroll as one."),
+                 "Ties the slides and the transcript together, so scrolling one "
+                 "scrolls the other and you always see matching content."),
                 ("8", "Quiz button",
-                 "Opens the quiz panel to test yourself on the session's content."),
+                 "Opens the quiz page, where you can test yourself on this "
+                 "session."),
                 ("9", "Import button",
-                 "Brings an existing audio or video file into the app — see the "
-                 "Importing Media chapter."),
+                 "Brings in a lecture you already have as a video or audio file, "
+                 "instead of recording it live."),
                 ("10", "Record button",
-                 "Starts recording a lecture (Ctrl+F) — see the Recording chapter."),
-                ("11", "New session · Settings · Help",
-                 "Create a new session (Ctrl+T), open Settings (Ctrl+S), or open "
-                 "this guide (Ctrl+G)."),
+                 "Starts recording a lecture into the open session (Ctrl+F)."),
+                ("11", "New session, Settings and Help",
+                 "The + makes a new session (Ctrl+T), the gear opens Settings "
+                 "(Ctrl+S), and the question mark opens this guide (Ctrl+G)."),
                 ("12", "Information bar",
-                 "Shows the recording time, save status, and which OCR and speech "
-                 "engines are in use."),
+                 "A small status strip: how long the recording has been running, "
+                 "whether your changes are saved, and which engines are currently "
+                 "reading slides and turning speech into text."),
             ]),
         ],
     ),
     (
         "Settings",
-        "Pick a processing mode and set up the speech model or API key before your "
-        "first recording.",
+        "Set up a speech model or an API key before your first recording.",
         [
             ("p",
-             "Before you can record, the app needs a way to turn audio into text: "
-             "open Settings (gear icon or Ctrl+S) and either download a local "
-             "speech model or add a Gemini API key first. The six controls below "
-             "are the ones worth understanding up front."),
+             "Before you can record anything, the app needs a way to turn speech "
+             "into text. Open Settings with the gear icon (or Ctrl+S) and set up "
+             "one of the two options: download a speech model that runs on your "
+             "own PC, or paste in a Gemini API key. Without one of those, a "
+             "recording would have nothing to transcribe with. The six numbered "
+             "controls are the ones worth understanding, so here they are in "
+             "detail."),
             ("figure", "Help Panel 11", "The Settings page", [
                 ("1", "Processing mode",
-                 "Where your recordings are processed. Local runs everything on "
-                 "this device — private, and works without internet. API sends the "
-                 "steps you choose to Google Gemini for higher accuracy, which "
-                 "needs a key (5) and an internet connection."),
+                 "Decides where the heavy work happens. Local means everything "
+                 "runs on your own PC: completely private, works without "
+                 "internet, but the speed depends on your hardware. API sends "
+                 "the work to Google Gemini instead, which is usually more "
+                 "accurate at reading slides and transcribing speech, but needs "
+                 "a key (4) and an internet connection."),
                 ("2", "Local Speech Model",
-                 "The on-device Whisper model that turns recorded audio into text. "
-                 "Bigger models are more accurate but slower; smaller ones stay "
-                 "real-time on modest hardware. Picking one downloads it once "
-                 "(needs internet) and shows a ✓ when it's installed."),
+                 "The speech recognition model used in Local mode. Bigger models "
+                 "make fewer mistakes but need a stronger PC to keep up with the "
+                 "lecture; smaller ones run fine on most laptops. Picking one "
+                 "from the list downloads it once (you'll need internet for that "
+                 "part), and a ✓ marks the models you already have."),
                 ("3", "Detect Hardware",
-                 "Scans this PC — graphics card, memory — and recommends the speech "
-                 "model that best fits it, so you don't have to guess."),
+                 "Not sure which model to pick? This checks what your PC has, "
+                 "mainly the graphics card, and recommends the best model it can "
+                 "comfortably run in real time."),
                 ("4", "Google Gemini API Key",
-                 "Needed for Summary, Quiz, and Translate / Define, and for any "
-                 "steps you run through Gemini in API mode. The free tier is "
-                 "enough — the Getting a Gemini API Key chapter walks through "
-                 "creating one."),
+                 "Paste your key here and press “Save”. Summary, Quiz and "
+                 "Translate / Define always run through Gemini, so they need "
+                 "this key no matter which mode you're in. The free tier is "
+                 "plenty for studying, and the 'Getting a Gemini API Key' chapter "
+                 "walks you through getting one."),
                 ("5", "Use API for",
-                 "In API mode, choose which steps go through Gemini: OCR (reading "
-                 "slides) and/or Audio (speech transcription). Anything unticked "
-                 "keeps running locally."),
+                 "Only matters in API mode. Tick which jobs go to Gemini: OCR "
+                 "(reading the slides) and Audio (transcribing speech). Anything "
+                 "you untick keeps running locally, so you can mix and match, "
+                 "say Gemini for messy slides but local speech."),
                 ("6", "Test API Connection",
-                 "Checks that your key works and lists which Gemini models are "
-                 "available to it, along with their daily free-tier limits."),
+                 "Checks that your key actually works, then lists which Gemini "
+                 "models you can use and how many requests per day the free "
+                 "tier allows on each."),
             ]),
             ("p",
-             "Everything else on the page — appearance, recording preferences, "
-             "sound effects, session export / import — is explained right beside "
-             "the control in Settings itself."),
+             "The rest of the page is more self-explanatory: light and dark "
+             "theme, what the recording form remembers between uses, start and "
+             "stop sounds, and exporting or importing whole sessions as files. "
+             "Each of those has its explanation written right next to it."),
         ],
     ),
     (
         "Creating a New Session",
-        "Set up a session to hold a lecture's slides, transcript, and notes.",
+        "Make a session to hold a lecture's slides, transcript, and notes.",
         [
             ("p",
-             "Press the + button in the title bar (or Ctrl+T) to create a session — "
-             "the container that holds one lecture's slides, transcript, summary, "
-             "and quiz."),
+             "A session is the box a lecture lives in, so you make one before "
+             "you record. Press the + button in the title bar (or Ctrl+T) and "
+             "you get this short form. Only three fields, and two of them are "
+             "optional enough."),
             ("figure", "Help Panel 2", "The New Session form", [
                 ("1", "Session Name",
-                 "What the session is called in the sidebar — the lecture's topic "
-                 "or week usually works well."),
+                 "What the session will be called in the sidebar. The lecture's "
+                 "topic or week number works well, anything you'll recognise "
+                 "later."),
                 ("2", "Activity Category",
-                 "The kind of class this is — Lab, Tutorial, Lecture, Workshop, or "
-                 "one of your own (pick “Add new…” to type it). It colours the "
-                 "session's stripe in the sidebar, and the sidebar can filter by "
-                 "it."),
+                 "What kind of class this is: Lab, Tutorial, Lecture, Workshop, "
+                 "or anything else you type in yourself with “Add new…”. Each "
+                 "category gets its own colour on the session's card in the "
+                 "sidebar, and you can filter the sidebar by it."),
                 ("3", "Module Category",
-                 "The course or module the session belongs to — also filterable "
-                 "in the sidebar. Optional: “None” leaves it unassigned."),
+                 "The course or module this session belongs to, so sessions "
+                 "from the same subject stay together. It's optional, “None” is "
+                 "perfectly fine, and it's also a sidebar filter."),
             ]),
             ("p",
-             "“Create” saves the session and it appears in the sidebar, ready to "
-             "record into. “Cancel” backs out without saving."),
+             "“Create” saves the session and it shows up in the sidebar, ready "
+             "to record into. “Cancel” throws the form away."),
         ],
     ),
     (
         "Recording a Session",
-        "Choose what to capture and control the recording.",
+        "Choose what to capture and start recording.",
         [
             ("p",
-             "With a session open, press “Record” (or Ctrl+F) to set up what gets "
-             "captured. “Start Recording” begins the capture; “Cancel” backs out "
-             "without starting."),
+             "Open the session you want the lecture to go into, then press "
+             "“Record” (or Ctrl+F). This form decides what gets captured. Once "
+             "everything looks right, “Start Recording” kicks things off and "
+             "“Cancel” backs out."),
             ("figure", "Help Panel 3", "The recording setup form", [
                 ("1", "Interval (s)",
-                 "How often a slide snapshot is taken, in seconds. Shorter "
-                 "intervals catch fast slide changes but store more captures."),
+                 "How often a snapshot of the screen is taken, from 1 to 30 "
+                 "seconds. A short interval catches quick slide changes but "
+                 "creates more captures to scroll through later. Something "
+                 "around 5 to 10 seconds suits most lectures."),
                 ("2", "Capture Method",
-                 "How the capture area is chosen: Mouse Select (drag a rectangle "
-                 "over the area you want), Coordinates (type the exact region), or "
-                 "Full Window (capture a whole window or screen)."),
+                 "How you tell the app which part of the screen to grab. Mouse "
+                 "Select lets you drag a rectangle over the area once the "
+                 "recording starts. Coordinates shows X, Y, width and height "
+                 "boxes so you can type an exact region. Full Window just grabs "
+                 "the whole source, no questions asked."),
                 ("3", "Source",
-                 "What to record — a specific window or a whole monitor, picked "
-                 "from everything currently open."),
+                 "The monitor or the open window to record from. The list shows "
+                 "what's open right now, so if the lecture window is missing, "
+                 "open it first and come back."),
                 ("4", "Audio",
-                 "Where the sound comes from — a microphone, or System Audio "
-                 "(Loopback) to record what's playing on the PC, ideal for online "
-                 "lectures."),
+                 "Where the sound comes from. Pick your microphone for an "
+                 "in-person lecture, or a System Audio (Loopback) device to "
+                 "record what your PC itself is playing, which is the one you "
+                 "want for online lectures."),
             ]),
             ("p",
-             "While recording: Ctrl+Enter grabs a slide immediately (on top of the "
-             "interval snapshots), and Enter stops the recording after a "
-             "confirmation."),
+             "While recording, two shortcuts are worth knowing: Ctrl+Enter "
+             "grabs an extra snapshot right now, on top of the interval ones, "
+             "and Enter stops the recording (it asks first, so you can't stop "
+             "one by accident)."),
         ],
     ),
     (
@@ -201,19 +232,23 @@ CHAPTERS = [
         "What a finished session looks like in the workspace.",
         [
             ("figure", "Help Panel 4", "A freshly recorded session", [
-                "When a recording stops, the session is already filled in — "
-                "nothing else to do. Every snapshot became a panel in Screen OCR: "
-                "the slide image with the text read from it underneath, stamped "
-                "with when it appeared. The trash button removes a bad capture; "
-                "the collapse button shrinks one you don't need open.",
-                "The Audio transcript holds everything that was said, timestamped "
-                "and lined up with the slide that was on screen at the time. Turn "
-                "on “Scroll Sync” to scroll slides and speech together.",
-                "Both panels start at “Locked” so nothing gets nudged by "
-                "accident — click “Locked” to switch the panel to “Editable” and "
-                "fix any misread or misheard text. Changes save automatically. "
-                "The AI summary stays empty until you press “Summarize” (see the "
-                "Summarization chapter).",
+                "When you stop a recording there's nothing left to do, the "
+                "session is already filled in. Every snapshot became its own "
+                "card in Screen OCR: the slide image on top, the text the app "
+                "read off it underneath, and a timestamp showing when it "
+                "appeared. The trash button deletes a capture you don't want, "
+                "and the collapse button folds one away to save space.",
+                "The Audio transcript panel has everything that was said, in "
+                "order, with timestamps. Each chunk of speech sits level with "
+                "the slide that was on screen at the time, and turning on "
+                "“Scroll Sync” makes the two panels scroll together so you can "
+                "follow the lecture through both at once.",
+                "Both text panels start out as “Locked”, so a stray click can't "
+                "mess anything up. Click “Locked” and it flips to “Editable”, "
+                "letting you fix anything the app misread or misheard. "
+                "Everything you type is saved automatically, no save button "
+                "needed. The AI summary stays empty until you press "
+                "“Summarize”, which has its own chapter.",
             ]),
         ],
     ),
@@ -222,45 +257,53 @@ CHAPTERS = [
         "View and edit a session's details.",
         [
             ("p",
-             "Press “Properties” (or Ctrl+D) to open the session's details next "
-             "to the workspace."),
+             "Press “Properties” (or Ctrl+D) and the session's details open "
+             "next to the workspace. This is where renaming, recategorising, "
+             "duplicating and deleting live."),
             ("figure", "Help Panel 5", "The Properties panel", [
                 ("1", "Session Name",
-                 "Rename the session — the sidebar updates on save."),
+                 "Rename the session. The sidebar picks up the new name when "
+                 "you save."),
                 ("2", "Activity Category",
-                 "Change the kind of class this was (Lab, Lecture, your own…) — "
-                 "it recolours the session's sidebar stripe."),
+                 "Change what kind of class it was. This also changes the "
+                 "colour stripe on its sidebar card."),
                 ("3", "Module Category",
-                 "Change which course or module the session belongs to."),
+                 "Move the session to a different course or module."),
                 ("4", "Dates",
-                 "A read-only record of the session: when it was recorded, last "
-                 "modified, and when its summary and quiz were generated."),
-                ("5", "Delete · Duplicate",
-                 "“Delete” removes the session and everything in it (asks "
-                 "first). “Duplicate” makes a full copy — captures, summary, "
-                 "quiz and all."),
+                 "A little history of the session, just for reference: when it "
+                 "was recorded, when it was last changed, and when its summary "
+                 "and quiz were generated. You can't edit these."),
+                ("5", "Delete and Duplicate",
+                 "“Delete” removes the session and everything inside it, after "
+                 "asking you to confirm. “Duplicate” makes a complete copy, "
+                 "captures, summary, quiz and all, which is handy before making "
+                 "big edits."),
             ]),
             ("p",
-             "“Save” applies your changes; “Close” dismisses the panel without "
-             "saving them."),
+             "“Save” applies what you changed. “Close” puts the panel away "
+             "without saving."),
         ],
     ),
     (
         "Summarization",
-        "Condense a session into structured AI notes.",
+        "Turn a whole session into a tidy set of AI notes.",
         [
             ("p",
-             "The AI summary panel turns the whole session — slides and speech — "
-             "into a compact set of revision notes."),
+             "Once a session has content in it, the AI summary panel can boil "
+             "the whole thing down, slides and speech together, into a compact "
+             "set of revision notes. This one runs through Gemini, so it needs "
+             "the API key from Settings."),
             ("figure", "Help Panel 6", "A generated summary", [
                 ("1", "Summarize",
-                 "Generates the notes. With a Gemini key you get structured "
-                 "markdown with headings and key terms; without one, a quick "
-                 "on-device summary is used instead. Run it again after editing "
-                 "the session to refresh the notes."),
-                ("2", "Preview / Edit",
-                 "Switches the summary between the rendered view and plain text "
-                 "you can edit yourself — your edits are saved with the session."),
+                 "Reads through the entire session and writes structured notes "
+                 "with headings and key terms. It takes a few seconds. Run it "
+                 "again whenever the session's content changes and you want "
+                 "fresh notes; if you've edited the summary yourself in the "
+                 "meantime, it asks before overwriting your version."),
+                ("2", "Preview and Edit",
+                 "Flips the summary between the nicely formatted view and the "
+                 "raw text. In the raw view you can rewrite the notes however "
+                 "you like, and your edits are saved with the session."),
             ]),
         ],
     ),
@@ -269,58 +312,66 @@ CHAPTERS = [
         "Look up or translate any text you select.",
         [
             ("p",
-             "Select any text in a panel — a term on a slide, a phrase in the "
-             "transcript or summary — and right-click to look it up with Gemini. "
-             "This needs a Gemini API key, but works whether you're in Local or "
-             "API mode."),
+             "Spotted a term you don't know, or a phrase in a language you "
+             "don't speak? Highlight any text in any panel, right-click it, and "
+             "ask Gemini about it on the spot. This works in both Local and API "
+             "mode, it just needs the API key."),
             ("figure", "Help Panel 7", "The right-click lookup menu", [
                 ("1", "Define",
-                 "Asks for a short explanation of the selected word or phrase, in "
-                 "the context it appeared in."),
+                 "Asks for a short, plain explanation of the selected word or "
+                 "phrase, taking into account the context it appeared in."),
                 ("2", "Translate to",
-                 "Opens a list of languages — pick one, or type your own at the "
-                 "bottom of the list."),
+                 "Opens a list of languages to translate the selection into. "
+                 "Ten common ones are built in, and “Other…” at the bottom lets "
+                 "you type any language you want."),
             ]),
             ("figure", "Help Panel 7.1", "A definition result", [
-                ("1", "Definition card",
-                 "The explanation appears in a small pop-up card over the "
-                 "workspace — “Copy” puts it on the clipboard, and it closes "
-                 "with the ✕ or a click elsewhere."),
+                ("1", "The result card",
+                 "The answer pops up in a small card near your cursor, with the "
+                 "text you selected shown above it for reference. “Copy” puts "
+                 "the result on the clipboard, and the ✕ or Esc closes the "
+                 "card."),
             ]),
             ("figure", "Help Panel 7.2", "A translation result", [
-                ("1", "Translation card",
-                 "Translations appear the same way, with the target language in "
-                 "the title."),
+                ("1", "Translations",
+                 "Translations look exactly the same, with the language you "
+                 "picked shown in the title."),
             ]),
         ],
     ),
     (
         "Importing Media",
-        "Bring an existing audio or video file into the app.",
+        "Bring a lecture you already have as a file into the app.",
         [
             ("p",
-             "Already have the lecture as a file — a recorded video or audio? "
-             "Open the session it belongs in, press “Import”, and pick the file. "
-             "It's processed just like a live recording: speech is transcribed, "
-             "and video frames become slide captures with their text read."),
+             "Already have the lecture as a file, like a downloaded video or a "
+             "phone recording? Open the session it should go into and press "
+             "“Import”. The app works through the file the same way it handles "
+             "a live lecture: the audio is transcribed chunk by chunk, and if "
+             "it's a video, frames are grabbed and read as slides too. Most "
+             "common formats work, including mp3, wav, m4a, mp4, mkv and webm."),
             ("figure", "Help Panel 8", "The Import media dialog", [
                 ("1", "Playback",
-                 "Play the file and drag the slider to find where the actual "
-                 "lecture starts."),
+                 "A preview of your file. Press “Play” and drag the slider "
+                 "around to find where the lecture actually begins."),
                 ("2", "Start point",
-                 "Transcription begins from the position you've seeked to — handy "
-                 "for skipping intros or dead air at the start."),
+                 "This line confirms where transcription will start from, so "
+                 "you can skip intros, ads or dead air at the front of the "
+                 "file."),
                 ("3", "Transcribe from here",
-                 "Press “Transcribe from here” to start processing the file from "
-                 "that point."),
+                 "Starts the import from that spot. “Cancel” closes the dialog "
+                 "without importing anything."),
             ]),
             ("figure", "Help Panel 8.1", "An import in progress", [
                 ("1", "Progress",
-                 "The footer shows how far through the file the transcription "
-                 "has got — the session fills in as it goes."),
-                ("2", "Pause · Stop",
-                 "“Pause” suspends the import; “Stop” ends it early, keeping "
-                 "everything processed so far."),
+                 "The footer shows how far through the file the app has got. "
+                 "The session fills in as it goes, so you can watch the "
+                 "captures appear one by one."),
+                ("2", "Pause and Stop",
+                 "“Pause” takes a break, and pressing it again continues. "
+                 "“Stop” ends the import early but keeps everything done so "
+                 "far. While an import is running the rest of the app is "
+                 "locked, same as during a live recording."),
             ]),
         ],
     ),
@@ -329,28 +380,35 @@ CHAPTERS = [
         "Generate a self-test from a session's content.",
         [
             ("p",
-             "Press “Quiz” to test yourself on a session. It needs the session's "
-             "summary to exist first (press “Summarize” if you haven't) and a "
-             "Gemini API key."),
+             "Press “Quiz” to test yourself on a session. The questions are "
+             "written from the session's summary, so generate that first (the "
+             "quiz page reminds you if you haven't). Like the other AI "
+             "features, it needs the Gemini API key."),
             ("figure", "Help Panel 9", "The quiz start page", [
                 ("1", "Generate Quiz",
-                 "Builds a fresh quiz from the session's content with Gemini. The "
-                 "number of questions scales with how much material there is."),
+                 "Writes a brand-new quiz from the session's content. Longer "
+                 "sessions get more questions. If a quiz already exists you'll "
+                 "also see “Review”, which shows your last attempt, and "
+                 "“Retake”, which runs the same questions again. Generating "
+                 "replaces the old quiz."),
             ]),
             ("figure", "Help Panel 9.1", "Generating the quiz", [
-                "Generation takes a few seconds — the page shows which Gemini "
-                "model is writing your questions.",
+                "Generating takes a few seconds. While you wait, the page shows "
+                "which Gemini model is busy writing your questions.",
             ]),
             ("figure", "Help Panel 9.2", "Answering a question", [
-                "Questions are a mix of multiple choice and true / false. Pick an "
-                "answer and move on — Enter (or “Next”) advances, Esc (or "
-                "“Previous”) goes back if you want to change something.",
+                "Questions are a mix of multiple choice and true or false. Pick "
+                "your answer, then press Enter (or “Next”) to move on. Esc (or "
+                "“Previous”) steps back if you change your mind, and the up and "
+                "down arrow keys walk through the options.",
             ]),
             ("figure", "Help Panel 9.3", "The results review", [
-                "At the end you get a score and a card per question: your answer, "
-                "the correct one, and a short explanation. “Retake” runs the same "
-                "quiz again, and the quiz is saved with the session so you can "
-                "review it any time — or regenerate it after the content changes.",
+                "At the end you get your score plus a card for every question, "
+                "showing what you picked, what was right, and a short "
+                "explanation of why. “Retake” runs the same quiz again and "
+                "“Done” heads back to the start page. The quiz and your answers "
+                "are saved with the session, so you can come back and review "
+                "them any time.",
             ]),
         ],
     ),
@@ -359,40 +417,44 @@ CHAPTERS = [
         "Get a free key from Google AI Studio for the AI features.",
         [
             ("p",
-             "The AI features — Summary, Quiz, and Translate / Define — use "
-             "Google's Gemini API, which has a free tier. Go to "
-             '<a href="https://aistudio.google.com/api-keys" style="color:#c15f3c;">AI Studio</a> '
-             "and sign in with a Google account (creating one is free), then "
-             "follow the steps below."),
+             "Summary, Quiz and Translate / Define all run on Google's Gemini, "
+             "and Gemini needs a key. The good news is there's a free tier and "
+             "it's plenty for studying. Head to "
+             '<a href="https://aistudio.google.com/api-keys" style="color:#c15f3c;">AI Studio</a>, '
+             "sign in with any Google account, and follow the steps below."),
             ("figure", "Help Panel 10", "The AI Studio API Keys page", [
                 ("1", "Create API key",
-                 "On the API Keys page, press “Create API key” (top right) to "
-                 "start."),
+                 "On the API Keys page, press “Create API key” in the top "
+                 "right."),
             ]),
             ("figure", "Help Panel 10.1", "Naming the key and picking a project", [
                 ("1", "Choose a project",
-                 "A key must belong to a Google Cloud project. If the dropdown "
-                 "says “No Cloud Projects Available”, open it…"),
+                 "Every key has to belong to a Google Cloud project, which is "
+                 "just Google's way of organising things. If the dropdown says "
+                 "“No Cloud Projects Available”, open it."),
                 ("2", "Create project",
-                 "…and pick “Create project” — AI Studio makes one for you on "
-                 "the spot. Name the key anything you like."),
+                 "Then pick “Create project” and AI Studio makes one for you on "
+                 "the spot. Give the key any name you like while you're here."),
             ]),
             ("figure", "Help Panel 10.2", "Creating the key", [
                 ("1", "Create key",
-                 "With a name and project set, press “Create key”. A long key "
-                 "starting with “AIza…” is generated."),
+                 "With the name and project filled in, press “Create key”. "
+                 "Google generates a long code starting with “AIza”. That's "
+                 "your key."),
             ]),
             ("figure", "Help Panel 10.3", "Copying the finished key", [
                 ("1", "Copy key",
-                 "Copy it, then in LectureCapture open Settings (Ctrl+S), paste "
-                 "it into the “Google Gemini API Key” box, press Save, and run "
-                 "“Test API Connection” to confirm it works."),
+                 "Press “Copy key”. Then, back in LectureCapture, open Settings "
+                 "(Ctrl+S), paste it into the “Google Gemini API Key” box, "
+                 "press “Save”, and run “Test API Connection” to make sure "
+                 "everything is talking to each other."),
             ]),
             ("p",
-             "Troubleshooting — “invalid API key”: the key was mistyped or "
-             "revoked, so regenerate it. “Daily limit reached”: you’ve hit the "
-             "free-tier cap, which resets the next day. “Temporarily busy”: a "
-             "transient server issue, just retry."),
+             "If something goes wrong later: “invalid API key” means the key "
+             "was mistyped or deleted, so make a new one. “Daily limit "
+             "reached” means you've used up the free tier for today, and it "
+             "resets tomorrow. “Temporarily busy” is a hiccup on Google's end, "
+             "just try again in a moment."),
         ],
     ),
 ]
@@ -685,7 +747,7 @@ class HelpPanel(QWidget):
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(10)
         row.addWidget(_number_chip(num), alignment=Qt.AlignmentFlag.AlignTop)
-        body = QLabel(f"<b>{name}</b> — {text}")
+        body = QLabel(f"<b>{name}:</b> {text}")
         body.setTextFormat(Qt.TextFormat.RichText)
         body.setWordWrap(True)
         row.addWidget(body, 1)
