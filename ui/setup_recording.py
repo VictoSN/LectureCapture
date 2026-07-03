@@ -84,3 +84,29 @@ def update_coord_ranges(monitor_index: int, x: QSpinBox, y: QSpinBox, width: QSp
         y.setRange(0, m["height"])
         width.setRange(0, m["width"])
         height.setRange(0, m["height"])
+
+
+def update_ranges_for_source(source, x: QSpinBox, y: QSpinBox, width: QSpinBox, height: QSpinBox) -> None:
+    """Clamp the coordinate fields to the chosen source's size (monitor or window)."""
+    if not source:
+        return
+    if source["type"] == "monitor":
+        update_coord_ranges(source["index"], x, y, width, height)
+        return
+    # GetWindowRect, not GetClientRect: the capture (PrintWindow) renders the full
+    # window rect, and validation measures against it too.
+    left, top, right, bottom = win32gui.GetWindowRect(source["hwnd"])
+    w, h = right - left, bottom - top
+    x.setRange(0, w)
+    y.setRange(0, h)
+    width.setRange(0, w)
+    height.setRange(0, h)
+
+
+def set_coord_fields_visible(panel, visible: bool) -> None:
+    """Show/hide the X/Y/Width/Height rows — the recording and settings panels
+    name these fields identically."""
+    for widget in (panel.x_label, panel.x_coords, panel.y_label, panel.y_coords,
+                   panel.width_label, panel.width_dimension,
+                   panel.height_label, panel.height_dimension):
+        widget.setVisible(visible)

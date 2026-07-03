@@ -20,10 +20,11 @@ from core.api_errors import SHORT_STATUS
 from core.summarizer import SummarizeWorker
 from core.quiz import QuizWorker, source_hash
 from core.gemini import FREQUENT_MODEL_CHAIN, pretty_model
+from ui.format_time import FormatClock
 from ui.title_bar import CustomTitleBar
 from ui.capture_overlay import CaptureOverlay
 from ui.sidebar import Sidebar
-from ui.category_picker import DEFAULT_ACTIVITY_CATEGORIES
+from ui.category_picker import merged_activity_categories
 from ui.new_session_panel import NewSessionPanel
 from ui.transcript_panel import TranscriptPanel
 from ui.properties_panel import PropertiesPanel
@@ -329,6 +330,34 @@ class MainWindow(FramelessMainWindow):
         elif not self.is_recording:
             self.on_record_clicked()
 
+    def _set_nav_locked(self, locked: bool) -> None:
+        """The shared core of every lock mode (recording, import, summarizing,
+        quizzing): no session switching from the sidebar and no new session /
+        settings / help from the title bar."""
+        self.sidebar.set_recording_locked(locked)
+        self.titleBar.new_session_button.setDisabled(locked)
+        self.titleBar.settings_button.setDisabled(locked)
+        self.titleBar.help_button.setDisabled(locked)
+
+    def _lock_nav_shortcuts(self, busy: bool, store_attr: str) -> None:
+        """Disable the create/settings/properties/record shortcuts while busy,
+        saving their prior state under `store_attr` so unlocking restores it
+        exactly (some depend on whether a session is loaded)."""
+        shortcuts = (
+            self.create_session_shortcut,
+            self.settings_shortcut,
+            self.properties_shortcut,
+            self.recording_shortcut,
+        )
+        if busy:
+            setattr(self, store_attr, {sc: sc.isEnabled() for sc in shortcuts})
+            for sc in shortcuts:
+                sc.setEnabled(False)
+        else:
+            for sc, was_enabled in getattr(self, store_attr, {}).items():
+                sc.setEnabled(was_enabled)
+            setattr(self, store_attr, {})
+
     def on_stop_recording_confirmation(self) -> None:
         if not self.is_recording:
             return
@@ -342,8 +371,7 @@ class MainWindow(FramelessMainWindow):
 
     def _activity_categories(self) -> list[str]:
         """Built-in defaults plus any custom activity categories already in use."""
-        defaults = DEFAULT_ACTIVITY_CATEGORIES
-        return defaults + [c for c in self.storage.get_activity_categories() if c not in defaults]
+        return merged_activity_categories(self.storage.get_activity_categories())
 
     def on_new_session_clicked(self) -> None:
         if self.is_new_session_open:
@@ -502,10 +530,9 @@ class MainWindow(FramelessMainWindow):
         # Hold the clock while paused so it shows only active recording time.
         if self.is_recording and not self.is_paused:
             self.elapse_s += 1
-
-            minutes = self.elapse_s // 60
-            seconds = self.elapse_s % 60
-            self.transcript_panel.recording_time_label.setText(f"{minutes:02}:{seconds:02}")
+            self.transcript_panel.recording_time_label.setText(
+                FormatClock(self.elapse_s, pad_minutes=True)
+            )
 
     def on_record_aborted(self) -> None:
         self.is_recording = False
@@ -519,36 +546,24 @@ class MainWindow(FramelessMainWindow):
         self.transcript_panel.set_recording_active(False)
         
         # Unlock Buttons
-        self.sidebar.set_recording_locked(False)
+        self._set_nav_locked(False)
         self.transcript_panel.set_properties_locked(False)
-        self.titleBar.new_session_button.setDisabled(False)
-        self.titleBar.settings_button.setDisabled(False)
-        self.titleBar.help_button.setDisabled(False)
         self.showNormal()
 
     def show_overlay(self, data) -> None:
+        def on_region_selected(x, y, w, h):
+            self.showNormal()
+            self.start_recording(
+                data["interval"], {"left": x, "top": y, "width": w, "height": h},
+                data["monitor"], data["audio_device"], hwnd=data.get("hwnd"),
+            )
+
         if data.get("hwnd"):
-            self.overlay = CaptureOverlay(
-                lambda x, y, w, h: (
-                    self.showNormal(), 
-                    self.start_recording(
-                        data["interval"], {"left": x, "top": y, "width": w, "height": h}, data["monitor"], data["audio_device"], hwnd=data["hwnd"]
-                    )
-                ),
-                self.on_record_aborted,
-                hwnd=data["hwnd"]
-            )
+            self.overlay = CaptureOverlay(on_region_selected, self.on_record_aborted,
+                                          hwnd=data["hwnd"])
         else:
-            self.overlay = CaptureOverlay(
-                lambda x, y, w, h: (
-                    self.showNormal(), 
-                    self.start_recording(
-                        data["interval"], {"left": x, "top": y, "width": w, "height": h}, data["monitor"], data["audio_device"]
-                    )
-                ),
-                self.on_record_aborted,
-                monitor_index=data["monitor"]
-            )
+            self.overlay = CaptureOverlay(on_region_selected, self.on_record_aborted,
+                                          monitor_index=data["monitor"])
         self.show_panel("transcript")
 
     def _local_recording_blocked(self) -> bool:
@@ -606,13 +621,9 @@ class MainWindow(FramelessMainWindow):
         self.transcript_panel.set_recording_active(True)
         
         # Lock Buttons
-        self.sidebar.set_recording_locked(True)
+        self._set_nav_locked(True)
         self.transcript_panel.set_properties_locked(True)
-        self.titleBar.new_session_button.setDisabled(True)
-        self.titleBar.settings_button.setDisabled(True)
-        self.titleBar.help_button.setDisabled(True)
 
-        
         # Start the OCR and Audio threads
         if data["capture_option"] == "Mouse Select":
             self.showMinimized()
@@ -641,12 +652,9 @@ class MainWindow(FramelessMainWindow):
         self.transcript_panel.clear_connection_warning()  # warning is recording-only
         
         # Unlock inputs
-        self.sidebar.set_recording_locked(False)
+        self._set_nav_locked(False)
         self.transcript_panel.set_properties_locked(False)
-        self.titleBar.new_session_button.setDisabled(False)
-        self.titleBar.settings_button.setDisabled(False)
-        self.titleBar.help_button.setDisabled(False)
-        
+
         # Stop the threads
         self.ocr_worker.stop()
         self.audio_worker.stop()
@@ -737,11 +745,8 @@ class MainWindow(FramelessMainWindow):
         """Lock the app for an import the same way a live recording does: no session
         switching, no new session / settings / help / properties, and the nav shortcuts
         off. The only live controls are the import row's Pause/Stop and the panel toggles."""
-        self.sidebar.set_recording_locked(locked)
+        self._set_nav_locked(locked)
         self.transcript_panel.set_properties_locked(locked)
-        self.titleBar.new_session_button.setDisabled(locked)
-        self.titleBar.settings_button.setDisabled(locked)
-        self.titleBar.help_button.setDisabled(locked)
         # Disable the shortcuts that would otherwise bypass the locked buttons.
         self.create_session_shortcut.setEnabled(not locked)
         self.settings_shortcut.setEnabled(not locked)
@@ -791,8 +796,9 @@ class MainWindow(FramelessMainWindow):
     def on_import_progress(self, processed_s: float, total_s: float) -> None:
         self.transcript_panel.set_import_progress(processed_s, total_s)
         # Run the footer clock off transcribed-media time so it "counts up" during import.
-        m, s = int(processed_s) // 60, int(processed_s) % 60
-        self.transcript_panel.recording_time_label.setText(f"{m:02}:{s:02}")
+        self.transcript_panel.recording_time_label.setText(
+            FormatClock(processed_s, pad_minutes=True)
+        )
 
     def on_import_pause_clicked(self) -> None:
         if self._import_worker is None:
@@ -1010,30 +1016,10 @@ class MainWindow(FramelessMainWindow):
         state). The user can still scroll, toggle the per-capture image, and
         collapse/expand panels — nothing else. Only ever called outside recording, so
         unlocking restores the normal idle state."""
-        # Sidebar: session switching, search, filters.
-        self.sidebar.set_recording_locked(busy)
-        # Title bar: new session + settings.
-        self.titleBar.new_session_button.setDisabled(busy)
-        self.titleBar.settings_button.setDisabled(busy)
-        self.titleBar.help_button.setDisabled(busy)
+        self._set_nav_locked(busy)
         # Workspace: properties, record, sync-scroll, and both feeds (read-only + no delete).
         self.transcript_panel.set_summary_lock(busy)
-        # Global shortcuts that create/open/record — save their prior state so unlocking
-        # restores it exactly (some depend on whether a session is loaded).
-        shortcuts = (
-            self.create_session_shortcut,
-            self.settings_shortcut,
-            self.properties_shortcut,
-            self.recording_shortcut,
-        )
-        if busy:
-            self._locked_shortcut_states = {sc: sc.isEnabled() for sc in shortcuts}
-            for sc in shortcuts:
-                sc.setEnabled(False)
-        else:
-            for sc, was_enabled in getattr(self, "_locked_shortcut_states", {}).items():
-                sc.setEnabled(was_enabled)
-            self._locked_shortcut_states = {}
+        self._lock_nav_shortcuts(busy, "_locked_shortcut_states")
 
     # ---- Quiz ----------------------------------------------------------------
 
@@ -1154,24 +1140,8 @@ class MainWindow(FramelessMainWindow):
         """Lock the app while the quiz workspace is open so the session can't be switched
         or mutated underneath it — same idea as _set_summarizing. The transcript is hidden
         during the quiz, so only the sidebar / title bar / shortcuts need locking."""
-        self.sidebar.set_recording_locked(busy)
-        self.titleBar.new_session_button.setDisabled(busy)
-        self.titleBar.settings_button.setDisabled(busy)
-        self.titleBar.help_button.setDisabled(busy)
-        shortcuts = (
-            self.create_session_shortcut,
-            self.settings_shortcut,
-            self.properties_shortcut,
-            self.recording_shortcut,
-        )
-        if busy:
-            self._quiz_locked_shortcuts = {sc: sc.isEnabled() for sc in shortcuts}
-            for sc in shortcuts:
-                sc.setEnabled(False)
-        else:
-            for sc, was_enabled in getattr(self, "_quiz_locked_shortcuts", {}).items():
-                sc.setEnabled(was_enabled)
-            self._quiz_locked_shortcuts = {}
+        self._set_nav_locked(busy)
+        self._lock_nav_shortcuts(busy, "_quiz_locked_shortcuts")
 
     def on_search_changed(self, text) -> None:
         self.filter_name = text

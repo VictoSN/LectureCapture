@@ -1,12 +1,11 @@
-from PyQt6.QtWidgets import (
-    QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QScrollArea, QLabel,
-    QTextEdit, QMessageBox
-)
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QMessageBox
 from PyQt6.QtGui import QPixmap, QImageReader
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QSize
+from PyQt6.QtCore import Qt, pyqtSignal, QSize
 
 from models.lecture import OCRCapture
-from ui.styles import create_label, create_button, NoLeakTextEdit
+from ui.capture_feed_panel import CaptureFeedPanel
+from ui.styles import create_button, NoLeakTextEdit
+from ui.format_time import FormatClock
 from ui.mathtext import render_math
 from ui.scalable_image_label import ScalableImageLabel
 
@@ -17,64 +16,19 @@ from pathlib import Path
 THUMBNAIL_WIDTH = 640
 
 
-def _fmt_session_time(seconds: float) -> str:
-    s = int(seconds)
-    h = s // 3600
-    m = (s % 3600) // 60
-    sec = s % 60
-    if h > 0:
-        return f"{h}:{m:02d}:{sec:02d}"
-    return f"{m}:{sec:02d}"
-
-
-class OCRPanel(QWidget):
+class OCRPanel(CaptureFeedPanel):
     ocr_text_changed = pyqtSignal(int, str) # capture_id & new text
-    immediate_change = pyqtSignal()
     capture_added = pyqtSignal()  # emitted after add_capture so parent can sync heights
     capture_deleted = pyqtSignal(int)  # capture_id
-    lookup_requested = pyqtSignal(str, str, str)  # (selected_text, kind, target)
 
     def __init__(self, base_dir, icons_dir) -> None:
-        super().__init__()
-        main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(10, 8, 8, 8)
-        main_layout.setSpacing(10)
-        header = QHBoxLayout()
-        header.setSpacing(8)
-        self.base_dir = base_dir
-        self.icons_dir = icons_dir
-        self.is_locked = True
-        self._busy = False  # True while summarizing: edits/deletes locked, scroll/image-toggle still work
+        super().__init__(base_dir, icons_dir, 'scan.svg', 'Screen OCR',
+                         "Toggle OCR text editing", (10, 8, 8, 8))
+        self.ocr_button = self.lock_button  # established name (TranscriptPanel, tests)
         self._panel_count = 0  # incremented for each capture widget added
 
-        # Header Layout
-        ocr_w, self.ocr_engine_label = create_label(icons_dir / 'scan.svg', 'Screen OCR')
-        header.addWidget(ocr_w)
-        header.addStretch()
-
-        self.ocr_button = QPushButton("Locked")
-        self.ocr_button.setToolTip("Toggle OCR text editing")
-        self.ocr_button.clicked.connect(self.set_locked)
-        header.addWidget(self.ocr_button)
-
-        # Scrollable
-        self.feed_widget = QWidget()
-        self.feed_layout = QVBoxLayout(self.feed_widget)
-        self.feed_layout.setAlignment(Qt.AlignmentFlag.AlignTop)  # fixes centering bug
-        self.feed_layout.setContentsMargins(2, 2, 6, 2)
-        self.feed_layout.setSpacing(10)
-
-        self.scroll = QScrollArea()
-        self.scroll.setWidget(self.feed_widget)
-        self.scroll.setWidgetResizable(True)
-        # Reserve the vertical scrollbar permanently. If it toggled on/off as the
-        # content height changed, the viewport width would flip-flop and the
-        # aspect-ratio images would oscillate (resize loop -> freeze -> crash).
-        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
-
-        main_layout.addLayout(header)
-        main_layout.addWidget(self.scroll)
-        self.setLayout(main_layout)
+    def _emit_text_changed(self, capture_id: int, text: str) -> None:
+        self.ocr_text_changed.emit(capture_id, text)
 
     def _load_thumbnail(self, image_path: str) -> QPixmap | None:
         """Decode the screenshot directly at thumbnail width via QImageReader, so the
@@ -93,7 +47,10 @@ class OCRPanel(QWidget):
             return None
         return QPixmap.fromImage(image)
 
-    def _create_capture_widget(self, capture: OCRCapture, panel_number: int) -> QWidget:
+    def _create_capture_widget(self, capture: OCRCapture) -> QWidget:
+        self._panel_count += 1
+        panel_number = self._panel_count
+
         capture_widget = QWidget()
         capture_layout = QVBoxLayout(capture_widget)
         capture_layout.setContentsMargins(0, 0, 0, 0)
@@ -115,7 +72,7 @@ class OCRPanel(QWidget):
         toggle_img_btn.setToolTip("Hide image")
         timestamp_row.addWidget(toggle_img_btn)
 
-        capture_timestamp = QLabel(f"Panel {panel_number}: {_fmt_session_time(capture.timestamp)}")
+        capture_timestamp = QLabel(f"Panel {panel_number}: {FormatClock(capture.timestamp)}")
         timestamp_row.addWidget(capture_timestamp)
         timestamp_row.addStretch()
 
@@ -162,16 +119,7 @@ class OCRPanel(QWidget):
         content_layout.addWidget(ocr_text, stretch=1)
         capture_layout.addLayout(content_layout, stretch=1)
 
-        # Timer
-        timer = QTimer(ocr_text)
-        timer.setSingleShot(True)
-        ocr_text._save_timer = timer
-        ocr_text.textChanged.connect(self.immediate_change)
-        ocr_text.textChanged.connect(lambda: ocr_text._save_timer.start(500))
-        ocr_text._save_timer.timeout.connect(
-            lambda cap_id=capture.id, w=ocr_text:
-                self.ocr_text_changed.emit(cap_id, w.toPlainText())
-        )
+        self._wire_save_timer(ocr_text, capture.id)
 
         capture_widget.setProperty("capture_id", capture.id)
         return capture_widget
@@ -189,7 +137,7 @@ class OCRPanel(QWidget):
         self.feed_layout.removeWidget(widget)
         widget.deleteLater()
         self.capture_deleted.emit(capture_id)
-        self.ocr_button.setDisabled(not self.has_content())
+        self.lock_button.setDisabled(not self.has_content())
 
     def _show_full_image(self, image_path: str) -> None:
         # Full-resolution preview with zoom + pan in a freely resizable window
@@ -200,53 +148,11 @@ class OCRPanel(QWidget):
         from ui.image_preview import ImagePreviewDialog
         dialog = ImagePreviewDialog(pixmap, self)
         dialog.exec()
-    
+
     def clear_captures(self) -> None:
         self._panel_count = 0
-        while self.feed_layout.count():
-            item = self.feed_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-
-    def load_captures(self, captures: list[OCRCapture]) -> None:
-        self.clear_captures()
-        for capture in captures:
-            self._panel_count += 1
-            self.feed_layout.addWidget(self._create_capture_widget(capture, self._panel_count))
-        self.ocr_button.setDisabled(not self.has_content())
+        super().clear_captures()
 
     def add_capture(self, capture: OCRCapture) -> None:
-        self._panel_count += 1
-        self.feed_layout.addWidget(self._create_capture_widget(capture, self._panel_count))
-        self.ocr_button.setDisabled(False)
+        super().add_capture(capture)
         self.capture_added.emit()
-        
-    def set_locked(self) -> None:
-        self.is_locked = not self.is_locked
-        self.ocr_button.setText("Locked" if self.is_locked else "Editable")
-        for i in range(self.feed_layout.count()):
-            widget = self.feed_layout.itemAt(i).widget()
-            if widget:
-                text_edit = widget.findChild(QTextEdit)
-                if text_edit:
-                    text_edit.setReadOnly(self.is_locked)
-
-    def set_busy(self, busy: bool) -> None:
-        """Lock editing and deletion while a summary is generating. Scrolling and the
-        per-capture image toggle stay usable; the lock/edit toggle is disabled so the
-        text can't be made editable mid-summary."""
-        self._busy = busy
-        self.ocr_button.setDisabled(busy or not self.has_content())
-        for i in range(self.feed_layout.count()):
-            widget = self.feed_layout.itemAt(i).widget()
-            if not widget:
-                continue
-            text_edit = widget.findChild(QTextEdit)
-            if text_edit:
-                text_edit.setReadOnly(busy or self.is_locked)
-            for button in widget.findChildren(QPushButton):
-                if button.property("role") == "delete":
-                    button.setDisabled(busy)
-
-    def has_content(self) -> bool:
-        return self.feed_layout.count() > 0

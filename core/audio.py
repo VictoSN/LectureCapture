@@ -13,14 +13,12 @@ import numpy as np
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from models.lecture import OCRCapture
+from core.worker_common import API_COOLDOWN_SECONDS, RecordingWorkerMixin
 
 RECORD_SAMPLE_RATE = 44100
 # faster-whisper wants 16 kHz mono; resampling there cuts both local decode work
 # and the API payload size (~5× smaller than 44.1 kHz).
 WHISPER_SAMPLE_RATE = 16000
-# After an API failure (e.g. a rate limit) stop calling the API for this long
-# before trying again, so a transient 429 doesn't permanently fall back to local.
-API_COOLDOWN_SECONDS = 60
 # Caps how many recorded chunks may wait for transcription (bounds memory).
 MAX_PENDING_CHUNKS = 5
 # Chunks whose RMS level is below this are treated as silence and NOT transcribed,
@@ -40,7 +38,7 @@ CPU_WHISPER_MODEL = "tiny.en"
 DEFAULT_SPEECH_MODEL = "small.en"
 
 
-class AudioWorker(QThread):
+class AudioWorker(RecordingWorkerMixin, QThread):
     chunk_ready = pyqtSignal(float, str)
     # Emitted when a (non-silent) chunk starts transcribing, so the UI can show a
     # "transcribing…" placeholder on the slide the speech will land on. The matching
@@ -61,13 +59,6 @@ class AudioWorker(QThread):
         # to system loopback if process capture can't start.
         self.loopback_pid = loopback_pid
 
-        # Pause support. While paused, captured audio is discarded (not transcribed), and
-        # the total paused time is subtracted from chunk timestamps so the transcript
-        # timeline stays continuous across pauses instead of jumping by the pause length.
-        self._paused = False
-        self._paused_total = 0.0
-        self._pause_started = None
-
         self.session_id = session_id
         self.base_dir = base_dir
         self.interval = interval
@@ -76,9 +67,8 @@ class AudioWorker(QThread):
         # "auto" is still accepted and resolved per-device in _ensure_model.
         self.speech_model = speech_model or DEFAULT_SPEECH_MODEL
 
-        # API fallback state — cooldown-based instead of permanently sticky.
-        self._api_cooldown_until = 0.0
-        self._last_engine = self.engine_name
+        # Pause tracking + API-cooldown state shared with the OCR worker.
+        self._init_worker_common()
 
         # Whisper is loaded lazily, only if/when local transcription actually runs.
         self.model = None
@@ -348,7 +338,7 @@ class AudioWorker(QThread):
                 return text
             except Exception as e:
                 print(f"[Audio] API failed ({e}); using local for ~{API_COOLDOWN_SECONDS}s")
-                self._api_cooldown_until = time.time() + API_COOLDOWN_SECONDS
+                self._start_api_cooldown()
                 from core.api_errors import classify_api_error
                 self.api_error.emit(classify_api_error(e))
         text = self._transcribe_local(audio, chunk_start)
@@ -357,11 +347,6 @@ class AudioWorker(QThread):
 
     def _api_available(self) -> bool:
         return bool(self.speech_api_key) and time.time() >= self._api_cooldown_until
-
-    def _emit_engine(self, name: str) -> None:
-        if name != self._last_engine:
-            self._last_engine = name
-            self.engine_fallback.emit(name)
 
     def _ensure_model(self):
         if self.model is not None:
@@ -465,15 +450,6 @@ class AudioWorker(QThread):
     @property
     def engine_name(self) -> str:
         return "gemini" if self.speech_api_key else "faster-whisper"
-
-    def set_paused(self, paused: bool) -> None:
-        """Pause/resume capture. Accumulates paused time so chunk timestamps exclude it."""
-        if paused and not self._paused:
-            self._pause_started = time.time()
-        elif not paused and self._paused and self._pause_started is not None:
-            self._paused_total += time.time() - self._pause_started
-            self._pause_started = None
-        self._paused = paused
 
     def stop(self) -> None:
         self._running = False

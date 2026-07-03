@@ -11,7 +11,7 @@ from PyQt6.QtGui import QShortcut, QKeySequence, QDesktopServices
 
 from core.audio import DEFAULT_SPEECH_MODEL
 from models.lecture import Session
-from ui.setup_recording import setup_source, setup_audio, update_coord_ranges
+from ui.setup_recording import setup_source, setup_audio, update_ranges_for_source, set_coord_fields_visible
 from ui.styles import apply_theme, create_button, create_button_label, get_system_theme, no_wheel
 from ui.progress import indeterminate_progress_bar
 
@@ -677,17 +677,7 @@ class SettingsPanel(QWidget):
         self._refresh_active_buttons()
 
         # Coordinates Visibility
-        method = self.capture_method_dropdown.currentText()
-        is_coords = method == "Coordinates"
-
-        self.x_label.setVisible(is_coords)
-        self.x_coords.setVisible(is_coords)
-        self.y_label.setVisible(is_coords)
-        self.y_coords.setVisible(is_coords)
-        self.width_label.setVisible(is_coords)
-        self.width_dimension.setVisible(is_coords)
-        self.height_label.setVisible(is_coords)
-        self.height_dimension.setVisible(is_coords)
+        set_coord_fields_visible(self, self.capture_method_dropdown.currentText() == "Coordinates")
             
     def set_proc_mode(self, mode):
         # Selection only. Persisting + announcing happens in _save_settings, and
@@ -701,21 +691,9 @@ class SettingsPanel(QWidget):
         self.update_ui()
 
     def _on_source_changed(self) -> None:
-        source = self.source_dropdown.currentData()
-        if not source:
-            return
-        if source["type"] == "monitor":
-            update_coord_ranges(source["index"], self.x_coords, self.y_coords, self.width_dimension, self.height_dimension)
-        else:
-            import win32gui
-            # GetWindowRect, not GetClientRect: the capture (PrintWindow) renders the
-            # full window rect, and validation measures against it too.
-            left, top, right, bottom = win32gui.GetWindowRect(source["hwnd"])
-            w, h = right - left, bottom - top
-            self.x_coords.setRange(0, w)
-            self.y_coords.setRange(0, h)
-            self.width_dimension.setRange(0, w)
-            self.height_dimension.setRange(0, h)
+        update_ranges_for_source(self.source_dropdown.currentData(),
+                                 self.x_coords, self.y_coords,
+                                 self.width_dimension, self.height_dimension)
 
     def setup_sound_effects(self) -> None:
         sound_dir = Path(self.base_dir) / 'sound_effects'

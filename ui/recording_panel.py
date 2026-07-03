@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import QSettings, Qt, pyqtSignal
 from PyQt6.QtGui import QShortcut, QKeySequence
 
-from ui.setup_recording import setup_source, setup_audio, update_coord_ranges
+from ui.setup_recording import setup_source, setup_audio, update_ranges_for_source, set_coord_fields_visible
 from ui.styles import no_wheel
 
 class RecordingPanel(QWidget):
@@ -128,7 +128,7 @@ class RecordingPanel(QWidget):
         self.audio_label.setToolTip(audio_tip)
         self.audio_dropdown.setToolTip(audio_tip)
 
-        # Need to call 'update_coord_ranges' before calling setValue
+        # Ranges must be set (via _on_source_changed above) before setValue
         self.load_preferences()
 
         # Actions Buttons
@@ -184,21 +184,9 @@ class RecordingPanel(QWidget):
         self.height_dimension.setValue(int(self.region["height"]))
 
     def _on_source_changed(self) -> None:
-        source = self.source_dropdown.currentData()
-        if not source:
-            return
-        if source["type"] == "monitor":
-            update_coord_ranges(source["index"], self.x_coords, self.y_coords, self.width_dimension, self.height_dimension)
-        else:
-            import win32gui
-            # GetWindowRect, not GetClientRect: the capture (PrintWindow) renders the
-            # full window rect, and validate() measures against it too.
-            left, top, right, bottom = win32gui.GetWindowRect(source["hwnd"])
-            w, h = right - left, bottom - top
-            self.x_coords.setRange(0, w)
-            self.y_coords.setRange(0, h)
-            self.width_dimension.setRange(0, w)
-            self.height_dimension.setRange(0, h)
+        update_ranges_for_source(self.source_dropdown.currentData(),
+                                 self.x_coords, self.y_coords,
+                                 self.width_dimension, self.height_dimension)
 
     def on_record(self) -> None:
         # Save preferences
@@ -235,16 +223,7 @@ class RecordingPanel(QWidget):
     # Hide or Show the user option for screenshots
     def set_user_option(self) -> None:
         self.capture_method = self.capture_method_dropdown.currentText()
-        is_coords = self.capture_method == "Coordinates"
-
-        self.x_label.setVisible(is_coords)
-        self.x_coords.setVisible(is_coords)
-        self.y_label.setVisible(is_coords)
-        self.y_coords.setVisible(is_coords)
-        self.width_label.setVisible(is_coords)
-        self.width_dimension.setVisible(is_coords)
-        self.height_label.setVisible(is_coords)
-        self.height_dimension.setVisible(is_coords)
+        set_coord_fields_visible(self, self.capture_method == "Coordinates")
         
     def validate(self) -> bool:
         # The coordinate rectangle must be non-empty and fit inside the chosen

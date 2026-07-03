@@ -9,15 +9,12 @@ from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QThread, pyqtSignal
 
 from models.lecture import OCRCapture
+from core.worker_common import API_COOLDOWN_SECONDS, RecordingWorkerMixin
 
 from PIL import Image
 from difflib import SequenceMatcher
 from datetime import datetime
 from pathlib import Path
-
-# After an API failure (e.g. a rate limit) stop calling the API for this long
-# before trying again, so a transient 429 doesn't permanently disable cleanup.
-API_COOLDOWN_SECONDS = 60
 
 # --- slide-change detection (dedup) tuning --------------------------------
 # A capture is saved only when the slide actually changes. The OCR text is the
@@ -39,7 +36,7 @@ HEAD_FRACTION = 0.6
 DEBUG_DEDUP = False
 
 
-class OCRWorker(QThread):
+class OCRWorker(RecordingWorkerMixin, QThread):
     capture_ready = pyqtSignal(OCRCapture)
     engine_fallback = pyqtSignal(str)
     # An API attempt failed mid-recording. Carries a status from core.api_errors
@@ -50,13 +47,6 @@ class OCRWorker(QThread):
         super().__init__()
         self._running = True
         self._force = False
-
-        # Pause support: while paused, no screenshots are taken, and the total paused
-        # time is subtracted from capture timestamps so slides stay aligned with speech
-        # across pauses (both workers track their paused time the same way).
-        self._paused = False
-        self._paused_total = 0.0
-        self._pause_started = None
 
         self.session_id = session_id
         self.base_dir = base_dir
@@ -75,9 +65,8 @@ class OCRWorker(QThread):
         self.previous_saved = ""
         self.previous_ahash = None
 
-        # API fallback state — cooldown-based instead of permanently sticky.
-        self._api_cooldown_until = 0.0
-        self._last_engine = self.engine_name
+        # Pause tracking + API-cooldown state shared with the audio worker.
+        self._init_worker_common()
 
         # mss is NOT thread-safe: the grabbing instance is created in run() on the
         # worker thread. Here we only need monitor geometry for a one-off
@@ -280,7 +269,7 @@ class OCRWorker(QThread):
                 # Empty vision result — fall back to whatever Tesseract gave us.
             except Exception as e:
                 print(f"[OCR] API OCR failed ({e}); using raw text, cooldown {API_COOLDOWN_SECONDS}s")
-                self._api_cooldown_until = time.time() + API_COOLDOWN_SECONDS
+                self._start_api_cooldown()
                 from core.api_errors import classify_api_error
                 self.api_error.emit(classify_api_error(e))
                 self._emit_engine("pytesseract")
@@ -288,11 +277,6 @@ class OCRWorker(QThread):
 
     def _api_available(self) -> bool:
         return bool(self.ocr_api_key) and time.time() >= self._api_cooldown_until
-
-    def _emit_engine(self, name: str) -> None:
-        if name != self._last_engine:
-            self._last_engine = name
-            self.engine_fallback.emit(name)
 
     def _ocr_with_api(self, pil_img) -> tuple[str, str]:
         from core.gemini import generate, FREQUENT_MODEL_CHAIN
@@ -392,15 +376,6 @@ class OCRWorker(QThread):
     def force_capture(self) -> None:
         """Trigger an immediate screenshot and reset the interval countdown."""
         self._force = True
-
-    def set_paused(self, paused: bool) -> None:
-        """Pause/resume capture. Accumulates paused time so capture timestamps exclude it."""
-        if paused and not self._paused:
-            self._pause_started = time.time()
-        elif not paused and self._paused and self._pause_started is not None:
-            self._paused_total += time.time() - self._pause_started
-            self._pause_started = None
-        self._paused = paused
 
     def stop(self) -> None:
         self._running = False

@@ -7,6 +7,8 @@ from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 
+from ui.format_time import FormatClock
+
 # Audio-only containers — no video widget, so we show a placeholder instead.
 AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac", ".wma"}
 
@@ -111,8 +113,7 @@ class MediaImportDialog(QDialog):
 
     @staticmethod
     def _fmt(ms: int) -> str:
-        s = max(0, ms // 1000)
-        return f"{s // 60}:{s % 60:02d}"
+        return FormatClock(ms / 1000)
 
     # ---- result --------------------------------------------------------
 

@@ -6,6 +6,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QShortcut, QKeySequence
 
 from models.lecture import Session, OCRCapture
+from ui.format_time import FormatClock
 from ui.styles import create_label, create_button, load_icon
 from ui.ocr_panel import OCRPanel
 from ui.speech_panel import SpeechPanel
@@ -258,7 +259,7 @@ class TranscriptPanel(QWidget):
         total = max(1, int(round(total_s)))
         self.import_progress.setRange(0, total)
         self.import_progress.setValue(int(round(processed_s)))
-        self.import_status.setText(f"Transcribing… {self._fmt_clock(processed_s)} / {self._fmt_clock(total_s)}")
+        self.import_status.setText(f"Transcribing… {FormatClock(processed_s)} / {FormatClock(total_s)}")
 
     def set_import_paused(self, paused: bool) -> None:
         self.import_pause_button.setText("Resume" if paused else "Pause")
@@ -266,11 +267,6 @@ class TranscriptPanel(QWidget):
         self.import_pause_button._icon_path = icon_path
         self.import_pause_button.setIcon(load_icon(icon_path))
         self.import_pause_button.setToolTip("Resume the import" if paused else "Pause the import")
-
-    @staticmethod
-    def _fmt_clock(seconds: float) -> str:
-        s = max(0, int(round(seconds)))
-        return f"{s // 60}:{s % 60:02d}"
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)

@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QShortcut, QKeySequence
-from ui.category_picker import CategoryPicker, DEFAULT_ACTIVITY_CATEGORIES
+from ui.category_picker import CategoryPicker, DEFAULT_ACTIVITY_CATEGORIES, merged_activity_categories
 
 class NewSessionPanel(QWidget):
     create_clicked = pyqtSignal(str, str, str)
@@ -81,10 +81,7 @@ class NewSessionPanel(QWidget):
         QShortcut(QKeySequence(Qt.Key.Key_Return), self, activated=self._on_save)
     
     def set_categories(self, activity_categories: list[str] = None, module_categories: list[str] = None) -> None:
-        # Built-in defaults first, then any custom categories the user has added.
-        defaults = DEFAULT_ACTIVITY_CATEGORIES
-        merged = defaults + [c for c in (activity_categories or []) if c not in defaults]
-        self.activity_category.set_categories(merged)
+        self.activity_category.set_categories(merged_activity_categories(activity_categories))
         self.module_category.set_categories(module_categories or [])
 
     def _on_save(self) -> None:

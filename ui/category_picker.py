@@ -15,6 +15,14 @@ from ui.styles import no_wheel
 # Always-available activity categories, even before any session uses them.
 DEFAULT_ACTIVITY_CATEGORIES = ["Lab", "Tutorial", "Lecture", "Workshop"]
 
+
+def merged_activity_categories(custom) -> list[str]:
+    """The activity-category list every picker shows: built-in defaults first,
+    then any custom categories the user has added that aren't already built in."""
+    return DEFAULT_ACTIVITY_CATEGORIES + [
+        c for c in (custom or []) if c not in DEFAULT_ACTIVITY_CATEGORIES
+    ]
+
 # Fixed strip colours for the built-in categories.
 CATEGORY_COLORS = {
     "Lab": "#2563EB",       # blue

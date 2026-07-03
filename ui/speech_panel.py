@@ -1,55 +1,21 @@
-from PyQt6.QtWidgets import (
-    QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QScrollArea, QLabel, QTextEdit
-)
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTextEdit
+from PyQt6.QtCore import pyqtSignal
 
 from models.lecture import OCRCapture
-from ui.styles import create_label, create_button, NoLeakTextEdit
+from ui.capture_feed_panel import CaptureFeedPanel
+from ui.styles import NoLeakTextEdit
 
-class SpeechPanel(QWidget):
+
+class SpeechPanel(CaptureFeedPanel):
     speech_text_changed = pyqtSignal(int, str)
-    immediate_change = pyqtSignal()
-    lookup_requested = pyqtSignal(str, str, str)  # (selected_text, kind, target)
-    
+
     def __init__(self, base_dir, icons_dir) -> None:
-        super().__init__()
-        main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(8, 8, 8, 8)
-        main_layout.setSpacing(10)
-        header = QHBoxLayout()
-        header.setSpacing(8)
-        self.base_dir = base_dir
-        self.icons_dir = icons_dir
-        self.is_locked = True
-        self._busy = False  # True while summarizing: editing locked, scroll still works
+        super().__init__(base_dir, icons_dir, 'microphone.svg', 'Audio transcript',
+                         "Toggle transcript editing", (8, 8, 8, 8))
+        self.speech_button = self.lock_button  # established name (TranscriptPanel, tests)
 
-        # Header Layout
-        speech_w, self.speech_engine_label = create_label(icons_dir / 'microphone.svg', 'Audio transcript')
-        header.addWidget(speech_w)
-        header.addStretch()
-
-        self.speech_button = QPushButton("Locked")
-        self.speech_button.setToolTip("Toggle transcript editing")
-        self.speech_button.clicked.connect(self.set_locked)
-        header.addWidget(self.speech_button)
-
-        # Scrollable
-        self.feed_widget = QWidget()
-        self.feed_layout = QVBoxLayout(self.feed_widget)
-        self.feed_layout.setAlignment(Qt.AlignmentFlag.AlignTop)  # fixes centering bug
-        self.feed_layout.setContentsMargins(2, 2, 6, 2)
-        self.feed_layout.setSpacing(10)
-
-        self.scroll = QScrollArea()
-        self.scroll.setWidget(self.feed_widget)
-        self.scroll.setWidgetResizable(True)
-        # Keep in lockstep with the OCR panel's always-on scrollbar so paired
-        # rows share the same viewport width and stay vertically aligned.
-        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
-
-        main_layout.addLayout(header)
-        main_layout.addWidget(self.scroll)
-        self.setLayout(main_layout)
+    def _emit_text_changed(self, capture_id: int, text: str) -> None:
+        self.speech_text_changed.emit(capture_id, text)
 
     def _create_capture_widget(self, capture: OCRCapture) -> QWidget:
         capture_widget = QWidget()
@@ -61,17 +27,9 @@ class SpeechPanel(QWidget):
         speech_text.blockSignals(False)
         speech_text.setReadOnly(self.is_locked or self._busy)
         speech_text.lookup_requested.connect(self.lookup_requested)
-        
-        timer = QTimer(speech_text)
-        timer.setSingleShot(True)
-        speech_text._save_timer = timer
-        speech_text.textChanged.connect(self.immediate_change)
-        speech_text.textChanged.connect(lambda: speech_text._save_timer.start(500))
-        speech_text._save_timer.timeout.connect(
-            lambda cap_id=capture.id, w=speech_text:
-                self.speech_text_changed.emit(cap_id, w.toPlainText())
-        )
-        
+
+        self._wire_save_timer(speech_text, capture.id)
+
         capture_layout.addWidget(speech_text)
 
         # Transient "transcribing…" hint, shown while a chunk for this slide is in
@@ -107,22 +65,6 @@ class SpeechPanel(QWidget):
             if label:
                 label.setVisible(False)
 
-    def clear_captures(self) -> None:
-        while self.feed_layout.count():
-            item = self.feed_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-
-    def load_captures(self, captures: list[OCRCapture]) -> None:
-        self.clear_captures()
-        for capture in captures:
-            self.feed_layout.addWidget(self._create_capture_widget(capture))
-        self.speech_button.setDisabled(not self.has_content())
-
-    def add_capture(self, capture: OCRCapture) -> None:
-        self.feed_layout.addWidget(self._create_capture_widget(capture))
-        self.speech_button.setDisabled(False)
-    
     def update_capture_speech(self, capture_id, text) -> None:
         widget = self._find_capture_widget(capture_id)
         if widget:
@@ -130,28 +72,3 @@ class SpeechPanel(QWidget):
             text_field.blockSignals(True)
             text_field.setPlainText(text_field.toPlainText() + text)
             text_field.blockSignals(False)
-
-    def set_locked(self) -> None:
-        self.is_locked = not self.is_locked
-        self.speech_button.setText("Locked" if self.is_locked else "Editable")
-        for i in range(self.feed_layout.count()):
-            widget = self.feed_layout.itemAt(i).widget()
-            if widget:
-                text_edit = widget.findChild(QTextEdit)
-                if text_edit:
-                    text_edit.setReadOnly(self.is_locked)
-
-    def set_busy(self, busy: bool) -> None:
-        """Lock editing while a summary is generating; scrolling stays usable and the
-        lock/edit toggle is disabled so the transcript can't be edited mid-summary."""
-        self._busy = busy
-        self.speech_button.setDisabled(busy or not self.has_content())
-        for i in range(self.feed_layout.count()):
-            widget = self.feed_layout.itemAt(i).widget()
-            if widget:
-                text_edit = widget.findChild(QTextEdit)
-                if text_edit:
-                    text_edit.setReadOnly(busy or self.is_locked)
-
-    def has_content(self) -> bool:
-        return self.feed_layout.count() > 0

@@ -6,7 +6,7 @@ from PyQt6.QtGui import QShortcut, QKeySequence
 
 from models.lecture import Session
 from ui.format_time import FormatDetailedTime
-from ui.category_picker import CategoryPicker, DEFAULT_ACTIVITY_CATEGORIES
+from ui.category_picker import CategoryPicker, DEFAULT_ACTIVITY_CATEGORIES, merged_activity_categories
 
 class PropertiesPanel(QWidget):
     delete_clicked = pyqtSignal()
@@ -47,14 +47,14 @@ class PropertiesPanel(QWidget):
         activity_category_label = QLabel("Activity Category:")
         grid_layout.addWidget(activity_category_label, 1, 0)
 
-        defaults = DEFAULT_ACTIVITY_CATEGORIES
-        merged = defaults + [c for c in (activity_categories or []) if c not in defaults]
         self.activity_category = CategoryPicker(
             "+ Add new activity category…", "New activity category…",
             tooltip="What kind of session this is (Lecture, Lab, Tutorial…).\n"
                     "Pick one or add your own.",
         )
-        self.activity_category.set_categories(merged, select=session.activity_category or "")
+        self.activity_category.set_categories(
+            merged_activity_categories(activity_categories),
+            select=session.activity_category or "")
         grid_layout.addWidget(self.activity_category, 1, 1)
 
         ## Module Category
