@@ -35,8 +35,6 @@ class TranscriptPanel(QWidget):
         self._icons_dir = icons_dir
 
         self._sync_scroll_enabled = False
-        self._sync_connection_ocr = None
-        self._sync_connection_speech = None
 
         # Header Layout — label with a border-bottom separator for the underline effect
         self.session_name = QLabel()
@@ -134,10 +132,9 @@ class TranscriptPanel(QWidget):
         self._resync_timer.timeout.connect(lambda: self._sync_row_heights(allow_shrink=True))
         self.splitter.splitterMoved.connect(lambda *_: self._resync_timer.start())
 
-        # When either panel deletes a capture, remove the matching row from the
-        # other panel and bubble the signal up so the controller can hit the DB.
+        # Deleting a capture (the trash button lives on the OCR row) removes the
+        # matching row from both panels and bubbles up so the controller can hit the DB.
         self.ocr_panel.capture_deleted.connect(self._on_capture_deleted)
-        self.speech_panel.capture_deleted.connect(self._on_capture_deleted)
 
         # Info Footer
         clock_w, self.recording_time_label = create_label(icons_dir / 'clock.svg', '00:00')
@@ -324,8 +321,8 @@ class TranscriptPanel(QWidget):
         speech_bar = self.speech_panel.scroll.verticalScrollBar()
 
         if self._sync_scroll_enabled:
-            self._sync_connection_ocr = ocr_bar.valueChanged.connect(speech_bar.setValue)
-            self._sync_connection_speech = speech_bar.valueChanged.connect(ocr_bar.setValue)
+            ocr_bar.valueChanged.connect(speech_bar.setValue)
+            speech_bar.valueChanged.connect(ocr_bar.setValue)
             self.sync_scroll_button.setText("Scroll Sync")
             self.sync_scroll_button.setIcon(load_icon(self._icons_dir / 'lock.svg'))
         else:

@@ -20,10 +20,6 @@ def resource_root() -> Path:
     return Path(__file__).resolve().parent.parent  # core/ -> project root
 
 
-def assets_dir() -> Path:
-    return resource_root() / "assets"
-
-
 def configure_bundled_tesseract() -> None:
     """In a frozen build, point pytesseract at the bundled Tesseract binary + tessdata
     (pytesseract is only a wrapper; it shells out to tesseract.exe). No-op from source,

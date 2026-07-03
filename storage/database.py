@@ -190,12 +190,6 @@ class Storage:
         )
         self.conn.commit()
 
-    def update_quiz_score(self, session_id: int, score: int) -> None:
-        self.cursor.execute(
-            "UPDATE session SET quiz_score = ? WHERE id = ?", (score, session_id)
-        )
-        self.conn.commit()
-
     def update_quiz_result(self, session_id: int, score: int, answers_json: str) -> None:
         """Persist a completed attempt: the score and the per-question chosen answers
         (JSON list) so Review can show what the user got wrong."""

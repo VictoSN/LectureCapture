@@ -95,7 +95,6 @@ class Sidebar(QWidget):
     def _populate_list(self, sessions: list[Session], selected_id: int = None) -> None:
         self.sessions = sorted(sessions, key=lambda s: s.date_modified, reverse=True)
         self.lecture_list.clear()
-        self._session_rows: dict[int, QListWidgetItem] = {}  # row_index -> item
 
         current_bucket = None
         for session in self.sessions:

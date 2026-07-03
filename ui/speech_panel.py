@@ -9,7 +9,6 @@ from ui.styles import create_label, create_button, NoLeakTextEdit
 class SpeechPanel(QWidget):
     speech_text_changed = pyqtSignal(int, str)
     immediate_change = pyqtSignal()
-    capture_deleted = pyqtSignal(int)  # capture_id
     lookup_requested = pyqtSignal(str, str, str)  # (selected_text, kind, target)
     
     def __init__(self, base_dir, icons_dir) -> None:
@@ -107,12 +106,6 @@ class SpeechPanel(QWidget):
             label = widget.findChild(QLabel, "pendingIndicator")
             if label:
                 label.setVisible(False)
-
-    def _delete_capture(self, capture_id: int, widget: QWidget) -> None:
-        self.feed_layout.removeWidget(widget)
-        widget.deleteLater()
-        self.capture_deleted.emit(capture_id)
-        self.speech_button.setDisabled(not self.has_content())
 
     def clear_captures(self) -> None:
         while self.feed_layout.count():

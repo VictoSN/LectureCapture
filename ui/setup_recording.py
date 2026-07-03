@@ -1,7 +1,7 @@
 import mss
 import sounddevice as sd
 import win32gui
-import pathlib as Path
+from pathlib import Path
 
 from PyQt6.QtWidgets import QComboBox, QSpinBox
 from ui.styles import load_icon
