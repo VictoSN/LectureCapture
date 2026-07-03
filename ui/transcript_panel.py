@@ -324,12 +324,14 @@ class TranscriptPanel(QWidget):
             ocr_bar.valueChanged.connect(speech_bar.setValue)
             speech_bar.valueChanged.connect(ocr_bar.setValue)
             self.sync_scroll_button.setText("Scroll Sync")
-            self.sync_scroll_button.setIcon(load_icon(self._icons_dir / 'lock.svg'))
+            icon_path = self._icons_dir / 'lock.svg'
         else:
             ocr_bar.valueChanged.disconnect(speech_bar.setValue)
             speech_bar.valueChanged.disconnect(ocr_bar.setValue)
             self.sync_scroll_button.setText("Scroll Unsync")
-            self.sync_scroll_button.setIcon(load_icon(self._icons_dir / 'unlock.svg'))
+            icon_path = self._icons_dir / 'unlock.svg'
+        self.sync_scroll_button._icon_path = icon_path  # keep theme refresh in sync
+        self.sync_scroll_button.setIcon(load_icon(icon_path))
 
     def _panel_visibility(self, panel: QWidget):
         panel.setVisible(not panel.isVisible())

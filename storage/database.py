@@ -247,7 +247,9 @@ class Storage:
         )
 
     def get_captures_by_session(self, session_id: int) -> list[OCRCapture]:
-        self.cursor.execute("SELECT id, timestamp, image_path, extracted_text, speech_text, session_id FROM ocrcapture WHERE session_id = ?", (session_id,))
+        # Timeline order, not insertion order — an import or an orphan speech capture
+        # can be inserted after rows it belongs before, and the panels show list order.
+        self.cursor.execute("SELECT id, timestamp, image_path, extracted_text, speech_text, session_id FROM ocrcapture WHERE session_id = ? ORDER BY timestamp", (session_id,))
         return [self._row_to_ocrcapture(captures) for captures in self.cursor.fetchall()]        
 
     def get_latest_capture_before(self, session_id: int, timestamp: float) -> OCRCapture | None:

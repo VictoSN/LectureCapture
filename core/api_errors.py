@@ -29,6 +29,9 @@ SHORT_STATUS = {
     "no_key": "No API key",
     "invalid_key": "Invalid API key",
     "no_connection": "No connection",
+    # Not an API failure: "System Audio (Loopback)" was chosen but no loopback-capable
+    # device exists, so capture fell back to the default input (usually the microphone).
+    "mic_fallback": "No loopback device — recording the microphone instead",
 }
 
 

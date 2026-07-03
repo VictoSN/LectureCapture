@@ -690,11 +690,11 @@ class SettingsPanel(QWidget):
         self.height_dimension.setVisible(is_coords)
             
     def set_proc_mode(self, mode):
+        # Selection only. Persisting + announcing happens in _save_settings, and
+        # Cancel reverts via load_settings — the same lifecycle as every other
+        # field, so Cancel genuinely discards a Local/API click.
         self.proc_mode = mode
-        self.settings.setValue("processing_mode", mode)
-        self.settings.sync()
         self.update_ui()
-        self.processing_mode_changed.emit(mode)
         
     def set_pref_mode(self, mode):
         self.pref_mode = mode
@@ -708,13 +708,15 @@ class SettingsPanel(QWidget):
             update_coord_ranges(source["index"], self.x_coords, self.y_coords, self.width_dimension, self.height_dimension)
         else:
             import win32gui
-            left, top, right, bottom = win32gui.GetClientRect(source["hwnd"])
-            w, h = right, bottom
+            # GetWindowRect, not GetClientRect: the capture (PrintWindow) renders the
+            # full window rect, and validation measures against it too.
+            left, top, right, bottom = win32gui.GetWindowRect(source["hwnd"])
+            w, h = right - left, bottom - top
             self.x_coords.setRange(0, w)
             self.y_coords.setRange(0, h)
             self.width_dimension.setRange(0, w)
             self.height_dimension.setRange(0, h)
-    
+
     def setup_sound_effects(self) -> None:
         sound_dir = Path(self.base_dir) / 'sound_effects'
         self.start_sound_dropdown.addItem("None", None)
@@ -778,7 +780,8 @@ class SettingsPanel(QWidget):
             self.save_button.setDisabled(False)
 
     def _save_settings(self) -> None:
-        # Save preferences mode
+        # Save processing + preferences mode
+        self.settings.setValue("processing_mode", self.proc_mode)
         self.settings.setValue("preferences_mode", self.pref_mode)
 
         # Save theme
@@ -1079,6 +1082,12 @@ class SettingsPanel(QWidget):
                 self.speech_model_dropdown.setEnabled(True)
                 self.model_download_active.emit(False)
         self.speech_model_status.setVisible(True)
+
+    def active_workers(self) -> list[QThread]:
+        """Worker threads this panel may have running — the app's closeEvent shuts
+        them down so no QThread is destroyed mid-run when the window goes away."""
+        return [w for w in (self._conn_worker, self._hw_worker, *self._dl_workers)
+                if w is not None]
 
     def deleteEvent(self) -> None:
         reply = QMessageBox.question(

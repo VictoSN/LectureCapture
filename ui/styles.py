@@ -93,9 +93,17 @@ def get_system_theme() -> str:
     bg = palette.color(QPalette.ColorRole.Window)
     return "dark" if bg.lightness() < 128 else "light"
 
+# Dark/light as resolved by the last apply_theme(). load_icon() reads this instead of
+# re-opening QSettings (a registry hit on Windows) for every icon it hands out — a
+# session load requests icons per capture row, so those reads add up.
+_applied_dark: bool | None = None
+
+
 def apply_theme(theme: str, themes_dir) -> None:
+    global _applied_dark
     if theme == "auto":
         theme = get_system_theme()
+    _applied_dark = (theme == "dark")
 
     # theme = "dark" or "light"
     qss_path = themes_dir / f"{theme}.qss"
@@ -151,8 +159,13 @@ def load_icon(icon_path: str | Path, theme: str = None) -> QIcon:
         return QIcon(str(icon_path))
 
     if not theme:
-        settings = QSettings("LectureCapture", "LectureCapture")
-        dark_mode = check_theme(str(settings.value("theme", "auto")))
+        if _applied_dark is not None:
+            dark_mode = _applied_dark
+        else:
+            # No theme applied yet this process (e.g. widgets built in tests) —
+            # fall back to the saved setting.
+            settings = QSettings("LectureCapture", "LectureCapture")
+            dark_mode = check_theme(str(settings.value("theme", "auto")))
     elif theme == "auto":
         dark_mode = check_theme(get_system_theme())
     else:

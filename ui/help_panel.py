@@ -567,18 +567,21 @@ class HelpPanel(QWidget):
 
         # Per-page scroll areas, so opening a chapter can reset its scroll position.
         self._page_scrolls: dict[int, QScrollArea] = {}
-        self._api_key_index = 0
 
+        # Only the tile grid (page 0) is built now; each chapter page is built on
+        # its first open. Building every page up front decoded all the chapter
+        # screenshots on app launch — startup time and resident memory spent on
+        # pages most runs never visit. Empty placeholders hold the stack slots so
+        # a page's stack index always equals its chapter number.
         self._stack.addWidget(self._main_page())
-        for i, (title, _blurb, blocks) in enumerate(CHAPTERS):
-            page, scroll = self._chapter_page(str(i + 1), title, blocks)
-            index = self._stack.addWidget(page)
-            self._page_scrolls[index] = scroll
-            if title == API_KEY_CHAPTER_TITLE:
-                self._api_key_index = index
-        page, scroll = self._shortcuts_page()
-        index = self._stack.addWidget(page)
-        self._page_scrolls[index] = scroll
+        self._page_count = len(CHAPTERS) + 1  # chapters + the shortcuts page
+        for _ in range(self._page_count):
+            self._stack.addWidget(QWidget())
+        self._built_pages: set[int] = set()
+        self._api_key_index = 1 + next(
+            i for i, (title, _blurb, _blocks) in enumerate(CHAPTERS)
+            if title == API_KEY_CHAPTER_TITLE
+        )
 
         # Esc backs out one level: chapter page → main page → close the panel.
         QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self._on_escape)
@@ -790,7 +793,23 @@ class HelpPanel(QWidget):
 
     # ---- Navigation ---------------------------------------------------------
 
+    def _build_page(self, index: int) -> None:
+        # Swap the placeholder in this stack slot for the real page, keeping the index.
+        if index <= len(CHAPTERS):
+            title, _blurb, blocks = CHAPTERS[index - 1]
+            page, scroll = self._chapter_page(str(index), title, blocks)
+        else:
+            page, scroll = self._shortcuts_page()
+        placeholder = self._stack.widget(index)
+        self._stack.removeWidget(placeholder)
+        placeholder.deleteLater()
+        self._stack.insertWidget(index, page)
+        self._page_scrolls[index] = scroll
+        self._built_pages.add(index)
+
     def _open(self, index: int) -> None:
+        if index != 0 and index not in self._built_pages:
+            self._build_page(index)
         scroll = self._page_scrolls.get(index)
         if scroll:
             scroll.verticalScrollBar().setValue(0)

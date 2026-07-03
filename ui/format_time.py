@@ -1,18 +1,17 @@
 from datetime import datetime, timedelta
 
 def FormatTime(date: datetime) -> str:
-    if date:
-        now = datetime.now()
+    if not date:
+        return ""
+    now = datetime.now()
 
-        if date.date() == now.date():
-            formatted = date.strftime("Today, %H:%M")
-        elif date.date() == (now.date() - timedelta(days=1)):
-            formatted = date.strftime("Yesterday, %H:%M")
-        else:
-            formatted = date.strftime("%A %#d %B, %H:%M")
-
-        return formatted or ""
+    if date.date() == now.date():
+        return date.strftime("Today, %H:%M")
+    if date.date() == (now.date() - timedelta(days=1)):
+        return date.strftime("Yesterday, %H:%M")
+    return date.strftime("%A %#d %B, %H:%M")
 
 def FormatDetailedTime(date: datetime) -> str:
-    if date:
-        return date.strftime("%A %#d %B, %H:%M:%S") or ""
+    if not date:
+        return ""
+    return date.strftime("%A %#d %B, %H:%M:%S")

@@ -227,7 +227,7 @@ class MainWindow(FramelessMainWindow):
         ## Saved Changes
         self.transcript_panel.ocr_panel.ocr_text_changed.connect(lambda cid, text: self.on_text_changed(cid, text, 1))
         self.transcript_panel.speech_panel.speech_text_changed.connect(lambda cid, text: self.on_text_changed(cid, text, 2))
-        self.transcript_panel.summary_panel.summary_text_changed.connect(lambda text: self.on_text_changed(self.current_session.id, text, 3))
+        self.transcript_panel.summary_panel.summary_text_changed.connect(self._on_summary_text_changed)
 
         self.splitter.addWidget(self.transcript_panel)
         
@@ -365,17 +365,16 @@ class MainWindow(FramelessMainWindow):
         # Create new session using gathered data
         new_session = Session(session_name, current_time, current_time, activity_category, 0, None, module_category, None, None)
         self.storage.create_session(new_session)
-        self.sidebar.refresh(self.storage.get_all_sessions())
-        self.sidebar.update_categories(self._activity_categories(), self.storage.get_module_categories())
-        self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
+        # Select before refreshing so the new session's card comes back highlighted.
+        self.current_session = new_session
+        self._refresh_session_lists()
 
         # Clear the form so the next new session starts blank.
         self.new_session_panel.reset_form()
 
         self.is_new_session_open = not self.is_new_session_open
         self.show_panel("transcript")
-        
-        self.current_session = new_session
+
         self.on_session_selected(self.current_session)
     
     def on_new_session_cancelled(self) -> None:
@@ -658,7 +657,10 @@ class MainWindow(FramelessMainWindow):
         # rescue any speech that never found a slide to attach to.
         QApplication.processEvents()
         if self._pending_speech:
-            orphan = OCRCapture(0.0, "", "", None, self.current_session.id, self._pending_speech)
+            # Stamp the orphan at this recording's start on the session timeline (the
+            # pre-recording length), not 0.0 — captures are shown and speech-matched
+            # in timestamp order, and 0.0 would pin it to the very start of the session.
+            orphan = OCRCapture(float(self.current_session.length), "", "", None, self.current_session.id, self._pending_speech)
             self.storage.create_ocr_capture(orphan)
             self.transcript_panel.ocr_panel.add_capture(orphan)
             self.transcript_panel.speech_panel.add_capture(orphan)
@@ -1185,7 +1187,19 @@ class MainWindow(FramelessMainWindow):
 
     def apply_filters(self) -> None:
         sessions = self.storage.search_sessions(self.filter_name, self.filter_category, self.filter_module)
-        self.sidebar.refresh(sessions)
+        self.sidebar.refresh(sessions, self._selected_session_id())
+
+    def _selected_session_id(self):
+        return self.current_session.id if self.current_session else None
+
+    def _refresh_session_lists(self) -> None:
+        """Rebuild the sidebar and the settings export dropdown after anything
+        changes the session set. One query feeds both, and the open session keeps
+        its sidebar highlight across the rebuild."""
+        sessions = self.storage.get_all_sessions()
+        self.sidebar.refresh(sessions, self._selected_session_id())
+        self.sidebar.update_categories(self._activity_categories(), self.storage.get_module_categories())
+        self.settings_panel.refresh_sessions(sessions)
         
     def on_properties_clicked(self) -> None:
         self.is_properties_open = not self.is_properties_open
@@ -1204,10 +1218,8 @@ class MainWindow(FramelessMainWindow):
         self.current_session.activity_category = activity_category
         self.current_session.module_category = module_category
         self.storage.update_session(self.current_session)
-        self.sidebar.refresh(self.storage.get_all_sessions())
-        self.sidebar.update_categories(self._activity_categories(), self.storage.get_module_categories())
-        self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
-    
+        self._refresh_session_lists()
+
     def on_properties_deleted(self) -> None:
         self.is_properties_open = not self.is_properties_open
         self.properties_panel.setVisible(self.is_properties_open)
@@ -1215,22 +1227,29 @@ class MainWindow(FramelessMainWindow):
         # The open session no longer exists; drop the reference so later actions don't
         # operate on a deleted session.
         self.current_session = None
-        self.sidebar.refresh(self.storage.get_all_sessions())
-        self.sidebar.update_categories(self._activity_categories(), self.storage.get_module_categories())
-        self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
+        self._refresh_session_lists()
         self.transcript_panel.clear_panels()
-    
+
     def on_properties_duplicated(self) -> None:
         self.current_session = self.storage.duplicate_sessions(self.current_session.id)
-        self.sidebar.refresh(self.storage.get_all_sessions())
-        self.sidebar.update_categories(self._activity_categories(), self.storage.get_module_categories())
-        self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
+        self._refresh_session_lists()
         self.on_session_selected(self.current_session)
     
     def unsaved_changes(self) -> None:
         self.transcript_panel.saved_label.setText("Unsaved")
-    
+
+    def _on_summary_text_changed(self, text: str) -> None:
+        # Guarded here (not a lambda dereferencing current_session.id at connect
+        # time) so a debounced save can't crash after the session is gone.
+        if self.current_session:
+            self.on_text_changed(self.current_session.id, text, 3)
+
     def on_text_changed(self, id, text, option: int) -> None:
+        # The debounced save timers live on the text edits and can fire just after
+        # the session was deleted (properties delete / delete all) — there's
+        # nothing left to attribute the edit to.
+        if not self.current_session:
+            return
         now = datetime.now()
         self.current_session.date_modified = now
         
@@ -1409,6 +1428,7 @@ class MainWindow(FramelessMainWindow):
             "quiz_score": session.quiz_score,
             "quiz_source_hash": session.quiz_source_hash,
             "quiz_generated_at": session.quiz_generated_at.isoformat() if session.quiz_generated_at else None,
+            "quiz_answers": session.quiz_answers,
             "captures": [
                 {
                     "timestamp": c.timestamp,
@@ -1455,6 +1475,7 @@ class MainWindow(FramelessMainWindow):
                 quiz_score=session_data.get("quiz_score"),
                 quiz_source_hash=session_data.get("quiz_source_hash"),
                 quiz_generated_at=datetime.fromisoformat(session_data["quiz_generated_at"]) if session_data.get("quiz_generated_at") else None,
+                quiz_answers=session_data.get("quiz_answers"),
                 id=None
             )
             new_id = self.storage.create_session(new_session)
@@ -1475,16 +1496,12 @@ class MainWindow(FramelessMainWindow):
                     id=None
                 )
                 self.storage.create_ocr_capture(capture)
-        self.sidebar.refresh(self.storage.get_all_sessions())
-        self.sidebar.update_categories(self._activity_categories(), self.storage.get_module_categories())
-        self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
+        self._refresh_session_lists()
 
     def on_all_deleted_clicked(self) -> None:
         self.storage.delete_all_sessions()
         self.current_session = None
-        self.sidebar.refresh(self.storage.get_all_sessions())
-        self.sidebar.update_categories(self._activity_categories(), self.storage.get_module_categories())
-        self.settings_panel.refresh_sessions(self.storage.get_all_sessions())
+        self._refresh_session_lists()
         self.transcript_panel.clear_panels()
 
     def show_panel(self, panel: str) -> None:
@@ -1597,6 +1614,24 @@ class MainWindow(FramelessMainWindow):
         # that the window was maximized. One call captures everything restore needs.
         self.settings.setValue("windowGeometry", self.saveGeometry())
 
+    def _shutdown_background_workers(self) -> None:
+        """Stop any still-running worker threads before the window (their owner) is
+        destroyed — a QThread deleted while running hard-aborts the whole process.
+        These are short API calls or downloads with no cancel hook, so give each a
+        moment to finish and terminate the stragglers: the process is exiting, and a
+        torn-down request doesn't matter (a partial model download is detected and
+        resumed by ensure_model on the next run)."""
+        workers = [self._summarize_worker, self._quiz_worker,
+                   *self._lookup_workers, *self.settings_panel.active_workers()]
+        for worker in workers:
+            if worker is None or not worker.isRunning():
+                continue
+            if not worker.wait(2000):
+                worker.terminate()
+                worker.wait(1000)
+        self._summarize_worker = None
+        self._quiz_worker = None
+
     def closeEvent(self, event) -> None:
         if self._summarize_worker is not None:
             reply = QMessageBox.question(
@@ -1607,35 +1642,48 @@ class MainWindow(FramelessMainWindow):
             if reply != QMessageBox.StandardButton.Yes:
                 event.ignore()
                 return
-            # User chose to close mid-summary: detach the handlers so a late result
-            # can't fire against torn-down widgets. The worker only emits signals (no
-            # UI access), so it's safe to leave running as the process exits.
+            # Closing mid-summary: detach the handlers so a late result can't fire
+            # against torn-down widgets. The thread itself is joined below in
+            # _shutdown_background_workers, which still holds the reference.
             try:
                 self._summarize_worker.done.disconnect()
                 self._summarize_worker.failed.disconnect()
                 self._summarize_worker.finished.disconnect()
             except TypeError:
                 pass
-            self._summarize_worker = None
+
+        if self._import_worker is not None:
+            reply = QMessageBox.question(
+                self,
+                "Import in progress",
+                "A media import is still transcribing. Stop it and close? "
+                "Everything transcribed so far is kept."
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                event.ignore()
+                return
+            # Finish the segment in flight, then join, so the thread is done before
+            # the window that owns it goes away.
+            self._import_worker.stop()
+            self._import_worker.wait()
 
         if self.is_recording:
             reply = QMessageBox.question(
-                self, 
+                self,
                 "Recording in progress",
                 "Stop recording and close?"
             )
-            if reply == QMessageBox.StandardButton.Yes:
-                # Stop the threads
-                self.ocr_worker.stop()
-                self.audio_worker.stop()
-                self.ocr_worker.wait()
-                self.audio_worker.wait()
-                self.storage.close()
-                self._save_window_state()
-                event.accept()
-            else:
+            if reply != QMessageBox.StandardButton.Yes:
                 event.ignore()
-        else:
-            self.storage.close()
-            self._save_window_state()
-            event.accept()
+                return
+            self.ocr_worker.stop()
+            self.audio_worker.stop()
+            self.ocr_worker.wait()
+            self.audio_worker.wait()
+
+        # Quiz generation, lookups, connection tests, hardware probes, and model
+        # downloads have no confirmation — just make sure their threads are down.
+        self._shutdown_background_workers()
+        self.storage.close()
+        self._save_window_state()
+        event.accept()

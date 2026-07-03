@@ -89,12 +89,26 @@ def _should_try_next(exc: Exception) -> bool:
     ))
 
 
+# One client per key, reused across calls: the per-chunk tasks (speech, OCR) call
+# generate() every few seconds during an API recording, and rebuilding the client
+# each time is wasted setup.
+_clients: dict = {}
+
+
+def _client(api_key: str):
+    client = _clients.get(api_key)
+    if client is None:
+        from google import genai
+        client = genai.Client(api_key=api_key)
+        _clients[api_key] = client
+    return client
+
+
 def generate(api_key: str, contents, config=None, chain=None, on_attempt=None):
     """generate_content with model fallback. Returns (response, model_id) for the first
     model that succeeds; raises the last error if every model in the chain fails.
     `on_attempt(model_id)` is called before each model is tried (used to show progress)."""
-    from google import genai
-    client = genai.Client(api_key=api_key)
+    client = _client(api_key)
     last_exc = None
     for model in (chain or MODEL_CHAIN):
         if on_attempt:

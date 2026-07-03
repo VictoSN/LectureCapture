@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (
     QWidget, QListWidget, QVBoxLayout, QLineEdit, QComboBox, QListWidgetItem, QHBoxLayout
 )
-from PyQt6.QtCore import pyqtSignal, QSize, Qt
+from PyQt6.QtCore import pyqtSignal, QSize, Qt, QTimer
 from PyQt6.QtGui import QFont
 from datetime import datetime, timedelta
 from PyQt6.QtGui import QIcon
@@ -31,7 +31,16 @@ class Sidebar(QWidget):
         self.session_search = QLineEdit()
         self.session_search.setPlaceholderText("Search")
         self.session_search.setToolTip("Search sessions by name")
-        self.session_search.textChanged.connect(self.search_changed)
+        # Debounced: each emission triggers a DB query and rebuilds every session
+        # card, which stutters per-keystroke once the list is long. Emit once
+        # typing pauses instead.
+        self._search_timer = QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(250)
+        self._search_timer.timeout.connect(
+            lambda: self.search_changed.emit(self.session_search.text())
+        )
+        self.session_search.textChanged.connect(lambda _text: self._search_timer.start())
         search_layout.addWidget(self.session_search)
 
         self.session_search.setClearButtonEnabled(True)

@@ -191,8 +191,10 @@ class RecordingPanel(QWidget):
             update_coord_ranges(source["index"], self.x_coords, self.y_coords, self.width_dimension, self.height_dimension)
         else:
             import win32gui
-            left, top, right, bottom = win32gui.GetClientRect(source["hwnd"])
-            w, h = right, bottom
+            # GetWindowRect, not GetClientRect: the capture (PrintWindow) renders the
+            # full window rect, and validate() measures against it too.
+            left, top, right, bottom = win32gui.GetWindowRect(source["hwnd"])
+            w, h = right - left, bottom - top
             self.x_coords.setRange(0, w)
             self.y_coords.setRange(0, h)
             self.width_dimension.setRange(0, w)
@@ -210,10 +212,10 @@ class RecordingPanel(QWidget):
         if self.capture_method == "Coordinates":
             # Saved to return
             self.region = {
-                "left": int(self.x_coords.text()),
-                "top": int(self.y_coords.text()),
-                "width": int(self.width_dimension.text()),
-                "height": int(self.height_dimension.text())
+                "left": self.x_coords.value(),
+                "top": self.y_coords.value(),
+                "width": self.width_dimension.value(),
+                "height": self.height_dimension.value()
             }
             # Saved for preferences
             self.settings.setValue("region", self.region)
@@ -245,32 +247,27 @@ class RecordingPanel(QWidget):
         self.height_dimension.setVisible(is_coords)
         
     def validate(self) -> bool:
-        error = False
-        
-        # Make sure coordinates not empty
-        if self.capture_method == "Coordinates":
-            source = self.source_dropdown.currentData()
-            coords_filled = all([self.x_coords.text(), self.y_coords.text(), self.width_dimension.text(), self.height_dimension.text()])
-            
-            if not coords_filled:
-                error = True
-            else:
-                # Only check bounds if all fields are filled
-                # Make sure there are no absurd values
-                if source["type"] == "monitor":
-                    with mss.mss() as sct:
-                        monitor_info = sct.monitors[source["index"]]
-                    if int(self.x_coords.text()) + int(self.width_dimension.text()) > monitor_info["width"] or \
-                        int(self.y_coords.text()) + int(self.height_dimension.text()) > monitor_info["height"]:
-                        error = True
-                else:
-                    import win32gui
-                    left, top, right, bottom = win32gui.GetWindowRect(source["hwnd"])
-                    w, h = right - left, bottom - top
-                    if int(self.x_coords.text()) + int(self.width_dimension.text()) > w or \
-                        int(self.y_coords.text()) + int(self.height_dimension.text()) > h:
-                        error = True
-        return not error
+        # The coordinate rectangle must be non-empty and fit inside the chosen
+        # source. .value() (not int(.text())) so locale formatting can't break
+        # parsing, and it matches what on_record actually records.
+        if self.capture_method != "Coordinates":
+            return True
+
+        x, y = self.x_coords.value(), self.y_coords.value()
+        w, h = self.width_dimension.value(), self.height_dimension.value()
+        if w <= 0 or h <= 0:
+            return False  # a 0-size region records nothing (every grab fails)
+
+        source = self.source_dropdown.currentData()
+        if source["type"] == "monitor":
+            with mss.mss() as sct:
+                monitor_info = sct.monitors[source["index"]]
+            max_w, max_h = monitor_info["width"], monitor_info["height"]
+        else:
+            import win32gui
+            left, top, right, bottom = win32gui.GetWindowRect(source["hwnd"])
+            max_w, max_h = right - left, bottom - top
+        return x + w <= max_w and y + h <= max_h
     
     def reload_state(self):
         mode = self.settings.value("preferences_mode", "last")

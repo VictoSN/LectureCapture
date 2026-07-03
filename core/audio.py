@@ -102,6 +102,10 @@ class AudioWorker(QThread):
 
         self.start_time = start_time
         self.offset = offset
+        # Rate of the audio arriving at _transcribe. Live capture records at
+        # RECORD_SAMPLE_RATE; MediaImportWorker overrides this (it decodes files
+        # straight to 16 kHz, so no per-segment resample is needed).
+        self.sample_rate = RECORD_SAMPLE_RATE
 
         # Recorded chunks waiting to be transcribed. A consumer thread drains this
         # so capture (which runs continuously in the audio callback) never pauses
@@ -119,6 +123,11 @@ class AudioWorker(QThread):
                 name = device["name"].lower()
                 if "wasapi" in name or "stereo mix" in name or "loopback" in name:
                     return i
+        # No loopback-capable input on this machine (Stereo Mix is disabled on most
+        # modern drivers). Recording proceeds on the default input — usually the
+        # microphone — which is NOT what "System Audio" promises, so raise the
+        # banner rather than silently capturing the wrong thing.
+        self.api_error.emit("mic_fallback")
         try:
             default = sd.default.device[0]
             if default is not None:
@@ -304,9 +313,11 @@ class AudioWorker(QThread):
         rms = float(np.sqrt(np.mean(np.square(audio.astype(np.float64)))))
         return rms < SILENCE_RMS_THRESHOLD
 
-    def _to_16k_array(self, audio: np.ndarray) -> np.ndarray:
-        """Resample 44.1 kHz mono float32 down to 16 kHz mono float32."""
-        n = int(len(audio) * WHISPER_SAMPLE_RATE / RECORD_SAMPLE_RATE)
+    def _to_16k_array(self, audio: np.ndarray, rate: int = RECORD_SAMPLE_RATE) -> np.ndarray:
+        """Resample mono float32 at `rate` down to 16 kHz mono float32."""
+        if rate == WHISPER_SAMPLE_RATE:
+            return np.asarray(audio, dtype=np.float32)
+        n = int(len(audio) * WHISPER_SAMPLE_RATE / rate)
         return np.interp(
             np.linspace(0, len(audio) - 1, n),
             np.arange(len(audio)),
@@ -317,7 +328,7 @@ class AudioWorker(QThread):
         """Resample to 16kHz and encode as WAV. ~5× smaller than 44100Hz."""
         import soundfile as sf
         buf = io.BytesIO()
-        sf.write(buf, self._to_16k_array(audio), WHISPER_SAMPLE_RATE, format="WAV", subtype="PCM_16")
+        sf.write(buf, self._to_16k_array(audio, self.sample_rate), WHISPER_SAMPLE_RATE, format="WAV", subtype="PCM_16")
         return buf.getvalue()
 
     @staticmethod
@@ -424,7 +435,7 @@ class AudioWorker(QThread):
             # Feed a 16 kHz float32 array directly (no WAV encode/decode round-trip).
             # vad_filter drops non-speech segments (extra hallucination guard).
             segments, _info = model.transcribe(
-                self._to_16k_array(audio), beam_size=1, language="en", vad_filter=True
+                self._to_16k_array(audio, self.sample_rate), beam_size=1, language="en", vad_filter=True
             )
             out = ""
             for segment in segments:
@@ -514,6 +525,10 @@ class MediaImportWorker(AudioWorker):
     def __init__(self, session_id: int, base_dir: str, interval: int, file_path: str, start_time, offset: int, speech_api_key: str = "", speech_model: str = DEFAULT_SPEECH_MODEL, ocr_api_key: str = "", start_offset: float = 0.0) -> None:
         # device is irrelevant for a file import — pass None.
         super().__init__(session_id, base_dir, interval, None, start_time, offset, speech_api_key=speech_api_key, speech_model=speech_model)
+        # Decode files straight to Whisper's 16 kHz: ~2.75× less RAM than 44.1 kHz
+        # (a 2-hour lecture was >1.2 GB as 44.1 kHz float32) and every per-segment
+        # resample becomes a no-op.
+        self.sample_rate = WHISPER_SAMPLE_RATE
         self.file_path = file_path
         self.ocr_api_key = ocr_api_key
         # Media position (seconds) to begin transcribing from — lets the user skip an intro.
@@ -533,14 +548,14 @@ class MediaImportWorker(AudioWorker):
         from core.ocr import OCRWorker
 
         # Decode the whole audio track once (PyAV under the hood — handles every common
-        # audio AND video container) at the pipeline's native rate.
+        # audio AND video container) at the transcription rate.
         try:
-            audio = np.asarray(decode_audio(self.file_path, sampling_rate=RECORD_SAMPLE_RATE), dtype=np.float32)
+            audio = np.asarray(decode_audio(self.file_path, sampling_rate=self.sample_rate), dtype=np.float32)
         except Exception as e:
             print(f"[Import] decode failed: {e}")
             self.import_failed.emit("Could not read this media file (unsupported or corrupt).")
             return
-        duration = len(audio) / RECORD_SAMPLE_RATE
+        duration = len(audio) / self.sample_rate
 
         # Open the video stream (if any) for per-segment frame grabs. Decoding only
         # keyframes keeps seeking fast and is plenty for slide-style lecture video.
@@ -561,8 +576,8 @@ class MediaImportWorker(AudioWorker):
         self._ocr.api_error.connect(self.api_error)
         self.ocr_engine_fallback.emit(self._ocr.engine_name)  # announce the starting OCR engine
 
-        frames_per_seg = max(1, int(self.interval * RECORD_SAMPLE_RATE))
-        pos = min(len(audio), int(self.start_offset * RECORD_SAMPLE_RATE))
+        frames_per_seg = max(1, int(self.interval * self.sample_rate))
+        pos = min(len(audio), int(self.start_offset * self.sample_rate))
         total = max(0.0, duration - self.start_offset)
         processed = 0.0
 
@@ -574,7 +589,7 @@ class MediaImportWorker(AudioWorker):
                 if not self._running:
                     break
 
-                media_t = pos / RECORD_SAMPLE_RATE
+                media_t = pos / self.sample_rate
                 seg = audio[pos:pos + frames_per_seg]
                 # Timeline position within the session (continues after any prior content).
                 ts = self.offset + (media_t - self.start_offset)
