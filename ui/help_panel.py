@@ -59,9 +59,21 @@ CHAPTERS = [
             ("p",
              "LectureCapture records what's on your screen and what's being said "
              "during an online/hybrid lecture, then turns all of it into notes you can search, "
-             "a summary, and a quiz. Everything happens in this one window, so "
-             "here's a quick tour of it. Each number in the screenshot is "
-             "explained next to it."),
+             "a summary, and a quiz. Everything happens in this one window."),
+            ("figure", "Help Panel 0", "The main window as it first opens", [
+                "This is what the app looks like the first time you open it, "
+                "before any sessions exist. The sidebar on the left holds your "
+                "session list, and the three panels beside it — Screen OCR, "
+                "Audio transcript and AI summary — are where a lecture's "
+                "content ends up.",
+                "The buttons along the top act on whichever session is open, "
+                "and the strip along the bottom shows what the app is up to. "
+                "Everything is empty for now, which is normal: it all fills "
+                "in once you record your first lecture.",
+            ]),
+            ("p",
+             "Here's that same window again with every control numbered, and "
+             "each number explained next to it."),
             ("figure", "Help Panel 1", "The main window with every control numbered", [
                 ("1", "Panel toggles",
                  "These four buttons show and hide the big parts of the window: "

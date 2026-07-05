@@ -15,6 +15,36 @@ LectureCapture is a Windows desktop app that turns an online lecture or meeting 
 - **Local-first or API** — run everything on-device (private, no internet) or send chosen steps to Gemini for higher accuracy, with per-engine toggles.
 - **Sessions** organised by category/group, searchable, with editable transcripts; plus light/dark themes, keyboard shortcuts, and an in-app help guide.
 
+## Getting started
+Everything happens in one window. This is what it looks like when you first open the app, before any sessions exist:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/dark_mode/Help%20Panel%200%20Dark%20Mode.drawio.png">
+  <img alt="The main window as it first opens" src="assets/screenshots/light_mode/Help%20Panel%200%20Light%20Mode.drawio.png">
+</picture>
+
+And here's the same window with every control numbered:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/dark_mode/Help%20Panel%201%20Dark%20Mode.drawio.png">
+  <img alt="The main window with every control numbered" src="assets/screenshots/light_mode/Help%20Panel%201%20Light%20Mode.drawio.png">
+</picture>
+
+1. **Panel toggles** — show and hide the big parts of the window: the sidebar, the Screen OCR panel, the Audio transcript panel, and the AI summary panel (`Shift+1` to `Shift+4`).
+2. **Session list** — every session you've made, grouped by date. A session is one lecture: its slides, transcript, summary and quiz all live in it. The search box finds sessions by name, and the funnel button filters by activity or module.
+3. **Screen OCR panel** — every slide captured during the recording, each with the text the app read off it shown underneath.
+4. **Audio transcript panel** — everything that was said, written out with timestamps, sitting next to the slide that was up at the time.
+5. **AI summary panel** — the AI-written notes for the session; stays empty until you press "Summarize".
+6. **Properties** — the session's details, like its name and categories (`Ctrl+D`).
+7. **Scroll Sync** — ties the slides and the transcript together, so scrolling one scrolls the other.
+8. **Quiz** — opens the quiz page, where you can test yourself on the session.
+9. **Import** — brings in a lecture you already have as a video or audio file, instead of recording it live.
+10. **Record** — starts recording a lecture into the open session (`Ctrl+F`).
+11. **New session, Settings and Help** — the + makes a new session (`Ctrl+T`), the gear opens Settings (`Ctrl+S`), and the question mark opens the in-app guide (`Ctrl+G`).
+12. **Information bar** — how long the recording has been running, whether your changes are saved, and which engines are currently reading slides and transcribing speech.
+
+The basic flow: create a session with **+**, press **Record**, and the three panels fill in as the lecture plays. The in-app guide (question mark, `Ctrl+G`) walks through all of it chapter by chapter, from recording to quizzes.
+
 ## Download
 Prebuilt Windows installer: **[Releases](https://github.com/VictoSN/LectureCapture/releases/latest)** → `LectureCapture-Setup.exe`. Run it, then launch from the Start Menu.
 
