@@ -401,12 +401,13 @@ class QuizPanel(QWidget):
         layout.addWidget(head)
 
         for i, opt in enumerate(options):
+            letter = chr(ord("A") + i)
             prefix, color = "", None
             if i == correct_idx:
                 prefix, color = "✓ ", "#2e9e5b"
             elif show_user_answers and i == user_idx:
                 prefix, color = "✗ ", "#d9534f"
-            line = QLabel(f"{prefix}{opt}")
+            line = QLabel(f"{letter}. {opt}{prefix}")
             line.setWordWrap(True)
             if color:
                 line.setStyleSheet(f"color: {color};")
