@@ -36,6 +36,34 @@ def no_wheel(widget) -> None:
     widget.installEventFilter(_eat_wheel_filter)
 
 
+_justify_filter: QObject | None = None
+
+class _JustifyFilter(QObject):
+    """Global event filter that sets AlignJustify on every QLabel and QTextEdit
+    that still has its default (left) alignment.  Widgets with an explicit
+    alignment (e.g. AlignCenter for loading messages) are left untouched."""
+    _LABEL_DEFAULT = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+    _TEXTEDIT_DEFAULT = Qt.AlignmentFlag.AlignLeft
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.Show:
+            if isinstance(obj, QLabel):
+                if obj.alignment() == self._LABEL_DEFAULT:
+                    obj.setAlignment(Qt.AlignmentFlag.AlignJustify)
+            elif isinstance(obj, QTextEdit):
+                if obj.alignment() == self._TEXTEDIT_DEFAULT:
+                    obj.setAlignment(Qt.AlignmentFlag.AlignJustify)
+        return False
+
+
+def install_justify_filter() -> None:
+    """Install the global justify-alignment filter on the application."""
+    global _justify_filter
+    if _justify_filter is None:
+        _justify_filter = _JustifyFilter(QApplication.instance())
+        QApplication.instance().installEventFilter(_justify_filter)
+
+
 class NoLeakTextEdit(QTextEdit):
     """QTextEdit that only leaks wheel events to the parent when already at the boundary.
 

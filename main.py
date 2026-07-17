@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import QTimer
 from ui.main_window import MainWindow, ICONS_DIR
+from ui.styles import install_justify_filter
 from core.resources import configure_bundled_tesseract, APP_VERSION
 from core.applog import get_logger, install_excepthook
 import ctypes
@@ -16,6 +17,7 @@ if __name__ == "__main__":
     configure_bundled_tesseract()  # point pytesseract at the bundled binary when frozen
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("LectureCapture")
     app = QApplication(sys.argv)
+    install_justify_filter()
     # Use the multi-resolution .ico (not the single-size PNG) and set it app-wide so
     # Windows always has a taskbar-sized icon — a lone PNG on the window intermittently
     # drops out when Windows asks for a size the PNG can't supply.
