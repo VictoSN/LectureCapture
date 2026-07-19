@@ -136,7 +136,7 @@ def apply_theme(theme: str, themes_dir) -> None:
     # theme = "dark" or "light"
     qss_path = themes_dir / f"{theme}.qss"
     if qss_path.exists():
-        qss = qss_path.read_text()
+        qss = qss_path.read_text(encoding="utf-8")
         # Resolve url(__ASSETS__/...) image paths to an absolute location so QSS-loaded
         # images (e.g. the checkbox tick) work regardless of the process's working dir.
         assets = Path(themes_dir).parent.as_posix()
