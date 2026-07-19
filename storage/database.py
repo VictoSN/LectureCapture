@@ -43,7 +43,7 @@ class Storage:
 
     def _wipe_if_old_schema(self) -> None:
         """Some schema changes were made without a migration (agreed: wipe rather than
-        migrate) — the quiz columns, and later the group_category → module_category
+        migrate). The quiz columns, and later the group_category → module_category
         rename. CREATE TABLE IF NOT EXISTS can't alter an existing table, so if we find a
         pre-current schema we drop the tables and clear stored captures."""
         self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='session'")

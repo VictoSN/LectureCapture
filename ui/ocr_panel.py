@@ -78,7 +78,7 @@ class OCRPanel(CaptureFeedPanel):
 
         capture_layout.addLayout(timestamp_row)
 
-        # Image — keep only a downscaled thumbnail in memory, decoded straight to
+        # Image: keep only a downscaled thumbnail in memory, decoded straight to
         # thumbnail size (see _load_thumbnail). The full-resolution screenshot is loaded
         # from disk on demand for preview only.
         image_path = str(Path(self.base_dir) / 'sessions' / str(capture.session_id) / 'captures' / capture.image_path)

@@ -18,8 +18,8 @@ from ui.progress import indeterminate_progress_bar
 from pathlib import Path
 
 # Hugging Face repo for each selectable speech model, used to check the local cache and
-# mark already-downloaded models in the dropdown (mirrors faster-whisper's own mapping —
-# note the distilled models live under "faster-distil-whisper-*").
+# mark already-downloaded models in the dropdown (mirrors faster-whisper's own mapping.
+# Note the distilled models live under "faster-distil-whisper-*").
 SPEECH_MODEL_REPOS = {
     "tiny.en": "Systran/faster-whisper-tiny.en",
     "base.en": "Systran/faster-whisper-base.en",
@@ -63,8 +63,8 @@ class ModelDownloadWorker(QThread):
 
     def run(self) -> None:
         # Route through core.models.ensure_model so this shares the same process-wide
-        # download lock + completeness check as the hardware probe and the recording —
-        # otherwise a "download model" click could race the probe into a half-written
+        # download lock + completeness check as the hardware probe and the recording.
+        # Otherwise a "download model" click could race the probe into a half-written
         # cache (the broken-symlink model.bin that looked like a CUDA failure).
         from core.models import ensure_model, model_is_complete
         from core.applog import get_logger
@@ -309,7 +309,7 @@ class SettingsPanel(QWidget):
         self.api_layout.addWidget(api_note, 7, 0, 1, 2)
 
         # Per-engine API selection: each step can independently use the API or the
-        # local engine. Only relevant in API mode, so this block hides for Local — but
+        # local engine. Only relevant in API mode, so this block hides for Local, but
         # the key + Test above stay visible because Translate / Define always need them.
         self.api_engines_container = QWidget()
         engines_layout = QVBoxLayout(self.api_engines_container)
@@ -320,7 +320,7 @@ class SettingsPanel(QWidget):
         engines_layout.addWidget(use_label)
 
         # Only OCR and Speech have a local engine to toggle against. Summarize is
-        # Gemini-only, so it has no toggle — it always uses the Gemini key, like Quiz /
+        # Gemini-only, so it has no toggle; it always uses the Gemini key, like Quiz /
         # Translate / Define.
         self.api_use_ocr = QCheckBox("OCR (slides)")
         self.api_use_ocr.setToolTip("Use Gemini vision for slide OCR (captures math/symbols). Off = local Tesseract.")
@@ -616,7 +616,7 @@ class SettingsPanel(QWidget):
         main_layout.addLayout(delete_layout)
         main_layout.addStretch()
         
-        # Footer pinned below the scroll area (outside it) — Close/Save stay reachable
+        # Footer pinned below the scroll area (outside it). Close/Save stay reachable
         # without scrolling. status_label shows save/download feedback as plain text,
         # left of the buttons.
         self.status_label = QLabel("")
@@ -681,7 +681,7 @@ class SettingsPanel(QWidget):
             
     def set_proc_mode(self, mode):
         # Selection only. Persisting + announcing happens in _save_settings, and
-        # Cancel reverts via load_settings — the same lifecycle as every other
+        # Cancel reverts via load_settings, the same lifecycle as every other
         # field, so Cancel genuinely discards a Local/API click.
         self.proc_mode = mode
         self.update_ui()
@@ -812,8 +812,8 @@ class SettingsPanel(QWidget):
     
     def _emit_export(self) -> None:
         # currentData() is None when the dropdown is empty (no sessions). export_clicked
-        # is typed pyqtSignal(int), so emitting None raises TypeError and crashes the app —
-        # guard it so clicking Export with nothing to export is a no-op.
+# is typed pyqtSignal(int), so emitting None raises TypeError and crashes the app.
+# Guard it so clicking Export with nothing to export is a no-op.
         session_id = self.export_dropdown.currentData()
         if session_id is not None:
             self.export_clicked.emit(session_id)
@@ -1062,7 +1062,7 @@ class SettingsPanel(QWidget):
         self.speech_model_status.setVisible(True)
 
     def active_workers(self) -> list[QThread]:
-        """Worker threads this panel may have running — the app's closeEvent shuts
+        """Worker threads this panel may have running. The app's closeEvent shuts
         them down so no QThread is destroyed mid-run when the window goes away."""
         return [w for w in (self._conn_worker, self._hw_worker, *self._dl_workers)
                 if w is not None]

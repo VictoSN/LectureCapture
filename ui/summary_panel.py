@@ -103,7 +103,7 @@ class SummaryPanel(QWidget):
             # Preview -> Edit: restore the editable plain-text source. setMarkdown leaves
             # rich formatting in the document (and clicking a bold heading in preview
             # carries that into the cursor), so strip all character formatting back to
-            # plain text — otherwise the raw source shows up bold in edit mode.
+            # plain text. Otherwise the raw source shows up bold in edit mode.
             self.summary.blockSignals(True)
             self.summary.setReadOnly(False)
             self.summary.setPlainText(self._markdown_source)

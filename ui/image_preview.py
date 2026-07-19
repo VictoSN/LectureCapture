@@ -3,12 +3,12 @@ slide at full resolution (OCRPanel._show_full_image).
 
 Built on QGraphicsView/QGraphicsScene so pan and cursor-anchored zoom come essentially
 for free:
-  * mouse wheel  — zoom in/out about the cursor
-  * drag         — pan (ScrollHandDrag)
-  * double-click / F / 0 — fit the whole image to the window
-  * 1            — 100% (actual pixels)
-  * +/-          — zoom in/out
-  * Esc          — close
+  * mouse wheel  : zoom in/out about the cursor
+  * drag         : pan (ScrollHandDrag)
+  * double-click / F / 0 : fit the whole image to the window
+  * 1            : 100% (actual pixels)
+  * +/-          : zoom in/out
+  * Esc          : close
 The dialog opens large and is freely resizable; while "fitted" it keeps the image fit
 to the window as it's resized.
 """
@@ -28,8 +28,7 @@ class ImagePreviewDialog(QDialog):
     def __init__(self, pixmap: QPixmap, parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Image Preview")
-        # Give the preview real window controls (minimize / maximize / close) like a normal
-        # app window. A plain QDialog only shows a close button.
+        # Add minimize/maximize/close controls (QDialog only shows close).
         self.setWindowFlags(
             Qt.WindowType.Window
             | Qt.WindowType.WindowMinimizeButtonHint

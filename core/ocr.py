@@ -66,8 +66,7 @@ class OCRWorker(RecordingWorkerMixin, QThread):
         self.sct = None
 
         if not self.hwnd and self.region:
-            # Convert overlay region from logical screen coordinates to physical pixels
-            # relative to the monitor, since mss.grab() uses physical coordinates.
+            # Convert logical screen coords to physical pixels for mss.grab().
             with mss.mss() as sct:
                 monitor = sct.monitors[self.monitor_index]
                 ratio = 1.0
@@ -144,8 +143,7 @@ class OCRWorker(RecordingWorkerMixin, QThread):
             print(f"[OCR timing] skipped (blank frame) total: {time.time()-t0:.3f}s")
             return
 
-        # Decide whether the slide changed. Text is the authority when present;
-        # otherwise fall back to the image hash (text-less slides like diagrams).
+        # Compare text first; fall back to image hash for text-less slides.
         if self.previous_ahash is None:
             text_ratio, is_new = 1.0, True
         elif norm:
@@ -204,8 +202,7 @@ class OCRWorker(RecordingWorkerMixin, QThread):
         return " ".join(re.sub(r"[^a-z0-9]+", " ", text.lower()).split())
 
     def _text_similarity(self, a: str, b: str) -> float:
-        # Compare only the leading HEAD_FRACTION of tokens so dynamic bottom elements don't
-        # make an identical slide look new. Inputs must be normalized.
+        # Compare leading HEAD_FRACTION of tokens to ignore dynamic bottom elements.
         tokens_a, tokens_b = a.split(), b.split()
         n = max(20, int(max(len(tokens_a), len(tokens_b)) * HEAD_FRACTION))
         head_a = " ".join(tokens_a[:n])
@@ -313,8 +310,7 @@ class OCRWorker(RecordingWorkerMixin, QThread):
             bmp_bits = bitmap.GetBitmapBits(True)
             return Image.frombuffer("RGB", (bmp_info["bmWidth"], bmp_info["bmHeight"]), bmp_bits, "raw", "BGRX")
         finally:
-            # Always release GDI objects, even if PrintWindow raises. Otherwise
-            # handles leak every interval until Windows refuses to create more.
+            # Always release GDI handles to prevent leaks.
             if save_dc:
                 save_dc.DeleteDC()
             if mfc_dc:

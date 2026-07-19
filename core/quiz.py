@@ -3,7 +3,7 @@
 JSON mode with a response schema, so the result is structured and auto-gradable
 (multiple-choice + true/false). Runs off the GUI thread like SummarizeWorker, and is
 gated on a Gemini key (there's no good local equivalent). The number of questions is
-left to the model — it's told to scale to how much substantive material there is.
+left to the model. It's told to scale to how much substantive material there is.
 """
 
 import hashlib

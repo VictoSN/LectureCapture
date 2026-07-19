@@ -72,8 +72,7 @@ class MainWindow(FramelessMainWindow):
         # Summarize on a worker thread to avoid freezing the UI; keep reference to prevent GC.
         self._summarize_worker = None
 
-        # Media-import transcription worker. Held so the QThread isn't GC'd
-        # mid-run and to prevent a second import starting while one is in progress.
+        # Held to prevent GC and duplicate imports.
         self._import_worker = None
         # True while an import is running. Lets shared handlers (API-error banner) treat
         # an import like a recording even though is_recording stays False.
@@ -146,12 +145,10 @@ class MainWindow(FramelessMainWindow):
         self.sidebar.new_session_clicked.connect(self.on_new_session_clicked)
         self.sidebar.settings_clicked.connect(self.on_settings_clicked)
         self.splitter.addWidget(self.sidebar)
-        # Keep the sidebar in a sane width range so toggling panels can't make the
-        # splitter blow it up or collapse it to a sliver.
+        # Keep sidebar width in a sane range to prevent splitter collapse.
         self.sidebar.setMinimumWidth(200)
         self.sidebar.setMaximumWidth(380)
-        # Prevent drag-collapsing to 0. Once at 0 there's no handle to grab.
-        # Programmatic toggle uses setVisible instead, which always restores properly.
+        # Prevent drag-collapse to 0 (no handle at 0); toggle with setVisible instead.
         self.splitter.setCollapsible(0, False)
         
         self.sidebar.search_changed.connect(self.on_search_changed)
@@ -253,8 +250,7 @@ class MainWindow(FramelessMainWindow):
 
         # Size every panel so a newly added one doesn't leave the sidebar grabbing slack.
         self.splitter.setSizes([260] + [400] * (self.splitter.count() - 1)) # 1 : 4 ratio
-        # The sidebar holds its width; the content panels absorb window resizing
-        # and the space freed when other panels are hidden/shown.
+        # Sidebar is fixed-width; content panels absorb resize.
         self.splitter.setStretchFactor(0, 0)
         for i in range(1, self.splitter.count()):
             self.splitter.setStretchFactor(i, 1)
@@ -652,8 +648,7 @@ class MainWindow(FramelessMainWindow):
         has_content = self.transcript_panel.ocr_panel.has_content() or self.transcript_panel.speech_panel.has_content()
         self.transcript_panel.summary_panel.summary_button.setDisabled(not has_content)
         self.transcript_panel.summary_panel.summary.setReadOnly(not has_content)
-        # Quiz needs a summary, which a fresh recording doesn't have yet.
-        # Keep it disabled until the user generates one.
+        # Quiz gated on summary existence.
         self.transcript_panel.set_quiz_available(bool(self.current_session.summary))
         
         # Shortcut
@@ -903,8 +898,7 @@ class MainWindow(FramelessMainWindow):
         # Ignore re-clicks while a summary is already being generated.
         if self._summarize_worker is not None:
             return
-        # Summarize is Gemini-only, like Quiz and Translate/Define.
-        # Works in both Local and API modes.
+        # Summarize is Gemini-only (works in both modes).
         if not self.api_key:
             QMessageBox.information(
                 self, "Gemini API key needed",
@@ -919,8 +913,7 @@ class MainWindow(FramelessMainWindow):
         for capture in captures:
             total_text += (capture.extracted_text or "") + (capture.speech_text or "")
 
-        # Run summarization on a worker thread so the API call doesn't freeze the UI.
-        # Lock the app down + show progress; results land in _on_summarize_done.
+        # Run on worker thread to keep UI responsive; lock down and show progress.
         button = self.transcript_panel.summary_panel.summary_button
         button.setDisabled(True)
         button.setText("Summarizing…")
@@ -1016,8 +1009,7 @@ class MainWindow(FramelessMainWindow):
     def on_quiz_clicked(self) -> None:
         if not self.current_session or self.is_recording:
             return
-        # Quiz is Gemini-only (no good local equivalent), like Translate/Define.
-        # Works in both Local and API modes.
+        # Quiz is Gemini-only (works in both modes).
         if not self.api_key:
             QMessageBox.information(
                 self, "Gemini API key needed",
@@ -1148,8 +1140,7 @@ class MainWindow(FramelessMainWindow):
         self.is_properties_open = not self.is_properties_open
         self.properties_panel.setVisible(self.is_properties_open)
         self.storage.delete_session(self.current_session.id)
-        # The open session no longer exists; drop the reference so later actions don't
-        # operate on a deleted session.
+        # Drop reference to deleted session.
         self.current_session = None
         self._refresh_session_lists()
         self.transcript_panel.clear_panels()

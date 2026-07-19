@@ -1,4 +1,4 @@
-"""The quiz workspace — a splitter sibling shown via show_panel("quiz"), like Properties.
+"""The quiz workspace is a splitter sibling shown via show_panel("quiz"), like Properties.
 
 Self-contained state machine over a QStackedWidget: intro → loading → answering →
 results. main_window drives generation/persistence; this panel owns the answering and

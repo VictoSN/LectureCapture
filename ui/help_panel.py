@@ -26,7 +26,7 @@ def _number_chip(number: str) -> QLabel:
     """The coral callout circle: the SVG from assets/icons/numbering, or a
     stylesheet-drawn stand-in if that file doesn't exist. QIcon.pixmap already
     renders at the display's device-pixel ratio (Qt 6), so 24 logical px is
-    requested as-is — pre-multiplying by the DPR makes the pixmap overflow the
+    requested as-is. Pre-multiplying by the DPR makes the pixmap overflow the
     label and get clipped."""
     chip = QLabel()
     chip.setFixedSize(24, 24)
@@ -42,11 +42,11 @@ def _number_chip(number: str) -> QLabel:
 
 # Each chapter is (title, card blurb, blocks). The title + blurb make the clickable
 # card on the main page; the blocks build the chapter's own page top-to-bottom:
-#   ("p", text)                      — a paragraph (rich text if it embeds an <a> tag)
-#   ("img", base, caption)           — full-width screenshot "<base> Light|Dark
+#   ("p", text)                      : a paragraph (rich text if it embeds an <a> tag)
+#   ("img", base, caption)           : full-width screenshot "<base> Light|Dark
 #                                      Mode.drawio.png", matched to the active theme
-#   ("items", [(num, name, text)])   — numbered notes matching the screenshot callouts
-#   ("figure", base, caption, items) — notes on the left, screenshot on the right, so
+#   ("items", [(num, name, text)])   : numbered notes matching the screenshot callouts
+#   ("figure", base, caption, items) : notes on the left, screenshot on the right, so
 #                                      the callouts and their explanations share the
 #                                      view; an item is (num, name, text) for a numbered
 #                                      note, or a plain string for a paragraph
@@ -582,7 +582,7 @@ class HelpPanel(QWidget):
 
         # Only the tile grid (page 0) is built now; each chapter page is built on
         # its first open. Building every page up front decoded all the chapter
-        # screenshots on app launch — startup time and resident memory spent on
+        # screenshots on app launch. Startup time and resident memory spent on
         # pages most runs never visit. Empty placeholders hold the stack slots so
         # a page's stack index always equals its chapter number.
         self._stack.addWidget(self._main_page())

@@ -1,7 +1,7 @@
 """On-demand Gemini lookups for selected transcript text: translate or define.
 
 Runs off the GUI thread (the API call takes a second or two). One call per request
-— this is user-initiated, not per-chunk, so it's easy on free-tier rate limits.
+This is user-initiated, not per-chunk, so it's easy on free-tier rate limits.
 """
 
 from PyQt6.QtCore import QThread, pyqtSignal

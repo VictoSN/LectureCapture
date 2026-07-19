@@ -8,8 +8,7 @@ class CustomTitleBar(TitleBar):
     def __init__(self, parent, icons_dir) -> None:
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        # Add a few pixels of breathing room above and below the logo/buttons.
-        # Add breathing room — buttons stay 46×32 (their icons use hardcoded pixel
+        # Add padding so 46×32 buttons (with hardcoded icon pixel positions)
         # positions), they naturally centre in the taller bar via the layout.
         self.setFixedHeight(self.height() + 10)
         self.title_logo = QLabel()

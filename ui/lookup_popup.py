@@ -23,8 +23,7 @@ class LookupPopup(QDialog):
         super().__init__(parent)
         from core.resources import resource_root
         self._icons_dir = Path(icons_dir) if icons_dir else resource_root() / "assets" / "icons"
-        # Frameless tool window (no taskbar entry); translucent so the inner card's
-        # rounded corners show instead of a square window background.
+        # Frameless translucent tool window for rounded corners.
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.setMinimumWidth(300)
@@ -62,8 +61,7 @@ class LookupPopup(QDialog):
         header.addWidget(self.close_btn)
         layout.addLayout(header)
 
-        # Read-only view of the selected text. Styled (via #lookupOriginal QSS) to look
-        # like muted plain text, but it scrolls once the selection is tall.
+        # Read-only view of selected text, styled via QSS, scrolls when tall.
         self.original_view = QTextEdit()
         self.original_view.setObjectName("lookupOriginal")
         self.original_view.setReadOnly(True)
@@ -110,8 +108,7 @@ class LookupPopup(QDialog):
         self._fit_result_height()
 
     def _fit_result_height(self) -> None:
-        # Size the result box to its content (up to RESULT_MAX_HEIGHT), then let it
-        # scroll. Without this the box collapses to its minimum and long results hide.
+        # Size result box to content (up to RESULT_MAX_HEIGHT), then scroll.
         doc = self.result.document()
         width = self.result.viewport().width()
         if width > 0:
@@ -122,8 +119,7 @@ class LookupPopup(QDialog):
         self._clamp_to_screen()
 
     def _fit_original_height(self) -> None:
-        # Size the selected-text box to its content (up to ORIGINAL_MAX_HEIGHT), then let
-        # it scroll. Short selections stay compact; long ones become scrollable.
+        # Size original-text box to content (up to ORIGINAL_MAX_HEIGHT), then scroll.
         doc = self.original_view.document()
         width = self.original_view.viewport().width()
         if width <= 0:  # not shown yet. Estimate from the card width so wrapping is right.

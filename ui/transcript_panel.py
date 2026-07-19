@@ -59,9 +59,7 @@ class TranscriptPanel(QWidget):
         self.sync_scroll_button.setToolTip("Sync OCR and Audio scroll positions")
         header.addWidget(self.sync_scroll_button)
 
-        # The three panel-toggle buttons live in the title bar (added there by MainWindow),
-        # The three panel-toggle buttons live in the title bar,
-        # not this header. MainWindow gives them the flat titleBarButton look.
+        # Toggle buttons live in the title bar, not this header.
         self.ocr_visibility_button = create_button(icons_dir / 'scan.svg', lambda: self._panel_visibility(self.ocr_panel))
         self.ocr_visibility_button.setToolTip("Toggle OCR panel (Shift+2)")
 
@@ -149,7 +147,7 @@ class TranscriptPanel(QWidget):
         footer.setSpacing(14)
         footer.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
-        # Connection warning — a full-width red bar just above the engine labels, shown
+        # Connection warning: a full-width red bar just above the engine labels, shown
         # when an API call fails / there's no key during recording. Fixed height so it
         # stays a thin horizontal strip; hidden (taking no space) the rest of the time.
         self._banner_dismissed = False
@@ -173,7 +171,7 @@ class TranscriptPanel(QWidget):
         self._connection_close.clicked.connect(self._dismiss_connection_warning)
         banner_layout.addWidget(self._connection_close)
 
-        # Media-import progress — a thin fixed-height row (label + bar + Pause/Stop) just
+        # Media-import progress: a thin fixed-height row (label + bar + Pause/Stop) just
         # above the footer, shown only while a file is being transcribed. Fixed vertical
         # policy + capped height so it stays a single strip and never grabs panel space.
         self.import_row = QWidget()
@@ -382,7 +380,7 @@ class TranscriptPanel(QWidget):
 
     def set_quiz_available(self, available: bool) -> None:
         """Quiz requires a summary to exist first (see the Quiz help chapter). Reflect that
-        in the button state AND the tooltip so it's clear why it's disabled — otherwise the
+        in the button state AND the tooltip so it's clear why it's disabled. Otherwise the
         button silently does nothing after a recording until a summary is made."""
         self.quiz_button.setDisabled(not available)
         self.quiz_button.setToolTip(
@@ -415,7 +413,7 @@ class TranscriptPanel(QWidget):
     def set_summary_lock(self, locked: bool) -> None:
         """Lock the workspace while a summary is generating. Intentionally leaves the
         panel collapse/expand buttons and per-capture image toggles enabled so the user
-        can still scroll, minimize the OCR image, and open/close panels — nothing else."""
+        can still scroll, minimize the OCR image, and open/close panels. Nothing else."""
         self.properties_button.setDisabled(locked)
         self.record_button.setDisabled(locked)
         self.sync_scroll_button.setDisabled(locked)

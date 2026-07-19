@@ -10,7 +10,7 @@ def strip_code_fence(text: str) -> str:
     """Unwrap a Markdown code fence that surrounds the ENTIRE text. Models often wrap
     their whole answer in ```markdown ... ``` despite being told not to; rendered as
     Markdown that becomes one literal code block (every ## and ** shown raw), so strip
-    it. Only unwraps a single all-enclosing fence — content with inner code blocks is
+    it. Only unwraps a single all-enclosing fence. Content with inner code blocks is
     left untouched."""
     if not text:
         return text

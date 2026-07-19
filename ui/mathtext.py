@@ -11,7 +11,7 @@ _converter = LatexNodes2Text()
 # Unicode super/subscript tables. pylatexenc leaves ^ and _ as literal characters
 # (and strips the grouping braces), so we map them ourselves *before* handing the
 # rest to pylatexenc. Characters that map to themselves (*, †, ′) have no raised
-# Unicode form — baseline is the conventional plain-text rendering (e.g. C*-algebra).
+# Unicode form; baseline is the conventional plain-text rendering (e.g. C*-algebra).
 _SUPERSCRIPTS = {
     "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴", "5": "⁵", "6": "⁶", "7": "⁷",
     "8": "⁸", "9": "⁹", "+": "⁺", "-": "⁻", "=": "⁼", "(": "⁽", ")": "⁾",

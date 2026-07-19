@@ -122,7 +122,7 @@ def get_system_theme() -> str:
     return "dark" if bg.lightness() < 128 else "light"
 
 # Dark/light as resolved by the last apply_theme(). load_icon() reads this instead of
-# re-opening QSettings (a registry hit on Windows) for every icon it hands out — a
+# re-opening QSettings (a registry hit on Windows) for every icon it hands out. A
 # session load requests icons per capture row, so those reads add up.
 _applied_dark: bool | None = None
 
@@ -174,7 +174,7 @@ def refresh_icons(root: QWidget, theme: str = None) -> None:
             widget.setPixmap(load_icon(path, theme).pixmap(size, size))
 
 # Recolored icons are identical for a given (path, dark/light) and were being rebuilt
-# (QPixmap load + a QPainter recolor pass) for every button/row that used them — e.g. the
+# (QPixmap load + a QPainter recolor pass) for every button/row that used them, e.g. the
 # delete + minimize icons recolored once per capture row on session load. Cache the result
 # (QIcon is implicitly shared, so handing the same instance to many widgets is fine). A
 # theme change uses a different key, so refresh_icons() still re-resolves correctly.

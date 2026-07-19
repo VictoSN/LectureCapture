@@ -208,7 +208,6 @@ class CaptureOverlay(QWidget):
             self.cancel_callback()
 
     def closeEvent(self, event) -> None:
-        # Release the mss instance's GDI handles; one overlay is created per recording,
-        # so leaving it open leaks a handle set each time.
+        # Release GDI handles to avoid per-recording leaks.
         self.sct.close()
         super().closeEvent(event)
