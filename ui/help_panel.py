@@ -63,8 +63,8 @@ CHAPTERS = [
             ("figure", "Help Panel 0", "The main window as it first opens", [
                 "This is what the app looks like the first time you open it, "
                 "before any sessions exist. The sidebar on the left holds your "
-                "session list, and the three panels beside it — Screen OCR, "
-                "Audio transcript and AI summary — are where a lecture's "
+                "session list, and the three panels beside it, Screen OCR, "
+                "Audio transcript and AI summary, are where a lecture's "
                 "content ends up.",
                 "The buttons along the top act on whichever session is open, "
                 "and the strip along the bottom shows what the app is up to. "
@@ -142,7 +142,7 @@ CHAPTERS = [
                 ("2", "Local Speech Model",
                  "The speech recognition model used in Local mode. Bigger models "
                  "make fewer mistakes but need a stronger PC to keep up with the "
-                 "lecture; smaller ones run fine on most laptops. Picking one "
+                 "lecture. Smaller ones run fine on most laptops. Picking one "
                  "from the list downloads it once (you'll need internet for that "
                  "part), and a ✓ marks the models you already have."),
                 ("3", "Detect Hardware",
@@ -310,7 +310,7 @@ CHAPTERS = [
                  "Reads through the entire session and writes structured notes "
                  "with headings and key terms. It takes a few seconds. Run it "
                  "again whenever the session's content changes and you want "
-                 "fresh notes; if you've edited the summary yourself in the "
+                 "fresh notes. If you've edited the summary yourself in the "
                  "meantime, it asks before overwriting your version."),
                 ("2", "Preview and Edit",
                  "Flips the summary between the nicely formatted view and the "

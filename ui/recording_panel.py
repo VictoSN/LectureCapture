@@ -42,7 +42,7 @@ class RecordingPanel(QWidget):
         self.session_interval = QSpinBox()
         self.session_interval.setRange(1, 30)
         self.default_layout.addWidget(self.session_interval, 0, 1)
-        interval_tip = ("How often a slide snapshot is taken, in seconds (1–30).\n"
+        interval_tip = ("How often a slide snapshot is taken, in seconds (1-30).\n"
                         "A shorter interval catches more slide changes but makes more captures.")
         self.interval_label.setToolTip(interval_tip)
         self.session_interval.setToolTip(interval_tip)
@@ -57,9 +57,9 @@ class RecordingPanel(QWidget):
         self.capture_method_dropdown.currentTextChanged.connect(self.set_user_option)
         self.default_layout.addWidget(self.capture_method_dropdown, 1, 1)
         capture_tip = ("What area to capture each interval:\n"
-                       "• Mouse Select — drag out a region on screen when recording starts\n"
-                       "• Coordinates — a fixed rectangle you set with the X/Y/Width/Height fields\n"
-                       "• Full Window — the entire monitor or window chosen as the Source")
+                       "• Mouse Select: drag out a region on screen when recording starts\n"
+                       "• Coordinates: a fixed rectangle you set with the X/Y/Width/Height fields\n"
+                       "• Full Window: the entire monitor or window chosen as the Source")
         self.capture_method_label.setToolTip(capture_tip)
         self.capture_method_dropdown.setToolTip(capture_tip)
 

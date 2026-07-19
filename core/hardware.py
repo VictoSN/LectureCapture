@@ -103,12 +103,12 @@ def probe_hardware() -> tuple[str, str]:
         body = (
             f"GPU: {name or 'CUDA device'} ({vram_txt})\n"
             "CUDA acceleration: NOT available ✗\n"
-            "(GPU found, but the CUDA runtime could not load — using CPU.)\n\n"
+            "(GPU found, but the CUDA runtime could not load. Using CPU.)\n\n"
             f"Recommended model: {rec}\n{cpu_tip}"
         )
     else:
         body = (
-            "No CUDA GPU detected — transcription will run on the CPU.\n\n"
+            "No CUDA GPU detected. Transcription will run on the CPU.\n\n"
             f"Recommended model: {rec}\n{cpu_tip}"
         )
     return body, rec

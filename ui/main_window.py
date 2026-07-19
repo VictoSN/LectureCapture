@@ -566,7 +566,7 @@ class MainWindow(FramelessMainWindow):
             QMessageBox.information(
                 self, "Speech model downloading",
                 "A speech model is still downloading. Local recording will be available "
-                "once it finishes — or switch Audio to the Gemini API in Settings."
+                "once it finishes, or switch Audio to the Gemini API in Settings."
             )
             return
         if not self.is_recording:
@@ -682,7 +682,7 @@ class MainWindow(FramelessMainWindow):
             QMessageBox.information(
                 self, "Speech model downloading",
                 "A speech model is still downloading. Importing transcribes through the "
-                "same engine, so try again once it finishes — or switch Audio to the "
+                "same engine, so try again once it finishes, or switch Audio to the "
                 "Gemini API in Settings."
             )
             return

@@ -211,8 +211,8 @@ class QuizPanel(QWidget):
                 pct = round(last_score / total * 100) if total else 0
                 parts.append(f"Last score: {last_score}/{total} ({pct}%).")
             if content_changed:
-                parts.append("This session's content has changed since the quiz was made — "
-                             "regenerate for an up-to-date quiz.")
+                parts.append("This session's content has changed since the quiz was made. "
+                             "Regenerate for an up-to-date quiz.")
             else:
                 parts.append("Review the saved quiz, retake it, or generate a fresh one.")
             self.intro_message.setText(" ".join(parts))
@@ -368,7 +368,7 @@ class QuizPanel(QWidget):
     def _build_results(self, score, show_user_answers: bool) -> None:
         total = len(self._questions)
         if score is None:
-            self.score_label.setText(f"Quiz — {total} questions")
+            self.score_label.setText(f"Quiz: {total} questions")
         else:
             pct = round(score / total * 100) if total else 0
             self.score_label.setText(f"You scored {score} / {total}  ({pct}%)")

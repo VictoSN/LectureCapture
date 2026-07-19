@@ -176,7 +176,7 @@ class SettingsPanel(QWidget):
         processing_layout.addWidget(processing_label)
         
         self.local_button = create_button_label(icons_dir / "local.svg", "Local", lambda: self.set_proc_mode("local"))
-        self.local_button.setToolTip("Process everything on this device — private and offline. "
+        self.local_button.setToolTip("Process everything on this device, private and offline. "
                                      "Local OCR (Tesseract) and speech (Whisper).")
         processing_button_layout.addWidget(self.local_button)
 
@@ -208,13 +208,13 @@ class SettingsPanel(QWidget):
         # can weigh bandwidth/storage before picking one. Kept on self so install markers
         # ("✓ installed") can be re-applied without losing the base label.
         self._speech_model_items = [
-            ("tiny.en — fastest, lowest accuracy (~75 MB)", "tiny.en"),
-            ("base.en — fast (~145 MB)", "base.en"),
-            ("small.en — balanced (~488 MB)", "small.en"),
-            ("distil-small.en — fast, distilled (~332 MB)", "distil-small.en"),
-            ("medium.en — accurate (~1.5 GB)", "medium.en"),
-            ("distil-large-v3 — accurate + fast (~1.5 GB)", "distil-large-v3"),
-            ("large-v3 — most accurate (~3 GB)", "large-v3"),
+            ("tiny.en: fastest, lowest accuracy (~75 MB)", "tiny.en"),
+            ("base.en: fast (~145 MB)", "base.en"),
+            ("small.en: balanced (~488 MB)", "small.en"),
+            ("distil-small.en: fast, distilled (~332 MB)", "distil-small.en"),
+            ("medium.en: accurate (~1.5 GB)", "medium.en"),
+            ("distil-large-v3: accurate + fast (~1.5 GB)", "distil-large-v3"),
+            ("large-v3: most accurate (~3 GB)", "large-v3"),
         ]
         for label, value in self._speech_model_items:
             self.speech_model_dropdown.addItem(label, value)
@@ -236,9 +236,9 @@ class SettingsPanel(QWidget):
         note_layout.setContentsMargins(0, 0, 0, 0)
         note_layout.setSpacing(4)
         speech_note = QLabel("The on-device Whisper model that turns recorded audio into text. "
-                             "Bigger models are more accurate but slower; smaller ones stay "
-                             "real-time on modest hardware. Picking a model downloads it once "
-                             "(needs internet); Detect Hardware recommends the best fit for this PC.")
+                             "Bigger models are more accurate but slower. Smaller ones stay "
+                             "real-time on modest hardware. Picking a model downloads it once, "
+                             "needs internet. Detect Hardware recommends the best fit for this PC.")
         speech_note.setWordWrap(True)
         speech_note.setObjectName("muted")
         note_layout.addWidget(speech_note)
@@ -353,8 +353,8 @@ class SettingsPanel(QWidget):
         # Static footnote explaining the results. Shown only once a test has run.
         self.api_test_note = QLabel(
             "This is a live check (each line = one request). “Busy” is a temporary 503 on "
-            "Google's side, not your quota. “limit N/day” is the published free-tier cap — "
-            "the API doesn't report how many you have left, and the AI Studio usage "
+            "Google's side, not your quota. “limit N/day” is the published free-tier cap. "
+            "The API doesn't report how many you have left, and the AI Studio usage "
             "dashboard lags a little behind real requests."
         )
         self.api_test_note.setObjectName("muted")
@@ -421,7 +421,7 @@ class SettingsPanel(QWidget):
         self.interval_input = QSpinBox()
         self.interval_input.setRange(1, 30)
         self.default_layout.addWidget(self.interval_input, 0, 1)
-        interval_tip = ("Default seconds between slide snapshots (1–30).\nA shorter interval "
+        interval_tip = ("Default seconds between slide snapshots (1-30).\nA shorter interval "
                         "catches more slide changes but makes more captures.")
         self.interval_label.setToolTip(interval_tip)
         self.interval_input.setToolTip(interval_tip)
@@ -436,9 +436,9 @@ class SettingsPanel(QWidget):
         self.capture_method_dropdown.currentTextChanged.connect(self.update_ui)
         self.default_layout.addWidget(self.capture_method_dropdown, 1, 1)
         capture_tip = ("Default area to capture each interval:\n"
-                       "• Mouse Select — drag out a region on screen when recording starts\n"
-                       "• Coordinates — a fixed rectangle set with the X/Y/Width/Height fields\n"
-                       "• Full Window — the entire monitor or window chosen as the Source")
+                       "• Mouse Select: drag out a region on screen when recording starts\n"
+                       "• Coordinates: a fixed rectangle set with the X/Y/Width/Height fields\n"
+                       "• Full Window: the entire monitor or window chosen as the Source")
         self.capture_method_label.setToolTip(capture_tip)
         self.capture_method_dropdown.setToolTip(capture_tip)
 
@@ -499,7 +499,7 @@ class SettingsPanel(QWidget):
         no_wheel(self.audio_dropdown)
         setup_audio(self.audio_dropdown, icons_dir)
         self.default_layout.addWidget(self.audio_dropdown, 7, 1)
-        audio_tip = ("Default audio input to record and transcribe — a microphone, or a system/"
+        audio_tip = ("Default audio input to record and transcribe. A microphone, or a system/"
                      "loopback device to capture what's playing on your computer.")
         self.audio_label.setToolTip(audio_tip)
         self.audio_dropdown.setToolTip(audio_tip)
@@ -947,7 +947,7 @@ class SettingsPanel(QWidget):
             icon, label = info.get(status, ("✗", status))
             rpd = FREE_TIER_RPD.get(model)
             rpd_txt = f"  ·  limit {rpd}/day" if rpd else ""
-            line = f"{icon}  {pretty_model(model)} — {label}{rpd_txt}"
+            line = f"{icon}  {pretty_model(model)}: {label}{rpd_txt}"
             # Only surface the raw error text for genuinely unexpected failures.
             if status in ("error", "invalid_key") and detail:
                 line += f"\n      {detail}"
@@ -963,11 +963,11 @@ class SettingsPanel(QWidget):
         if any_ok or "busy" in statuses:
             extra = ""  # the key and connection work; usable now or after a brief retry
         elif "invalid_key" in statuses:
-            extra = "\n\nThe API key looks invalid — double-check it in the field above."
+            extra = "\n\nThe API key looks invalid. Double-check it in the field above."
         elif "limited" in statuses:
-            extra = "\n\nEvery available model has hit today's free-tier limit — try again tomorrow."
+            extra = "\n\nEvery available model has hit today's free-tier limit. Try again tomorrow."
         else:
-            extra = "\n\nNo models responded — check the key and your connection."
+            extra = "\n\nNo models responded. Check the key and your connection."
         self._render_conn_results(extra)
 
     def _on_conn_test_finished(self) -> None:
@@ -1051,7 +1051,7 @@ class SettingsPanel(QWidget):
                 self._refresh_model_install_markers()
             else:
                 self.speech_model_status.setText(
-                    f"Couldn't download {model} — check your internet connection."
+                    f"Couldn't download {model}. Check your internet connection."
                 )
                 self._show_status(f"Couldn't download {model}.")
             # Restore the controls once nothing is left downloading.

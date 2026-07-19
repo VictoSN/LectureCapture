@@ -31,14 +31,14 @@ SHORT_STATUS = {
     "no_connection": "No connection",
     # Not an API failure: "System Audio (Loopback)" was chosen but no loopback-capable
     # device exists, so capture fell back to the default input (usually the microphone).
-    "mic_fallback": "No loopback device — recording the microphone instead",
+    "mic_fallback": "No loopback device. Recording the microphone instead",
 }
 
 
 def status_message(status: str) -> str:
     """Longer, friendly sentence for dialogs and the translate/define popup."""
     return {
-        "no_key": "No API key — add a Gemini API key in Settings.",
-        "invalid_key": "Invalid API key — check your Gemini API key in Settings.",
-        "no_connection": "No connection — check your internet and try again.",
+        "no_key": "No API key. Add a Gemini API key in Settings.",
+        "invalid_key": "Invalid API key. Check your Gemini API key in Settings.",
+        "no_connection": "No connection. Check your internet and try again.",
     }.get(status, "Something went wrong. Please try again.")
