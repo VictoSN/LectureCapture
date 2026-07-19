@@ -33,7 +33,7 @@ class Storage:
         table here is otherwise current."""
         self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='session'")
         if not self.cursor.fetchone():
-            return  # fresh database — create_table builds the current schema
+            return  # fresh database. create_table builds the current schema.
         self.cursor.execute("PRAGMA table_info(session)")
         columns = {row[1] for row in self.cursor.fetchall()}
         if "session_category" in columns and "activity_category" not in columns:
@@ -48,7 +48,7 @@ class Storage:
         pre-current schema we drop the tables and clear stored captures."""
         self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='session'")
         if not self.cursor.fetchone():
-            return  # fresh database — nothing to wipe
+            return  # fresh database. Nothing to wipe.
         self.cursor.execute("PRAGMA table_info(session)")
         columns = {row[1] for row in self.cursor.fetchall()}
         if "quiz_generated_at" in columns and "module_category" in columns:
@@ -247,13 +247,13 @@ class Storage:
         )
 
     def get_captures_by_session(self, session_id: int) -> list[OCRCapture]:
-        # Timeline order, not insertion order — an import or an orphan speech capture
+        # Timeline order, not insertion order. An import or an orphan speech capture
         # can be inserted after rows it belongs before, and the panels show list order.
         self.cursor.execute("SELECT id, timestamp, image_path, extracted_text, speech_text, session_id FROM ocrcapture WHERE session_id = ? ORDER BY timestamp", (session_id,))
         return [self._row_to_ocrcapture(captures) for captures in self.cursor.fetchall()]        
 
     def get_latest_capture_before(self, session_id: int, timestamp: float) -> OCRCapture | None:
-        # Most recent capture at or before `timestamp` — used to attach a speech
+        # Most recent capture at or before `timestamp`. Used to attach a speech
         # chunk to the slide that was on screen when it was spoken. Indexed, O(log n).
         self.cursor.execute(
             "SELECT id, timestamp, image_path, extracted_text, speech_text, session_id "

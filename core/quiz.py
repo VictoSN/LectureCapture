@@ -21,7 +21,7 @@ def source_hash(text: str) -> str:
 _PROMPT = (
     "You are creating a self-test quiz to help a student revise the lecture material "
     "below. Generate as many high-quality questions as the material genuinely supports: "
-    "scale the count to how much substantive content there is — a short snippet might "
+    "scale the count to how much substantive content there is. A short snippet might "
     "warrant only 3-4 questions, an hour-long lecture 20 or more (hard cap 30). Do NOT "
     "pad with trivial, repetitive, or easily-guessed filler; only include questions a "
     "student could meaningfully answer from this material.\n"

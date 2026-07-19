@@ -9,18 +9,13 @@ from PyQt6.QtMultimediaWidgets import QVideoWidget
 
 from ui.format_time import FormatClock
 
-# Audio-only containers — no video widget, so we show a placeholder instead.
+# Audio-only containers. No video widget, so we show a placeholder instead.
 AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac", ".wma"}
 
 
 class MediaImportDialog(QDialog):
-    """Preview an imported media file and choose where transcription should begin.
-
-    The user can play/pause and scrub the file (e.g. to skip an intro), then press
-    "Transcribe from here" — the current playback position becomes the start offset for the
-    batch import. Closing/Cancelling aborts. The player is always stopped before the dialog
-    closes so the file handle is released before the import worker opens it.
-    """
+    """Preview imported media and choose where transcription starts. Play/pause, scrub, then
+    "Transcribe from here". Position becomes the import start offset."""
 
     def __init__(self, path: str, parent=None) -> None:
         super().__init__(parent)
@@ -37,7 +32,7 @@ class MediaImportDialog(QDialog):
 
         is_audio = os.path.splitext(path)[1].lower() in AUDIO_EXTS
         if is_audio:
-            self._preview = QLabel(f"🎧  {os.path.basename(path)}\n\nAudio file — no video preview")
+            self._preview = QLabel(f"🎧  {os.path.basename(path)}\n\nAudio file, no video preview")
             self._preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self._preview.setMinimumHeight(320)
         else:

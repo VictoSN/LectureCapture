@@ -16,20 +16,15 @@ from difflib import SequenceMatcher
 from datetime import datetime
 from pathlib import Path
 
-# --- slide-change detection (dedup) tuning --------------------------------
-# A capture is saved only when the slide actually changes. The OCR text is the
-# authority (so a moving cursor/webcam/clock in frame doesn't create duplicates);
-# a perceptual image hash provides a cheap "definitely identical" fast path and a
-# fallback for slides that contain no text (diagrams, photos).
+# Slide-change dedup: OCR text is the authority; image hash provides a cheap fast path
+# and a fallback for text-less slides (diagrams, photos).
 AHASH_SIZE = 16                 # hash is AHASH_SIZE*AHASH_SIZE bits
 AHASH_IDENTICAL = 1             # <= this many differing bits => same image, skip OCR
 IMAGE_HAMMING_THRESHOLD = 12    # for text-less slides: new slide if more bits differ
 TEXT_SIMILARITY = 0.90          # new slide if normalized text similarity drops below this
 BLANK_STD_THRESHOLD = 8         # ignore near-uniform, text-less frames (e.g. a blank screen)
-# Only compare this fraction of tokens for slide identity. Dynamic elements like
-# live poll counts, timers, and vote tallies sit at the bottom of slides and
-# change every few seconds — comparing only the head (title + main content) stops
-# them from triggering duplicate captures.
+# Compare only the head fraction of tokens so dynamic elements (polls, timers) at
+# the bottom of slides don't trigger duplicate captures.
 HEAD_FRACTION = 0.6
 
 # Set True to log why each frame was captured/skipped (helps diagnose/tune dedup).
@@ -58,9 +53,8 @@ class OCRWorker(RecordingWorkerMixin, QThread):
         self.hwnd = hwnd
         self.ocr_api_key = ocr_api_key
 
-        # Slide-change detection state — the last SAVED slide's image hash, the last
-        # frame's Tesseract text (cheap pre-filter), and the last SAVED vision text
-        # (authoritative post-filter: the text we actually show the user).
+        # State for slide-change detection: saved image hash, last raw text (cheap pre-filter),
+        # and last saved vision text (authoritative post-filter).
         self.previous_raw = ""
         self.previous_saved = ""
         self.previous_ahash = None
@@ -68,16 +62,12 @@ class OCRWorker(RecordingWorkerMixin, QThread):
         # Pause tracking + API-cooldown state shared with the audio worker.
         self._init_worker_common()
 
-        # mss is NOT thread-safe: the grabbing instance is created in run() on the
-        # worker thread. Here we only need monitor geometry for a one-off
-        # coordinate conversion, so use a short-lived instance on this thread.
+        # mss is not thread-safe; use a short-lived instance here for a one-off coordinate conversion.
         self.sct = None
 
         if not self.hwnd and self.region:
-            # 'region' arrives as absolute logical screen coordinates from the
-            # overlay. Convert to physical pixels relative to the monitor so that
-            # mss.grab() (physical pixel coords relative to each monitor) gets the
-            # right rectangle.
+            # Convert overlay region from logical screen coordinates to physical pixels
+            # relative to the monitor, since mss.grab() uses physical coordinates.
             with mss.mss() as sct:
                 monitor = sct.monitors[self.monitor_index]
                 ratio = 1.0
@@ -135,9 +125,7 @@ class OCRWorker(RecordingWorkerMixin, QThread):
         ahash = gray > gray.mean()
         img_dist = self._hamming(ahash, self.previous_ahash) if self.previous_ahash is not None else -1
 
-        # Fast path: a near-identical image is certainly the same slide still on
-        # screen — skip the (expensive) OCR entirely. `force` ("Capture Now")
-        # bypasses all dedup.
+        # Near-identical image is the same slide. Skip expensive OCR. `force` bypasses dedup.
         if not force and self.previous_ahash is not None and img_dist <= AHASH_IDENTICAL:
             if DEBUG_DEDUP:
                 print(f"[OCR dedup] img_dist={img_dist} -> SKIP (image identical)")
@@ -149,9 +137,7 @@ class OCRWorker(RecordingWorkerMixin, QThread):
         print(f"[OCR timing] tesseract: {t2-t1:.3f}s  chars={len(raw_text.strip())}")
         norm = self._normalize(raw_text)
 
-        # Blank frame (e.g. screen blanked to black): no text + near-uniform image.
-        # Ignore it and DON'T update state, so the real slide isn't re-captured when
-        # it comes back.
+        # Blank frame (no text, uniform image): ignore without updating state so the real slide isn't re-captured.
         if not force and not norm and float(gray.std()) < BLANK_STD_THRESHOLD:
             if DEBUG_DEDUP:
                 print(f"[OCR dedup] std={gray.std():.1f} chars=0 -> SKIP (blank frame)")
@@ -176,9 +162,8 @@ class OCRWorker(RecordingWorkerMixin, QThread):
             print(f"[OCR timing] skipped (same slide) total: {time.time()-t0:.3f}s")
             return
 
-        # New slide *by the cheap Tesseract/image signal*. Run vision OCR (the text we
-        # actually save) only now. Tesseract's text above is only used for dedup; the
-        # saved text comes from the vision model so math notation is captured.
+        # New slide by Tesseract/image signal: run vision OCR now (saved text uses the vision
+        # model so math notation is captured; Tesseract is only for dedup).
         text = self._maybe_clean(raw_text, pil_img)
         t3 = time.time()
         print(f"[OCR timing] cleanup: {t3-t2:.3f}s")
@@ -187,10 +172,8 @@ class OCRWorker(RecordingWorkerMixin, QThread):
         self.previous_raw = norm
         self.previous_ahash = ahash
 
-        # Second safeguard, on the AUTHORITATIVE saved text: Tesseract jitters on noisy
-        # frames (animated social embeds, video) and can flag a "new slide" that the
-        # vision model transcribes identically to the last save. The vision text is what
-        # the user sees, so identical wording must skip here even if Tesseract disagreed.
+        # Authoritative safeguard: skip if vision text matches last save, since Tesseract
+        # can flag noise (animated embeds, video) as a new slide that the vision model transcribes identically.
         saved_norm = self._normalize(text)
         if (not force and self.previous_saved and saved_norm
                 and self._text_similarity(saved_norm, self.previous_saved) >= TEXT_SIMILARITY):
@@ -221,9 +204,8 @@ class OCRWorker(RecordingWorkerMixin, QThread):
         return " ".join(re.sub(r"[^a-z0-9]+", " ", text.lower()).split())
 
     def _text_similarity(self, a: str, b: str) -> float:
-        # Compare only the leading HEAD_FRACTION of tokens so dynamic elements at the
-        # bottom of a slide (live poll counts, vote tallies, timers, animated embeds)
-        # don't make an otherwise-identical slide look new. Inputs must be normalized.
+        # Compare only the leading HEAD_FRACTION of tokens so dynamic bottom elements don't
+        # make an identical slide look new. Inputs must be normalized.
         tokens_a, tokens_b = a.split(), b.split()
         n = max(20, int(max(len(tokens_a), len(tokens_b)) * HEAD_FRACTION))
         head_a = " ".join(tokens_a[:n])
@@ -255,10 +237,8 @@ class OCRWorker(RecordingWorkerMixin, QThread):
     # ---- API cleanup ---------------------------------------------------
 
     def _maybe_clean(self, raw_text: str, pil_img) -> str:
-        # When the API is available, transcribe the IMAGE directly with the vision
-        # model so math notation (∈, ⊕, ℕ, etc.) is captured — Tesseract can't read
-        # it. Note: we deliberately don't early-return on empty raw_text, because a
-        # math-only slide can produce no Tesseract text yet still need OCR.
+        # When API available, use vision model for math notation (Tesseract can't read it).
+        # Don't early-return on empty raw_text. A math-only slide needs OCR despite no Tesseract text.
         if self._api_available():
             try:
                 text, model = self._ocr_with_api(pil_img)
@@ -266,7 +246,7 @@ class OCRWorker(RecordingWorkerMixin, QThread):
                     from core.gemini import pretty_model
                     self._emit_engine(pretty_model(model))
                     return text
-                # Empty vision result — fall back to whatever Tesseract gave us.
+                # Empty vision result. Fall back to whatever Tesseract gave us.
             except Exception as e:
                 print(f"[OCR] API OCR failed ({e}); using raw text, cooldown {API_COOLDOWN_SECONDS}s")
                 self._start_api_cooldown()
@@ -290,7 +270,7 @@ class OCRWorker(RecordingWorkerMixin, QThread):
                     "LaTeX: wrap inline math in $...$ and display equations in $$...$$. "
                     "Use proper LaTeX commands for symbols (e.g. \\in, \\bigoplus, "
                     "\\mathbb{N}, \\mathcal{AT}, subscripts G_n). "
-                    "Do not add commentary, headings, or explanations — return only the "
+                    "Do not add commentary, headings, or explanations. Return only the "
                     "transcribed slide content."
                 ),
                 pil_img,
@@ -333,7 +313,7 @@ class OCRWorker(RecordingWorkerMixin, QThread):
             bmp_bits = bitmap.GetBitmapBits(True)
             return Image.frombuffer("RGB", (bmp_info["bmWidth"], bmp_info["bmHeight"]), bmp_bits, "raw", "BGRX")
         finally:
-            # Always release GDI objects, even if PrintWindow raises — otherwise
+            # Always release GDI objects, even if PrintWindow raises. Otherwise
             # handles leak every interval until Windows refuses to create more.
             if save_dc:
                 save_dc.DeleteDC()
@@ -352,7 +332,7 @@ class OCRWorker(RecordingWorkerMixin, QThread):
             # Create the mss instance on THIS (the worker) thread and keep it here.
             with mss.mss() as self.sct:
                 while self._running:
-                    # While paused, don't capture — just idle until resumed/stopped.
+                    # While paused, don't capture. Just idle until resumed or stopped.
                     if self._paused:
                         time.sleep(0.1)
                         continue

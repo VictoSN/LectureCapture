@@ -29,7 +29,7 @@ class ImagePreviewDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Image Preview")
         # Give the preview real window controls (minimize / maximize / close) like a normal
-        # app window — a plain QDialog only shows a close button.
+        # app window. A plain QDialog only shows a close button.
         self.setWindowFlags(
             Qt.WindowType.Window
             | Qt.WindowType.WindowMinimizeButtonHint
@@ -83,7 +83,7 @@ class ImagePreviewDialog(QDialog):
 
     def zoom(self, factor: float) -> None:
         if not self._allowed_zoom(self.current_scale(), factor):
-            return  # clamp — ignore a step that would exceed the limits
+            return  # clamp. Ignore a step that would exceed the limits.
         self._fitted = False
         self._view.scale(factor, factor)
 

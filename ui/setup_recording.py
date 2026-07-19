@@ -57,7 +57,7 @@ def setup_source(source_dropdown: QComboBox, icons_dir: Path) -> None:
     counts = Counter(_app_name(title) for _, title in windows)
     for hwnd, title in windows:
         name = _app_name(title)
-        label = name if counts[name] == 1 else f"{name} — {_window_detail(title)}"
+        label = name if counts[name] == 1 else f"{name} - {_window_detail(title)}"
         source_dropdown.addItem(
             window_icon,
             label,
@@ -104,7 +104,7 @@ def update_ranges_for_source(source, x: QSpinBox, y: QSpinBox, width: QSpinBox, 
 
 
 def set_coord_fields_visible(panel, visible: bool) -> None:
-    """Show/hide the X/Y/Width/Height rows — the recording and settings panels
+    """Show/hide the X/Y/Width/Height rows. The recording and settings panels
     name these fields identically."""
     for widget in (panel.x_label, panel.x_coords, panel.y_label, panel.y_coords,
                    panel.width_label, panel.width_dimension,

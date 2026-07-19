@@ -18,7 +18,7 @@ from ui.progress import indeterminate_progress_bar
 class QuizPanel(QWidget):
     generate_requested = pyqtSignal()   # (re)generate from the session content
     exit_requested = pyqtSignal()       # leave the quiz (main_window confirms if needed)
-    completed = pyqtSignal(int, int)    # score, total — so the score can be persisted
+    completed = pyqtSignal(int, int)    # score, total. So the score can be persisted.
 
     def __init__(self) -> None:
         super().__init__()
@@ -110,7 +110,7 @@ class QuizPanel(QWidget):
         hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(hint)
 
-        # Indeterminate progress bar — quiz generation can take several seconds.
+        # Indeterminate progress bar. Quiz generation can take several seconds.
         bar_row = QHBoxLayout()
         bar_row.addStretch()
         self.loading_bar = indeterminate_progress_bar(width=260)

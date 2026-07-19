@@ -1,15 +1,6 @@
-"""Central Gemini generation with model fallback.
-
-The free tier caps each model with tight per-minute and per-day limits, and a single
-model can be exhausted mid-session. So rather than calling one fixed model, we walk a
-chain and transparently move to the next model when the current one is rate-limited,
-exhausted, unknown, or temporarily overloaded. Auth and bad-request failures are NOT
-retried — they'd fail identically on every model, so we surface them immediately.
-
-Note: the "Live API" models (Native Audio Dialog, Live, Live Translate) are a separate
-streaming/WebSocket API for real-time voice conversation, not a drop-in for these
-request/response generate_content calls, so they aren't part of these chains.
-"""
+"""Central Gemini generation with model fallback to handle free-tier per-model rate limits.
+Walks a model chain on rate-limit/quota/overload errors; auth and bad-request failures
+surface immediately since they'd fail on every model. Live API models are excluded."""
 
 
 # One-shot, quality-first tasks (summary, translate / define, quiz).
@@ -20,9 +11,7 @@ MODEL_CHAIN = [
     "gemini-3.5-flash",
 ]
 
-# Per-chunk / per-slide tasks (live speech, OCR) that fire many times during a recording
-# — lead with the model that has the largest daily allowance so a long session is less
-# likely to exhaust it, then fall back to the rest.
+# Lead with the highest-daily-allowance model for frequent per-chunk tasks, then fall back.
 FREQUENT_MODEL_CHAIN = [
     "gemini-3.1-flash-lite-preview",
     "gemini-2.5-flash-lite",
@@ -45,9 +34,8 @@ FREE_TIER_RPD = {
 
 
 def probe_model(api_key: str, model: str) -> tuple[str, str]:
-    """Ping one model through the exact path real calls use. Returns (status, detail);
-    status is 'ok' | 'limited' | 'missing' | 'invalid_key' | 'error'. detail carries the
-    underlying error text for the failure cases so it can be shown to the user."""
+    """Ping one model via the real call path. Returns (status, detail) where status
+    is 'ok' | 'limited' | 'missing' | 'invalid_key' | 'busy' | 'error'."""
     try:
         generate(api_key, "ping", chain=[model])
         return "ok", ""
@@ -62,7 +50,7 @@ def probe_model(api_key: str, model: str) -> tuple[str, str]:
         if any(k in text for k in ("404", "not found", "not_found")):
             return "missing", detail
         # 503 / overload is transient: the model exists and the key works, the server is
-        # just busy right now. Not a real failure — the app falls back at call time.
+        # just busy right now. Not a real failure. The app falls back at call time.
         if any(k in text for k in ("503", "unavailable", "overloaded", "high demand", "try again")):
             return "busy", detail
         print(f"[API Test] {model} error: {detail}")
@@ -78,9 +66,8 @@ def pretty_model(model_id: str) -> str:
 
 
 def _should_try_next(exc: Exception) -> bool:
-    """A failure worth retrying on a different model: rate-limit / quota exhaustion, an
-    unknown or unavailable model, or a transient overload. (Auth / bad-request are not —
-    they'd fail on every model.)"""
+    """True for rate-limit, quota exhaustion, unavailable model, or transient overload.
+    Auth and bad-request failures are not retried. They would fail on every model."""
     text = f"{type(exc).__name__} {exc}".lower()
     return any(k in text for k in (
         "429", "resource_exhausted", "rate limit", "quota", "exceed",
@@ -89,9 +76,7 @@ def _should_try_next(exc: Exception) -> bool:
     ))
 
 
-# One client per key, reused across calls: the per-chunk tasks (speech, OCR) call
-# generate() every few seconds during an API recording, and rebuilding the client
-# each time is wasted setup.
+# Cache one client per API key so per-chunk tasks don't rebuild it every few seconds.
 _clients: dict = {}
 
 
@@ -106,8 +91,8 @@ def _client(api_key: str):
 
 def generate(api_key: str, contents, config=None, chain=None, on_attempt=None):
     """generate_content with model fallback. Returns (response, model_id) for the first
-    model that succeeds; raises the last error if every model in the chain fails.
-    `on_attempt(model_id)` is called before each model is tried (used to show progress)."""
+    successful model; raises the last error if every model fails. `on_attempt` is called
+    before each model for progress reporting."""
     client = _client(api_key)
     last_exc = None
     for model in (chain or MODEL_CHAIN):

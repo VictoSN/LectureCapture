@@ -1,11 +1,5 @@
-"""Lightweight file logging so failures in the shipped build aren't invisible.
-
-The installer build is frozen with ``console=False`` (see LectureCapture.spec), which
-discards stdout/stderr — so every diagnostic ``print()`` in the app vanishes in an
-installed copy. When the GPU/model path fails on a user's machine there is nothing to look
-at. This mirrors those messages to a rotating log file under
-``%APPDATA%/LectureCapture/logs`` so first-run issues can be diagnosed from an install.
-"""
+"""Mirror diagnostic messages to a rotating log file under %APPDATA%/LectureCapture/logs,
+since the frozen build discards stdout/stderr and failures would otherwise be invisible."""
 
 import os
 import sys
@@ -23,11 +17,8 @@ def _log_dir() -> str:
 
 
 def get_logger() -> logging.Logger:
-    """Return the shared app logger, configuring a rotating file handler once.
-
-    Safe to call from any thread; configuration is idempotent. Never raises — if the log
-    file can't be opened we fall back to stderr only, since logging must not block startup.
-    """
+    """Return the shared app logger with a rotating file handler. Idempotent, thread-safe,
+    never raises. Falls back to stderr if the log file can't be opened."""
     global _configured
     logger = logging.getLogger("lecturecapture")
     if _configured:

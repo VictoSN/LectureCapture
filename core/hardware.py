@@ -1,10 +1,5 @@
-"""Detect the speech-transcription hardware and recommend a Whisper model.
-
-The only reliable way to know the GPU path works is to actually load a model on
-CUDA and run an inference — a device can be present yet the cuBLAS/cuDNN runtime
-fail to load (see core/cuda_setup). That takes a few seconds, so the probe runs on
-a worker thread (HardwareProbeWorker).
-"""
+"""Detect speech-transcription hardware and recommend a Whisper model.
+The probe runs on a worker thread since loading CUDA + inferring takes a few seconds."""
 
 import sys
 import subprocess
@@ -17,7 +12,7 @@ def recommend_model(vram_mb: int | None, gpu_usable: bool) -> str:
     if not gpu_usable:
         return "tiny.en"           # keep CPU transcription real-time
     if vram_mb is None:
-        return "distil-large-v3"   # CUDA works but VRAM unknown — safe accurate default
+        return "distil-large-v3"   # CUDA works but VRAM unknown. Safe accurate default.
     if vram_mb >= 6000:
         return "distil-large-v3"
     if vram_mb >= 4000:
@@ -26,7 +21,7 @@ def recommend_model(vram_mb: int | None, gpu_usable: bool) -> str:
 
 
 def auto_gpu_model() -> str:
-    """Model that the 'Automatic' setting resolves to on a working GPU — tiered by
+    """Model that the 'Automatic' setting resolves to on a working GPU. Tiered by
     VRAM (same logic as the Detect-Hardware recommendation), not always the biggest."""
     _, vram = _query_gpu()
     return recommend_model(vram, True)
@@ -58,19 +53,7 @@ def _cuda_device_count() -> int:
 
 
 def _gpu_probe() -> str:
-    """Check whether a usable CUDA GPU is present — WITHOUT downloading a speech model.
-
-    The hardware check exists only to tell the user "you have a GPU the CUDA runtime can
-    use" so we can recommend a model. The model itself is a separate, heavy download that
-    happens later (when the user clicks Apply, or on the first recording) — requiring it
-    here would mean downloading a model just to test the GPU, which is backwards.
-
-    Returns one of:
-      "ok"          — a CUDA device is present and the cuBLAS runtime loads.
-      "cuda_failed" — a device is present but the CUDA runtime won't load (e.g. the bundled
-                      DLLs aren't on the loader's path in a frozen build).
-      "no_cuda"     — no CUDA device / runtime present.
-    """
+    """Check CUDA GPU presence without downloading a model. Returns 'ok', 'cuda_failed', or 'no_cuda'."""
     from core.cuda_setup import prepare_cuda
     from core.applog import get_logger
     log = get_logger()
@@ -85,11 +68,7 @@ def _gpu_probe() -> str:
 
 
 def _cublas_loads(log) -> bool:
-    """Confirm the cuBLAS runtime DLL loads on this machine. No model / download needed.
-
-    This is the part that silently failed in the frozen build (the bundled cuBLAS/cuDNN
-    weren't on the loader's search path); a plain DLL load catches that without an inference.
-    """
+    """Confirm cuBLAS loads via a plain DLL load. Catches frozen-build search-path issues without inference."""
     import ctypes
     err = None
     for name in ("cublas64_12.dll", "cublas64_13.dll"):  # CUDA 12 today; 13 future-proof
@@ -136,8 +115,7 @@ def probe_hardware() -> tuple[str, str]:
 
 
 class HardwareProbeWorker(QThread):
-    """Runs probe_hardware() off the GUI thread (it loads a model + runs an inference
-    to verify CUDA, which can take a few seconds)."""
+    """Runs probe_hardware() off the GUI thread since it can take a few seconds."""
     done = pyqtSignal(str, str)   # (report, recommended_model)
     failed = pyqtSignal(str)
 

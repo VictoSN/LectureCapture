@@ -17,8 +17,8 @@ def FormatDetailedTime(date: datetime) -> str:
     return date.strftime("%A %#d %B, %H:%M:%S")
 
 def FormatClock(seconds: float, pad_minutes: bool = False) -> str:
-    """Elapsed time as a clock: H:MM:SS once there's a whole hour, else M:SS —
-    or MM:SS with pad_minutes, for the fixed-width footer clock. Truncates
+    """Elapsed time as a clock: H:MM:SS once there's a whole hour, else M:SS
+    (or MM:SS with pad_minutes for the fixed-width footer clock). Truncates
     fractional seconds."""
     s = max(0, int(seconds))
     h, m, sec = s // 3600, (s % 3600) // 60, s % 60

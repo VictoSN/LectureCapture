@@ -69,15 +69,13 @@ class MainWindow(FramelessMainWindow):
         self._lookup_worker = None
         self._lookup_workers = set()
 
-        # Background summarization runs on a worker thread so the (often slow) API
-        # call doesn't freeze the UI. Held here so the QThread isn't garbage-collected
-        # mid-run, and to prevent overlapping summarize requests.
+        # Summarize on a worker thread to avoid freezing the UI; keep reference to prevent GC.
         self._summarize_worker = None
 
         # Media-import transcription worker. Held so the QThread isn't GC'd
         # mid-run and to prevent a second import starting while one is in progress.
         self._import_worker = None
-        # True while an import is running — lets shared handlers (API-error banner) treat
+        # True while an import is running. Lets shared handlers (API-error banner) treat
         # an import like a recording even though is_recording stays False.
         self._import_active = False
 
@@ -104,18 +102,11 @@ class MainWindow(FramelessMainWindow):
         self.DEFAULT_START_SOUND = str(BUNDLED_SOUNDS_DIR / 'Beep 1 (Default).wav')
         self.DEFAULT_STOP_SOUND = str(BUNDLED_SOUNDS_DIR / 'Chirp 1 (Default).wav')
 
-        # Use `or DEFAULT` rather than only the QSettings fallback: when the user (or an
-        # earlier save) stored an empty string — what "None" persists as — the key exists,
-        # so settings.value() returns "" and setSource("") yields a silent, invalid source.
-        # Falling back to the default keeps a working start/stop sound.
+        # Use `or DEFAULT` so an empty stored string falls back to a working sound.
         start_path = self.settings.value("start_sound") or self.DEFAULT_START_SOUND
         stop_path = self.settings.value("stop_sound") or self.DEFAULT_STOP_SOUND
         
-        # Start/stop chimes via QMediaPlayer (not QSoundEffect): QSoundEffect's low-level
-        # path produced no audio on several machines (and only played the stop sound on
-        # others because its source hadn't finished loading when play() was called at
-        # record start). QMediaPlayer uses the platform media backend and is reliable for
-        # short WAVs. The QAudioOutput must be retained or the player is silent.
+        # QMediaPlayer for WAV playback; keep QAudioOutput alive or audio is silent.
         self._start_output = QAudioOutput()
         self.start_audio = QMediaPlayer()
         self.start_audio.setAudioOutput(self._start_output)
@@ -159,7 +150,7 @@ class MainWindow(FramelessMainWindow):
         # splitter blow it up or collapse it to a sliver.
         self.sidebar.setMinimumWidth(200)
         self.sidebar.setMaximumWidth(380)
-        # Prevent drag-collapsing to 0 — once at 0 there's no handle to grab.
+        # Prevent drag-collapsing to 0. Once at 0 there's no handle to grab.
         # Programmatic toggle uses setVisible instead, which always restores properly.
         self.splitter.setCollapsible(0, False)
         
@@ -208,7 +199,7 @@ class MainWindow(FramelessMainWindow):
         self.transcript_panel.capture_deleted.connect(self.storage.delete_capture)
 
         # The OCR / Audio / Summary toggles live in the title bar, not the transcript
-        # header — hand the (title-bar-owned placement of the) transcript's buttons over.
+        # header. Give the title-bar the transcript's panel toggle buttons.
         self.titleBar.add_panel_buttons([
             self.transcript_panel.ocr_visibility_button,
             self.transcript_panel.speech_visibility_button,
@@ -260,9 +251,7 @@ class MainWindow(FramelessMainWindow):
         self.help_panel.setVisible(False)
         self.is_help_open = False
 
-        # Wait until the other widgets are added. Size every panel (not a hardcoded
-        # count) so a newly added panel can't be left unsized — an unsized panel made
-        # the sidebar grab the slack when first shown.
+        # Size every panel so a newly added one doesn't leave the sidebar grabbing slack.
         self.splitter.setSizes([260] + [400] * (self.splitter.count() - 1)) # 1 : 4 ratio
         # The sidebar holds its width; the content panels absorb window resizing
         # and the space freed when other panels are hidden/shown.
@@ -279,42 +268,42 @@ class MainWindow(FramelessMainWindow):
         self._refresh_engine_labels()
         
         # Shortcuts
-        # Shift+1 — Toggle sidebar (always active)
+        # Shift+1: Toggle sidebar (always active)
         self.sidebar_shortcut = QShortcut(QKeySequence("Shift+1"), self)
         self.sidebar_shortcut.activated.connect(self._toggle_sidebar)
         self.sidebar_shortcut.setEnabled(True)
 
-        # Ctrl+T — New Session
+        # Ctrl+T: New Session
         self.create_session_shortcut = QShortcut(QKeySequence("Ctrl+T"), self)
         self.create_session_shortcut.activated.connect(self.on_new_session_clicked)
         self.create_session_shortcut.setEnabled(True)
         
-        # Ctrl+S — Settings
+        # Ctrl+S: Settings
         self.settings_shortcut = QShortcut(QKeySequence("Ctrl+S"), self)
         self.settings_shortcut.activated.connect(self.on_settings_clicked)
         self.settings_shortcut.setEnabled(True)
 
-        # Ctrl+G — Help & guide (always active)
+        # Ctrl+G: Help and guide (always active)
         self.help_shortcut = QShortcut(QKeySequence("Ctrl+G"), self)
         self.help_shortcut.activated.connect(self.on_help_clicked)
         self.help_shortcut.setEnabled(True)
 
-        # Ctrl+D — Properties
+        # Ctrl+D: Properties
         self.properties_shortcut = QShortcut(QKeySequence("Ctrl+D"), self)
         self.properties_shortcut.activated.connect(self.on_properties_clicked)
         self.properties_shortcut.setEnabled(False)
         
-        # Ctrl+F — Recording panel
+        # Ctrl+F: Recording panel
         self.recording_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
         self.recording_shortcut.activated.connect(self.handle_record_shortcut)
         self.recording_shortcut.setEnabled(False)
 
-        # Enter — Stop recording (with confirmation), only active while recording
+        # Enter: Stop recording (with confirmation), only active while recording
         self.stop_recording_shortcut = QShortcut(QKeySequence("Return"), self)
         self.stop_recording_shortcut.activated.connect(self.on_stop_recording_confirmation)
         self.stop_recording_shortcut.setEnabled(False)
 
-        # Ctrl+Enter — Force capture now, only active while recording
+        # Ctrl+Enter: Force capture now, only active while recording
         self.capture_now_shortcut = QShortcut(QKeySequence("Ctrl+Return"), self)
         self.capture_now_shortcut.activated.connect(self.on_force_capture_clicked)
         self.capture_now_shortcut.setEnabled(False)
@@ -331,18 +320,14 @@ class MainWindow(FramelessMainWindow):
             self.on_record_clicked()
 
     def _set_nav_locked(self, locked: bool) -> None:
-        """The shared core of every lock mode (recording, import, summarizing,
-        quizzing): no session switching from the sidebar and no new session /
-        settings / help from the title bar."""
+        """Lock sidebar and title bar nav during recording, import, summarize, or quiz."""
         self.sidebar.set_recording_locked(locked)
         self.titleBar.new_session_button.setDisabled(locked)
         self.titleBar.settings_button.setDisabled(locked)
         self.titleBar.help_button.setDisabled(locked)
 
     def _lock_nav_shortcuts(self, busy: bool, store_attr: str) -> None:
-        """Disable the create/settings/properties/record shortcuts while busy,
-        saving their prior state under `store_attr` so unlocking restores it
-        exactly (some depend on whether a session is loaded)."""
+        """Disable nav shortcuts while busy, saving prior state to restore later."""
         shortcuts = (
             self.create_session_shortcut,
             self.settings_shortcut,
@@ -387,10 +372,7 @@ class MainWindow(FramelessMainWindow):
         self.show_panel("new_session" if self.is_new_session_open else "transcript")
         
     def on_new_session_create(self, session_name, activity_category, module_category) -> None:
-        # Used data to build a new session
         current_time = datetime.now()
-        
-        # Create new session using gathered data
         new_session = Session(session_name, current_time, current_time, activity_category, 0, None, module_category, None, None)
         self.storage.create_session(new_session)
         # Select before refreshing so the new session's card comes back highlighted.
@@ -453,7 +435,7 @@ class MainWindow(FramelessMainWindow):
         self._pending_speech = ""
         self._pending_capture_id = None
 
-        # Start the timer only now — when capture actually begins — so the time
+        # Start the timer only now when capture actually begins. This way the time
         # spent in the Mouse Select overlay isn't counted as recording time.
         self.elapse_s = 0
         self.transcript_panel.recording_time_label.setText("00:00")
@@ -469,9 +451,7 @@ class MainWindow(FramelessMainWindow):
         self.ocr_worker.api_error.connect(self._on_api_error)
         self.ocr_worker.start()
         
-        # Window-only recording with system-audio loopback → capture just that window's
-        # process, so audio from other apps isn't mixed in. Only applies when a
-        # window (hwnd) is the source AND the chosen audio device is the system loopback.
+        # Window-only loopback captures just that window's audio, excluding other apps.
         loopback_pid = None
         if hwnd and isinstance(device, dict) and device.get("type") == "loopback":
             from core.process_loopback import pid_from_hwnd
@@ -496,15 +476,13 @@ class MainWindow(FramelessMainWindow):
             self._speech_engine_label(),
         )
 
-        # API selected but no key entered → warn now (the workers will run locally and
-        # never reach the API, so this is the only chance to flag it). Otherwise start
-        # clean; a live failure will raise the banner via _on_api_error.
+        # Warn if API mode is selected but no key is entered; workers fall back to local.
         if self.processing_mode == "api" and not self.api_key:
             self.transcript_panel.show_connection_warning(SHORT_STATUS["no_key"])
         else:
             self.transcript_panel.clear_connection_warning()
 
-        # Que sound effect
+        # Play sound effect
         self._play_effect(self.start_audio)
         
         # Enable recording-only shortcuts, disable the rest
@@ -540,12 +518,9 @@ class MainWindow(FramelessMainWindow):
         self.timer.stop()
         self.elapse_s = 0
         
-        # Reset Text
         self.transcript_panel.recording_time_label.setText("00:00")
         self.transcript_panel.record_button.setText("Record")
         self.transcript_panel.set_recording_active(False)
-        
-        # Unlock Buttons
         self._set_nav_locked(False)
         self.transcript_panel.set_properties_locked(False)
         self.showNormal()
@@ -567,14 +542,11 @@ class MainWindow(FramelessMainWindow):
         self.show_panel("transcript")
 
     def _local_recording_blocked(self) -> bool:
-        """Local recording needs the speech model, which a download holds a lock on. With
-        a download in progress, transcription would stall and drop audio — so block it.
-        API-mode speech (Gemini) doesn't touch the model, so it's unaffected."""
+        """Block local recording while a model download holds the lock; API speech is unaffected."""
         return self._model_download_active and not self._effective_api_key("speech")
 
     def _apply_record_download_lock(self) -> None:
-        """Disable Record while a model download blocks local recording; otherwise restore
-        it (only when a session is loaded and nothing else is running)."""
+        """Disable Record during model download; restore when session is loaded and idle."""
         btn = self.transcript_panel.record_button
         if self._local_recording_blocked():
             btn.setDisabled(True)
@@ -590,7 +562,7 @@ class MainWindow(FramelessMainWindow):
         self._apply_record_download_lock()
 
     def on_record_clicked(self) -> None:
-        # Opens the recording panel. Does NOT stop recording — that goes through confirmation
+        # Opens the recording panel. Does NOT stop recording. Stop goes through confirmation.
         if not self.current_session:
             print('Need to select session first')
             return
@@ -665,16 +637,14 @@ class MainWindow(FramelessMainWindow):
         # rescue any speech that never found a slide to attach to.
         QApplication.processEvents()
         if self._pending_speech:
-            # Stamp the orphan at this recording's start on the session timeline (the
-            # pre-recording length), not 0.0 — captures are shown and speech-matched
-            # in timestamp order, and 0.0 would pin it to the very start of the session.
+            # Stamp orphan speech at the pre-recording length, not 0.0, for correct timeline order.
             orphan = OCRCapture(float(self.current_session.length), "", "", None, self.current_session.id, self._pending_speech)
             self.storage.create_ocr_capture(orphan)
             self.transcript_panel.ocr_panel.add_capture(orphan)
             self.transcript_panel.speech_panel.add_capture(orphan)
             self._pending_speech = ""
 
-        # save total length (active time only — excludes any paused spans)
+        # Save total length (active time only, excludes any paused spans)
         self.current_session.length += recorded_seconds
         self.storage.update_session(self.current_session)
         
@@ -682,8 +652,8 @@ class MainWindow(FramelessMainWindow):
         has_content = self.transcript_panel.ocr_panel.has_content() or self.transcript_panel.speech_panel.has_content()
         self.transcript_panel.summary_panel.summary_button.setDisabled(not has_content)
         self.transcript_panel.summary_panel.summary.setReadOnly(not has_content)
-        # Quiz needs a summary, which a fresh recording doesn't have yet — keep it disabled
-        # (with an explanatory tooltip) until the user generates one.
+        # Quiz needs a summary, which a fresh recording doesn't have yet.
+        # Keep it disabled until the user generates one.
         self.transcript_panel.set_quiz_available(bool(self.current_session.summary))
         
         # Shortcut
@@ -705,12 +675,7 @@ class MainWindow(FramelessMainWindow):
     # ---- media import --------------------------------------------------
 
     def on_import_media_clicked(self) -> None:
-        """Pick a local audio/video file, preview it, and transcribe it into the session.
-
-        The file is split into interval-sized segments; each becomes one capture card with
-        the segment's audio transcribed (local Whisper or Gemini, per Settings) and — for a
-        video — a frame grabbed and OCR'd, exactly like a live recording. A preview dialog
-        lets the user scrub to where transcription should start (skip an intro)."""
+        """Pick a local media file, preview it, and transcribe it into the session."""
         if not self.current_session:
             print("Need to select session first")
             return
@@ -742,9 +707,7 @@ class MainWindow(FramelessMainWindow):
         self._start_media_import(path, dialog.start_seconds())
 
     def _set_import_locked(self, locked: bool) -> None:
-        """Lock the app for an import the same way a live recording does: no session
-        switching, no new session / settings / help / properties, and the nav shortcuts
-        off. The only live controls are the import row's Pause/Stop and the panel toggles."""
+        """Lock the app during import (same as recording): only Pause/Stop and panel toggles work."""
         self._set_nav_locked(locked)
         self.transcript_panel.set_properties_locked(locked)
         # Disable the shortcuts that would otherwise bypass the locked buttons.
@@ -773,7 +736,7 @@ class MainWindow(FramelessMainWindow):
             ocr_api_key=self._effective_api_key("ocr"),
             start_offset=start_offset,
         )
-        # Each finished segment is a normal capture — reuse the recording path that saves it
+        # Each finished segment is a normal capture. Reuse the recording path that saves it
         # and adds the card to both panels.
         self._import_worker.capture_ready.connect(self.on_capture_ready)
         self._import_worker.progress.connect(self.on_import_progress)
@@ -850,8 +813,8 @@ class MainWindow(FramelessMainWindow):
 
     def _resolve_speech_target(self, timestamp):
         """The capture a speech chunk should attach to: the latest slide at or before
-        the speech, or — for speech that predates every slide (e.g. narration before
-        the first slide finished its OCR) — the earliest slide. Returns None only when
+        the speech, or for speech that predates every slide (e.g. narration before
+        the first slide finished its OCR) the earliest slide. Returns None only when
         no slide has been captured at all yet, in which case the speech is buffered."""
         recent = self.storage.get_latest_capture_before(self.current_session.id, timestamp)
         return recent or self.storage.get_earliest_capture(self.current_session.id)
@@ -881,7 +844,7 @@ class MainWindow(FramelessMainWindow):
             self.storage.append_speech_text(target.id, text)
             self.transcript_panel.speech_panel.update_capture_speech(target.id, text)
         else:
-            # No slide captured yet — hold the speech and flush it onto the first
+            # No slide captured yet. Hold the speech and flush it onto the first
             # capture (see on_capture_ready) so early narration isn't lost.
             self._pending_speech += text
 
@@ -898,7 +861,7 @@ class MainWindow(FramelessMainWindow):
                 "Add a Gemini API key in Settings to use Translate / Define."
             )
             return
-        if kind == "translate" and not target:  # "Other…" — ask for a language
+        if kind == "translate" and not target:  # "Other..." means ask for a language
             target, ok = QInputDialog.getText(self, "Translate", "Translate to which language?")
             if not ok or not target.strip():
                 return
@@ -940,8 +903,8 @@ class MainWindow(FramelessMainWindow):
         # Ignore re-clicks while a summary is already being generated.
         if self._summarize_worker is not None:
             return
-        # Summarize is Gemini-only, gated on a key like Quiz / Translate / Define —
-        # works in both Local and API modes.
+        # Summarize is Gemini-only, like Quiz and Translate/Define.
+        # Works in both Local and API modes.
         if not self.api_key:
             QMessageBox.information(
                 self, "Gemini API key needed",
@@ -1011,11 +974,7 @@ class MainWindow(FramelessMainWindow):
         self.transcript_panel.set_quiz_available(bool(self.current_session and self.current_session.summary))
 
     def _set_summarizing(self, busy: bool) -> None:
-        """Lock the app down while a summary is generating so nothing can mutate the
-        session underneath the worker (switching sessions mid-summary was corrupting
-        state). The user can still scroll, toggle the per-capture image, and
-        collapse/expand panels — nothing else. Only ever called outside recording, so
-        unlocking restores the normal idle state."""
+        """Lock the app during summarization to prevent session mutation; user can still scroll and toggle panels."""
         self._set_nav_locked(busy)
         # Workspace: properties, record, sync-scroll, and both feeds (read-only + no delete).
         self.transcript_panel.set_summary_lock(busy)
@@ -1044,8 +1003,7 @@ class MainWindow(FramelessMainWindow):
             return None
 
     def _parse_saved_answers(self) -> list | None:
-        """The user's stored answers for the saved quiz, or None if there are none
-        (older quizzes saved before answers were persisted -> Review shows the key only)."""
+        """Return stored quiz answers, or None for older quizzes without persisted answers."""
         raw = self.current_session.quiz_answers if self.current_session else None
         if not raw:
             return None
@@ -1058,8 +1016,8 @@ class MainWindow(FramelessMainWindow):
     def on_quiz_clicked(self) -> None:
         if not self.current_session or self.is_recording:
             return
-        # Quiz is Gemini-only (no good local equivalent), gated on a key like Translate/
-        # Define — works in both Local and API modes.
+        # Quiz is Gemini-only (no good local equivalent), like Translate/Define.
+        # Works in both Local and API modes.
         if not self.api_key:
             QMessageBox.information(
                 self, "Gemini API key needed",
@@ -1137,9 +1095,7 @@ class MainWindow(FramelessMainWindow):
         self.show_panel("transcript")
 
     def _set_quizzing(self, busy: bool) -> None:
-        """Lock the app while the quiz workspace is open so the session can't be switched
-        or mutated underneath it — same idea as _set_summarizing. The transcript is hidden
-        during the quiz, so only the sidebar / title bar / shortcuts need locking."""
+        """Lock the app during quiz (like summarizing) to prevent session switching."""
         self._set_nav_locked(busy)
         self._lock_nav_shortcuts(busy, "_quiz_locked_shortcuts")
 
@@ -1163,9 +1119,7 @@ class MainWindow(FramelessMainWindow):
         return self.current_session.id if self.current_session else None
 
     def _refresh_session_lists(self) -> None:
-        """Rebuild the sidebar and the settings export dropdown after anything
-        changes the session set. One query feeds both, and the open session keeps
-        its sidebar highlight across the rebuild."""
+        """Rebuild sidebar and export dropdown after session changes; keep open session highlighted."""
         sessions = self.storage.get_all_sessions()
         self.sidebar.refresh(sessions, self._selected_session_id())
         self.sidebar.update_categories(self._activity_categories(), self.storage.get_module_categories())
@@ -1215,9 +1169,7 @@ class MainWindow(FramelessMainWindow):
             self.on_text_changed(self.current_session.id, text, 3)
 
     def on_text_changed(self, id, text, option: int) -> None:
-        # The debounced save timers live on the text edits and can fire just after
-        # the session was deleted (properties delete / delete all) — there's
-        # nothing left to attribute the edit to.
+        # Debounced saves can fire after session deletion; guard against missing session.
         if not self.current_session:
             return
         now = datetime.now()
@@ -1230,14 +1182,12 @@ class MainWindow(FramelessMainWindow):
             self.storage.update_speech_text(id, text)
         elif option == 3:
             self.current_session.summary = text
-            # Quiz is gated on having a summary — so emptying it must re-disable the quiz
+            # Quiz is gated on having a summary. Emptying it must re-disable the quiz
             # button (and restoring text re-enable it).
             self.transcript_panel.set_quiz_available(bool(text and text.strip()))
 
         self.storage.update_session(self.current_session)
-        # Note: the sidebar/settings session lists are intentionally NOT rebuilt
-        # here. Doing so on every debounced keystroke recreated every session card
-        # and stuttered badly; the "modified" time refreshes on next navigation.
+        # Don't rebuild sidebar on every keystroke. It stutters. Refresh on next navigation.
         self.transcript_panel.saved_label.setText("Saved")
 
     def on_settings_clicked(self) -> None:
@@ -1264,16 +1214,12 @@ class MainWindow(FramelessMainWindow):
         self.show_panel("transcript")
 
     def on_settings_help_requested(self) -> None:
-        """The 'step-by-step guide in Help' link in Settings → open Help on the API-key
-        chapter. Deferred a frame so the panel is laid out before we scroll to it."""
+        """Open Help on the API-key chapter; defer a frame so the panel is laid out first."""
         self.show_panel("help")
         QTimer.singleShot(0, self.help_panel.scroll_to_api_key)
 
     def _maybe_show_onboarding(self) -> None:
-        """On the very first launch, open the Help guide (its first chapter is a
-        Getting Started walkthrough) instead of dropping the user on the empty
-        transcript. A persisted QSettings flag makes this a one-time redirect; the
-        Help button in the title bar reopens the guide any time afterwards."""
+        """On first launch, open Help guide instead of empty transcript; one-time redirect via QSettings."""
         if self.settings.value("onboarding_seen", False, type=bool):
             return
         # Record that we've shown it before navigating, so a crash mid-launch can't
@@ -1289,9 +1235,7 @@ class MainWindow(FramelessMainWindow):
         self.processing_mode = str(self.settings.value("processing_mode", "local"))
 
     def _effective_api_key(self, kind: str = "") -> str:
-        # API is only used when the master switch is on AND that specific engine
-        # (ocr / speech / summarize) is enabled for the API. This lets the user, e.g.,
-        # run Gemini OCR for math slides while keeping speech on the fast local model.
+        # API used only when master switch is on AND that specific engine is enabled for API.
         if self.processing_mode != "api":
             return ""
         if kind and not self.settings.value(f"api_use_{kind}", True, type=bool):
@@ -1299,10 +1243,7 @@ class MainWindow(FramelessMainWindow):
         return self.api_key
 
     def _speech_engine_label(self) -> str:
-        """Speech engine shown before a recording loads its model. For the local engine
-        this includes the configured model (e.g. "faster-whisper · small.en"); once the
-        model actually loads, engine_fallback upgrades it with the resolved model + the
-        GPU/CPU device it's running on. For the API it names the primary model."""
+        """Speech engine label before model loads; engine_fallback upgrades it with resolved model + device."""
         if self._effective_api_key("speech"):
             return pretty_model(FREQUENT_MODEL_CHAIN[0])
         return f"faster-whisper · {self.settings.value('speech_model', DEFAULT_SPEECH_MODEL)}"
@@ -1332,8 +1273,7 @@ class MainWindow(FramelessMainWindow):
         self._maybe_clear_api_warning(engine)
 
     def _on_api_error(self, status: str) -> None:
-        """A worker's API call failed mid-recording/import — surface it as the red banner.
-        Guarded so a signal queued just before stop can't raise it afterwards."""
+        """Show red banner on API failure mid-recording/import; guard against stale signals after stop."""
         if not self.is_recording and not self._import_active:
             return
         self.transcript_panel.show_connection_warning(
@@ -1479,11 +1419,7 @@ class MainWindow(FramelessMainWindow):
         if self.is_settings_open and panel != "settings":
             self.settings_panel.revert_theme()
 
-        # Help borrows the sidebar's width so a chapter's screenshot and its notes fit
-        # side by side; the sidebar comes back the way it was when help closes. The
-        # user can still reopen it any time (Shift+1 / title-bar button). Entering vs
-        # leaving is read off the panel itself — the is_help_open flag is pre-toggled
-        # by on_help_clicked, so it can't tell us the previous state here.
+        # Help borrows sidebar width for screenshots; restore sidebar state when help closes.
         help_was_open = not self.help_panel.isHidden()
         if panel == "help" and not help_was_open:
             self._sidebar_open_before_help = not self.sidebar.isHidden()
@@ -1503,11 +1439,7 @@ class MainWindow(FramelessMainWindow):
         self.recording_panel.setVisible(panel == "recording")
         self.quiz_panel.setVisible(panel == "quiz")
         self.help_panel.setVisible(panel == "help")
-        # Make show_panel the single source of truth for which workspace panel is open.
-        # Previously only is_help_open was synced here, so switching directly between
-        # panels (e.g. Settings -> Help) left is_settings_open stale at True; the next
-        # Settings click then read that stale flag and toggled to the transcript instead
-        # of showing Settings. Syncing every flag to the actual target panel fixes that.
+        # Sync all panel flags here so switching between panels doesn't leave stale state.
         self.is_settings_open = (panel == "settings")
         self.is_new_session_open = (panel == "new_session")
         self.is_help_open = (panel == "help")
@@ -1538,10 +1470,7 @@ class MainWindow(FramelessMainWindow):
             return
         changed = False
 
-        # Pin the sidebar to its tracked width. Showing/hiding panels lets QSplitter
-        # drift it despite its stretch factor (e.g. toggling the sidebar then opening a
-        # session). Absorb the difference into the widest visible content panel so an
-        # open Properties panel keeps its own size.
+        # Pin sidebar to tracked width; absorb drift into the widest visible content panel.
         if self.sidebar.isVisible() and sizes[0] != self._sidebar_width:
             delta = sizes[0] - self._sidebar_width
             sizes[0] = self._sidebar_width
@@ -1569,28 +1498,17 @@ class MainWindow(FramelessMainWindow):
             self.splitter.setSizes(sizes)
 
     def _restore_window_state(self) -> None:
-        # restoreGeometry() replays the size, position AND maximized/fullscreen state that
-        # saveGeometry() captured. It does NOT show the window — Qt applies the geometry
-        # (maximizing if that was the saved state) when the window is first shown by
-        # main.py. So no explicit showMaximized() here: calling that mid-__init__, before
-        # the title bar/central widget exist, is what stopped the restore from sticking.
+        # restoreGeometry replays size, position, and maximized state; no showMaximized() needed.
         geometry = self.settings.value("windowGeometry")
         if geometry is not None:
             self.restoreGeometry(geometry)
 
     def _save_window_state(self) -> None:
-        # Save unconditionally: saveGeometry() already encodes the maximized state, so the
-        # old "skip while maximized" branch left a stale geometry behind and never recorded
-        # that the window was maximized. One call captures everything restore needs.
+        # Save unconditionally; saveGeometry encodes maximized state, so one call captures everything.
         self.settings.setValue("windowGeometry", self.saveGeometry())
 
     def _shutdown_background_workers(self) -> None:
-        """Stop any still-running worker threads before the window (their owner) is
-        destroyed — a QThread deleted while running hard-aborts the whole process.
-        These are short API calls or downloads with no cancel hook, so give each a
-        moment to finish and terminate the stragglers: the process is exiting, and a
-        torn-down request doesn't matter (a partial model download is detected and
-        resumed by ensure_model on the next run)."""
+        """Stop running worker threads before window destruction; terminate stragglers after a timeout."""
         workers = [self._summarize_worker, self._quiz_worker,
                    *self._lookup_workers, *self.settings_panel.active_workers()]
         for worker in workers:
@@ -1612,9 +1530,7 @@ class MainWindow(FramelessMainWindow):
             if reply != QMessageBox.StandardButton.Yes:
                 event.ignore()
                 return
-            # Closing mid-summary: detach the handlers so a late result can't fire
-            # against torn-down widgets. The thread itself is joined below in
-            # _shutdown_background_workers, which still holds the reference.
+            # Detach handlers mid-summary so late results don't fire against torn-down widgets.
             try:
                 self._summarize_worker.done.disconnect()
                 self._summarize_worker.failed.disconnect()
@@ -1652,7 +1568,7 @@ class MainWindow(FramelessMainWindow):
             self.audio_worker.wait()
 
         # Quiz generation, lookups, connection tests, hardware probes, and model
-        # downloads have no confirmation — just make sure their threads are down.
+        # downloads have no confirmation. Just make sure their threads are down.
         self._shutdown_background_workers()
         self.storage.close()
         self._save_window_state()

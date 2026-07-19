@@ -1,19 +1,7 @@
-"""Per-process audio capture via Windows WASAPI *process loopback*.
-
-In "window only" recording the system loopback grabs the whole audio mix — so a YouTube
-tab playing in Chrome bleeds into a recording of a Firefox window. The only clean fix on
-Windows is application/process loopback capture: `ActivateAudioInterfaceAsync` with
-`AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK`, which renders only the target process
-(and its child processes) into a private loopback stream. Requires Windows 10 2004
-(build 19041) or newer.
-
-There is no pip package for this, so the COM plumbing is hand-rolled here on top of
-pycaw's tested `IAudioClient` / `WAVEFORMATEX` definitions (which save us the worst of it).
-`ProcessLoopbackRecorder` runs the whole WASAPI session on its own thread and exposes a
-simple `start()/read()/stop()` interface returning mono float32 audio at 44.1 kHz, so the
-AudioWorker can consume it the same way it consumes a sounddevice stream. Any failure
-raises so the caller can fall back to ordinary system loopback — capture must never break.
-"""
+"""Per-process WASAPI loopback capture so only the target window's audio is recorded.
+Hand-rolled COM on pycaw's IAudioClient/WAVEFORMATEX since no pip package exists.
+Exposes start()/read()/stop() and returns mono float32 at 44.1 kHz. Failures raise for caller fallback.
+Requires Windows 10 2004+."""
 
 import queue
 import ctypes
@@ -129,18 +117,15 @@ class IActivateAudioInterfaceCompletionHandler(IUnknown):
 
 class IAgileObject(IUnknown):
     # Marker interface (no methods of its own). ActivateAudioInterfaceAsync invokes the
-    # completion handler from the MTA, so the handler MUST be agile — without advertising
+    # completion handler from the MTA, so the handler MUST be agile. Without advertising
     # IAgileObject the activation call fails up front with E_ILLEGAL_METHOD_CALL.
     _iid_ = GUID("{94EA2B94-E9CC-49E0-C0FF-EE64CA8F5B90}")
     _methods_ = ()
 
 
 class _CompletionHandler(COMObject):
-    """Signals an event when the async activation finishes, so the worker can block on it.
-
-    Advertises IAgileObject so the audio service can call back from the MTA without
-    marshalling — required, or ActivateAudioInterfaceAsync returns E_ILLEGAL_METHOD_CALL.
-    """
+    """Signals an event on async activation completion. Advertises IAgileObject so the
+    MTA callback works without marshalling (required to avoid E_ILLEGAL_METHOD_CALL)."""
     _com_interfaces_ = [IActivateAudioInterfaceCompletionHandler, IAgileObject]
 
     def __init__(self) -> None:
@@ -176,13 +161,8 @@ def _make_float_format(samplerate: int, channels: int) -> WAVEFORMATEX:
 
 
 class ProcessLoopbackRecorder:
-    """Capture only `pid` (and its child processes) via WASAPI process loopback.
-
-    `start()` activates + starts the stream (raising on any failure so the caller can fall
-    back). `read()` returns the mono float32 audio captured since the last call (or None).
-    All COM work happens on an internal MTA thread — process-loopback activation is async
-    and its completion callback must land on an MTA/pumped thread.
-    """
+    """Capture audio from `pid` via WASAPI process loopback. start() raises on failure;
+    read() returns mono float32 (or None). COM work runs on an internal MTA thread."""
 
     def __init__(self, pid: int, samplerate: int = RECORD_SAMPLE_RATE, channels: int = 2) -> None:
         self.pid = int(pid)

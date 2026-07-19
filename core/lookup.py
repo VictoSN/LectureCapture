@@ -33,7 +33,7 @@ class LookupWorker(QThread):
         if self._kind == "translate":
             prompt = (
                 f"Translate the following text to {self._target}. "
-                "Return only the translation — no preamble, notes, or quotation marks:\n\n"
+                "Return only the translation. No preamble, notes, or quotation marks:\n\n"
                 f"{self._text}"
             )
         else:

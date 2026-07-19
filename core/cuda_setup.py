@@ -1,11 +1,7 @@
-"""Make the pip-installed CUDA 12 runtime (cuBLAS + cuDNN) loadable by CTranslate2.
+"""Make pip-installed CUDA 12 DLLs (cuBLAS + cuDNN) loadable by CTranslate2 on Windows.
 
-faster-whisper's GPU path goes through CTranslate2, whose native loader calls
-``LoadLibrary("cublas64_12.dll")`` directly. That ignores ``os.add_dll_directory``
-and only searches ``PATH``, so on Windows the DLLs shipped by the
-``nvidia-cublas-cu12`` / ``nvidia-cudnn-cu12`` wheels are invisible unless we put
-their ``bin`` folders on ``PATH`` ourselves. We do both (PATH + add_dll_directory)
-to be safe across loader code paths.
+CTranslate2 calls LoadLibrary directly (ignoring add_dll_directory), so we add the
+nvidia wheel bin folders to both PATH and add_dll_directory for safety across loader paths.
 """
 
 import os
@@ -18,26 +14,18 @@ _prepared: bool | None = None
 
 
 def prepare_cuda() -> bool:
-    """Add the bundled CUDA runtime to the DLL search path and report whether a
-    usable CUDA device is present. Idempotent; safe to call from any thread.
-
-    Returns True only if a CUDA device exists AND the runtime DLL folders were
-    found — i.e. it's worth *attempting* a GPU model. The actual cuBLAS load can
-    still fail later (e.g. an unsupported GPU), so callers must keep a CPU
-    fallback around a real inference, not trust this alone.
-    """
+    """Add CUDA DLLs to the search path and report whether a usable device exists.
+    Idempotent and thread-safe. Returns True only when device and DLLs are found. Callers
+    must still keep a CPU fallback since cuBLAS may fail at inference time."""
     global _prepared
     if _prepared is not None:
         return _prepared
 
     _prepared = False
     try:
-        # Where the CUDA runtime DLLs live differs between source and a frozen build:
-        #   * From source: the nvidia-*-cu12 wheels under site-packages/nvidia/<pkg>/bin.
-        #   * Frozen (PyInstaller): the spec relocates them next to the ctranslate2 native
-        #     module (_MEIPASS/ctranslate2) so cuDNN 9's split loader finds its sub-DLLs.
-        # Either way we add the dir(s) to PATH + add_dll_directory so CTranslate2's runtime
-        # LoadLibrary("cublas64_12.dll" / "cudnn64_9.dll" + its sub-DLLs) resolves them.
+        # CUDA DLLs live under site-packages/nvidia/*/bin from source, or next to the
+        # ctranslate2 native module in a frozen build. Add to PATH + add_dll_directory
+        # so CTranslate2's LoadLibrary resolves cuBLAS and cuDNN.
         if getattr(sys, "frozen", False):
             ct2 = os.path.join(sys._MEIPASS, "ctranslate2")
             dll_dirs = [ct2] if os.path.isdir(ct2) else []

@@ -254,7 +254,7 @@ class SettingsPanel(QWidget):
         note_layout.addWidget(self.speech_model_progress)
         self.api_layout.addWidget(note_box, 1, 0, 1, 2)
 
-        # Hardware detection — verify the GPU/CPU actually works and recommend a model.
+        # Hardware detection. Verify the GPU/CPU actually works and recommend a model.
         self._recommended_model = None
         self._hw_worker = None
         self._conn_worker = None
@@ -350,7 +350,7 @@ class SettingsPanel(QWidget):
         self.api_test_output.setVisible(False)
         self.api_layout.addWidget(self.api_test_output, 10, 0, 1, 2)
 
-        # Static footnote explaining the results — shown only once a test has run.
+        # Static footnote explaining the results. Shown only once a test has run.
         self.api_test_note = QLabel(
             "This is a live check (each line = one request). “Busy” is a temporary 503 on "
             "Google's side, not your quota. “limit N/day” is the published free-tier cap — "
@@ -412,7 +412,7 @@ class SettingsPanel(QWidget):
         preferences_note.setObjectName("muted")
         preferences_layout.addWidget(preferences_note)
 
-        # These mirror the recording panel's fields — they set the values that panel is
+        # These mirror the recording panel's fields. They set the values that panel is
         # pre-filled with when Recording preference is "Default".
         ## Interval
         self.interval_label = QLabel("Default Interval (s):")
@@ -720,7 +720,7 @@ class SettingsPanel(QWidget):
                     dropdown.setCurrentIndex(idx)
     
     def play_sound(self, dropdown: QComboBox) -> None:
-        # QMediaPlayer (not QSoundEffect — that produced no audio on several machines).
+        # QMediaPlayer (not QSoundEffect). QSoundEffect produced no audio on several machines.
         # One reusable player/output kept on self so it isn't garbage-collected mid-play.
         path = dropdown.currentData()
         if not path:
@@ -749,7 +749,7 @@ class SettingsPanel(QWidget):
         QApplication.processEvents()  # paint the disabled/"Saving…" state before we block
         try:
             self._save_settings()
-        except Exception as exc:  # noqa: BLE001 — surface any failure to the user
+        except Exception as exc:  # noqa: BLE001. Surface any failure to the user.
             self._show_status(f"Couldn't save settings: {exc}")
         else:
             self._show_status("Settings saved successfully!")
@@ -857,9 +857,9 @@ class SettingsPanel(QWidget):
             self.speech_model_dropdown.setItemText(i, label + suffix)
 
     def load_settings(self) -> None:
-        self.proc_mode = str(self.settings.value("processing_mode", "local")) # local, api
-        self.revert_theme() # theme
-        self.pref_mode = str(self.settings.value("preferences_mode", "last")) # last, default, empty
+        self.proc_mode = str(self.settings.value("processing_mode", "local"))
+        self.revert_theme()
+        self.pref_mode = str(self.settings.value("preferences_mode", "last"))
         
         region = self.settings.value("default_region", {"left": 0, "top": 0, "width": 800, "height": 800})
     
@@ -1012,7 +1012,7 @@ class SettingsPanel(QWidget):
         self._download_speech_model(self._recommended_model)
 
     def _on_speech_model_chosen(self, index: int) -> None:
-        # Fired only on a user selection (not programmatic) — fetch it now.
+        # Fired only on a user selection (not programmatic). Fetch it now.
         self._download_speech_model(self.speech_model_dropdown.itemData(index))
 
     def _download_speech_model(self, model_id: str) -> None:

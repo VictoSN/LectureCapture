@@ -3,9 +3,9 @@ from PyQt6.QtCore import Qt, QRect
 from PyQt6.QtGui import QPainter, QColor, QPainterPath
 
 
-_BAR_THICKNESS = 3   # px — width of the hover indicator bar
-_BAR_LENGTH = 48     # px — how long the bar spans (perpendicular axis)
-_BAR_RADIUS = 2      # px — rounded cap radius
+_BAR_THICKNESS = 3   # px, width of the hover indicator bar
+_BAR_LENGTH = 48     # px, how long the bar spans (perpendicular axis)
+_BAR_RADIUS = 2      # px, rounded cap radius
 
 
 class GripHandle(QSplitterHandle):

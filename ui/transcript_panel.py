@@ -37,7 +37,7 @@ class TranscriptPanel(QWidget):
 
         self._sync_scroll_enabled = False
 
-        # Header Layout — label with a border-bottom separator for the underline effect
+        # Header Layout. Label with a border-bottom separator for the underline effect.
         self.session_name = QLabel()
         self.session_name.setText("Select a session")
         self.session_name.setStyleSheet("font-weight: 600;")
@@ -60,8 +60,8 @@ class TranscriptPanel(QWidget):
         header.addWidget(self.sync_scroll_button)
 
         # The three panel-toggle buttons live in the title bar (added there by MainWindow),
-        # not this header — hence icon-only and no header.addWidget. MainWindow gives them
-        # the flat titleBarButton look so they match the other title-bar icons.
+        # The three panel-toggle buttons live in the title bar,
+        # not this header. MainWindow gives them the flat titleBarButton look.
         self.ocr_visibility_button = create_button(icons_dir / 'scan.svg', lambda: self._panel_visibility(self.ocr_panel))
         self.ocr_visibility_button.setToolTip("Toggle OCR panel (Shift+2)")
 
@@ -90,8 +90,8 @@ class TranscriptPanel(QWidget):
         self.force_capture_button.setVisible(False)
         header.addWidget(self.force_capture_button)
 
-        # Pause/Resume an active recording — sits between Capture Now and Record; only
-        # shown while recording.
+        # Pause/Resume an active recording. Sits between Capture Now and Record.
+        # Only shown while recording.
         self.pause_button = create_button(icons_dir / 'pause.svg', self.pause_clicked, text="Pause", width=110)
         self.pause_button.setToolTip("Pause recording")
         self.pause_button.setVisible(False)
@@ -431,7 +431,7 @@ class TranscriptPanel(QWidget):
     
     def clear_panels(self) -> None:
         self.set_session_locked(True)
-        # Reset the header back to the placeholder — otherwise deleting the open session
+        # Reset the header back to the placeholder. Otherwise deleting the open session
         # (or all sessions) leaves its name stranded in the title bar.
         self.session_name.setText("Select a session")
         self.ocr_panel.clear_captures()
@@ -453,7 +453,7 @@ class TranscriptPanel(QWidget):
         self.connection_banner.setVisible(False)
 
     def _dismiss_connection_warning(self) -> None:
-        # User closed the banner — keep it hidden until the problem clears or a new
+        # User closed the banner. Keep it hidden until the problem clears or a new
         # recording starts, so it doesn't pop back on the next failed chunk.
         self._banner_dismissed = True
         self.connection_banner.setVisible(False)

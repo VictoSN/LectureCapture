@@ -1,8 +1,5 @@
-"""Small frameless card shown near the cursor with a translate/define result.
-
-Reused across lookups (created once, re-prepared each time) so there are no
-deletion races with the in-flight worker.
-"""
+"""Frameless popup card near the cursor showing translate/define results. Reused across
+lookups to avoid deletion races with the worker that is still running."""
 
 from pathlib import Path
 
@@ -129,7 +126,7 @@ class LookupPopup(QDialog):
         # it scroll. Short selections stay compact; long ones become scrollable.
         doc = self.original_view.document()
         width = self.original_view.viewport().width()
-        if width <= 0:  # not shown yet — estimate from the card width so wrapping is right
+        if width <= 0:  # not shown yet. Estimate from the card width so wrapping is right.
             width = self.maximumWidth() - 2 * 14 - 4
         doc.setTextWidth(width)
         content = int(doc.size().height()) + 2 * self.original_view.frameWidth() + 6

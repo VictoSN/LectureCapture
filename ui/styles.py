@@ -190,7 +190,7 @@ def load_icon(icon_path: str | Path, theme: str = None) -> QIcon:
         if _applied_dark is not None:
             dark_mode = _applied_dark
         else:
-            # No theme applied yet this process (e.g. widgets built in tests) —
+            # No theme applied yet this process (e.g. widgets built in tests).
             # fall back to the saved setting.
             settings = QSettings("LectureCapture", "LectureCapture")
             dark_mode = check_theme(str(settings.value("theme", "auto")))

@@ -1,10 +1,5 @@
-"""A category chooser: a dropdown of existing categories plus an "Add new…" entry
-that reveals a line edit for typing a brand-new one.
-
-Used for both the activity and module category on the New Session and Properties
-panels. Matching is case-sensitive ("Lab" and "lab" are different categories), and
-typing a name that already exists just re-selects it — no duplicate is created.
-"""
+"""A dropdown of existing categories plus an "Add new…" entry that reveals a text field.
+Used for activity/module categories in New Session and Properties panels."""
 
 import hashlib
 
@@ -31,9 +26,7 @@ CATEGORY_COLORS = {
     "Workshop": "#EAB308",  # yellow
 }
 
-# Distinct, theme-safe colours for user-added categories. We don't store a colour in
-# the DB — instead each category gets a stable colour derived from its name, so it
-# looks the same every launch while staying clear of the built-in colours above.
+# Stable colours for user-added categories, derived from name hash. No DB storage needed.
 _CUSTOM_CATEGORY_COLORS = [
     "#EC4899",  # pink
     "#14B8A6",  # teal

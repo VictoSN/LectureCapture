@@ -69,8 +69,8 @@ class SummaryPanel(QWidget):
         # summary as one literal code block (raw ## and ** instead of formatting).
         self._markdown_source = strip_code_fence(source or "")
         # A set summary always has content, so edit mode is editable. Don't capture the
-        # current read-only state here — if a re-summarize happens while already in
-        # preview, that would be True and would lock editing after exiting preview.
+        # Don't capture the current read-only state here. If a re-summarize happens while
+        # already in preview, that would be True and would lock editing after exiting preview.
         self._pre_preview_readonly = False
         self._is_preview = True
         self.preview_button.setText("Preview")  # current mode = Preview

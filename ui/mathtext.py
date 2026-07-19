@@ -28,7 +28,7 @@ _SUBSCRIPTS = {
     "x": "ₓ",
 }
 
-# Operand commands that appear inside ^/_ — normalise to a single glyph first so the
+# Operand commands that appear inside ^/_. Normalise to a single glyph first so the
 # super/subscript pass can handle them (e.g. the * in a C^\ast-algebra).
 _OPERAND_COMMANDS = {r"\ast": "*", r"\dagger": "†", r"\dag": "†", r"\prime": "′"}
 

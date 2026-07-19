@@ -14,7 +14,7 @@ class CustomTitleBar(TitleBar):
         self.setFixedHeight(self.height() + 10)
         self.title_logo = QLabel()
         self.title_logo._icon_path = icons_dir / "logo.png"
-        # refresh_icons() re-renders on theme change using _icon_size (default 14) — set it
+        # refresh_icons() re-renders on theme change using _icon_size (default 14). Set it
         # to match the initial size, otherwise the logo shrinks to 14px when the theme flips.
         self.title_logo._icon_size = 20
         self.title_logo.setPixmap(

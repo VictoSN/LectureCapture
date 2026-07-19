@@ -1,11 +1,6 @@
-"""State and behaviour shared by the recording workers (OCRWorker + AudioWorker).
-
-Both workers pause the same way — accumulating paused time so slide and speech
-timestamps stay aligned with each other across pauses — report engine changes the
-same way (emit only on change, so the footer label doesn't flap), and back off the
-API the same way after a failure (a cooldown rather than a permanently sticky
-fallback to local).
-"""
+"""Shared state/behaviour for OCRWorker and AudioWorker: pause with timestamp alignment,
+engine-change dedup (emit only on change), and API cooldown after failure instead of
+permanently sticky fallback."""
 
 import time
 
@@ -15,18 +10,14 @@ API_COOLDOWN_SECONDS = 60
 
 
 class RecordingWorkerMixin:
-    """Mixed into the QThread workers. Call _init_worker_common() from __init__,
-    after the API key is assigned — _last_engine reads the engine_name property,
-    which depends on it."""
+    """Mixin for QThread workers. Call _init_worker_common() from __init__ after setting the API key."""
 
     def _init_worker_common(self) -> None:
-        # Pause support: while paused nothing is captured/transcribed, and the
-        # total paused time is subtracted from timestamps so the session timeline
-        # stays continuous across pauses instead of jumping by the pause length.
+        # Pause: nothing captured while paused; paused time subtracted from timestamps so timeline stays continuous.
         self._paused = False
         self._paused_total = 0.0
         self._pause_started = None
-        # API fallback state — cooldown-based instead of permanently sticky.
+        # API fallback state. Cooldown-based instead of permanently sticky.
         self._api_cooldown_until = 0.0
         self._last_engine = self.engine_name
 

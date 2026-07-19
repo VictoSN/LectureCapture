@@ -38,7 +38,7 @@ class OCRPanel(CaptureFeedPanel):
         Returns None when the file is missing/unreadable."""
         reader = QImageReader(image_path)
         reader.setAutoTransform(True)
-        size = reader.size()  # from the header — no full decode
+        size = reader.size()  # from the header. No full decode needed.
         if size.isValid() and size.width() > THUMBNAIL_WIDTH:
             height = max(1, round(size.height() * THUMBNAIL_WIDTH / size.width()))
             reader.setScaledSize(QSize(THUMBNAIL_WIDTH, height))
@@ -55,7 +55,7 @@ class OCRPanel(CaptureFeedPanel):
         capture_layout = QVBoxLayout(capture_widget)
         capture_layout.setContentsMargins(0, 0, 0, 0)
         capture_layout.setSpacing(0)
-        # No fixed height — height is controlled externally by sync_row_heights
+        # No fixed height. Height is controlled externally by sync_row_heights.
 
         # Header row: [🗑] [📷] Panel N: H:MM:SS
         timestamp_row = QHBoxLayout()
@@ -67,7 +67,7 @@ class OCRPanel(CaptureFeedPanel):
         delete_button.setDisabled(self._busy)
         timestamp_row.addWidget(delete_button)
 
-        # Toggle image visibility — starts visible, click to collapse/expand
+        # Toggle image visibility. Starts visible, click to collapse or expand.
         toggle_img_btn = create_button(self.icons_dir / 'minimize.svg', None)
         toggle_img_btn.setToolTip("Hide image")
         timestamp_row.addWidget(toggle_img_btn)
@@ -92,7 +92,7 @@ class OCRPanel(CaptureFeedPanel):
             capture_image.setCursor(Qt.CursorShape.PointingHandCursor)
             capture_image.mousePressEvent = lambda _e, p=image_path: self._show_full_image(p)
 
-        # Text — render any LaTeX math spans to Unicode so symbols (∈, ℕ, ⊕ …)
+        # Render any LaTeX math spans to Unicode so symbols (∈, ℕ, ⊕ ...)
         # show instead of raw "\in \mathbb{N}". Prose outside $...$ is untouched.
         ocr_text = NoLeakTextEdit()
         ocr_text.blockSignals(True)
@@ -140,8 +140,8 @@ class OCRPanel(CaptureFeedPanel):
         self.lock_button.setDisabled(not self.has_content())
 
     def _show_full_image(self, image_path: str) -> None:
-        # Full-resolution preview with zoom + pan in a freely resizable window
-        # (decoded full-size here, on demand — the feed only keeps a thumbnail).
+        # Full-resolution preview with zoom + pan in a freely resizable window.
+        # Decoded full-size here on demand. The feed only keeps a thumbnail.
         pixmap = QPixmap(image_path)
         if pixmap.isNull():
             return
