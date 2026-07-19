@@ -21,6 +21,7 @@ class CustomTitleBar(TitleBar):
             load_icon(icons_dir / "logo.png").pixmap(20, 20)
         )
         self.title_logo.setContentsMargins(16, 0, 0, 0)
+        self.title_logo.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         self.sidebar_button = create_button(icons_dir / 'sidebar.svg', icon_size=20)
         self.sidebar_button.setToolTip("Toggle sidebar (Shift+1)")
