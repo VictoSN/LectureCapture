@@ -380,8 +380,8 @@ class AudioWorker(RecordingWorkerMixin, QThread):
         return self.model
 
     def _warmup(self, model) -> None:
-        # Warm up CUDA with a dummy clip so the first real chunk doesn't pay the several-second JIT cost.
-        dummy = (np.random.randn(WHISPER_SAMPLE_RATE).astype(np.float32)) * 0.01
+        # Quick CUDA warmup so the first real chunk doesn't pay the JIT cost.
+        dummy = (np.random.randn(WHISPER_SAMPLE_RATE // 4).astype(np.float32)) * 0.01
         list(model.transcribe(dummy, beam_size=1, language="en")[0])
 
     def _transcribe_local(self, audio: np.ndarray, chunk_start: float) -> str:
