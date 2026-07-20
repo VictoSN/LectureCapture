@@ -23,6 +23,7 @@ class MediaImportDialog(QDialog):
         self.resize(760, 540)
         self._path = path
         self.start_ms = 0
+        self._dragging = False
 
         self.player = QMediaPlayer(self)
         self.audio_out = QAudioOutput(self)
@@ -52,6 +53,8 @@ class MediaImportDialog(QDialog):
         self.slider = QSlider(Qt.Orientation.Horizontal)
         self.slider.setRange(0, 0)
         self.slider.setToolTip("Scrub through the media to find where transcription should start.")
+        self.slider.sliderPressed.connect(self._on_slider_pressed)
+        self.slider.sliderReleased.connect(self._on_slider_released)
         self.slider.sliderMoved.connect(self.player.setPosition)
         transport.addWidget(self.slider, 1)
 
@@ -92,11 +95,17 @@ class MediaImportDialog(QDialog):
         playing = state == QMediaPlayer.PlaybackState.PlayingState
         self.play_btn.setText("Pause" if playing else "Play")
 
+    def _on_slider_pressed(self) -> None:
+        self._dragging = True
+
+    def _on_slider_released(self) -> None:
+        self._dragging = False
+        self.player.setPosition(self.slider.value())
+
     def _on_position(self, ms: int) -> None:
-        if not self.slider.isSliderDown():
+        if not self._dragging:
             self.slider.setValue(ms)
         self._update_time(ms, self.player.duration())
-        # Reflect where the import will start as the user scrubs.
         self.hint.setText(f"Transcription will start at {self._fmt(ms)}.")
 
     def _on_duration(self, ms: int) -> None:
