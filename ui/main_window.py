@@ -1130,6 +1130,7 @@ class MainWindow(FramelessMainWindow):
     def on_properties_saved(self, session_name, activity_category, module_category) -> None:        
         # Used data to update session info
         self.current_session.name = session_name
+        self.transcript_panel.session_name.setText(session_name)
         self.current_session.date_modified = datetime.now()
         self.current_session.activity_category = activity_category
         self.current_session.module_category = module_category
