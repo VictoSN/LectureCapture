@@ -56,6 +56,10 @@ class MainWindow(FramelessMainWindow):
         self.is_properties_open = False
         self.is_recording_open = False
 
+        # Block stale debounced saves while a session is loading so date_modified
+        # doesn't get bumped by programmatic text sets.
+        self._load_guard_until = 0.0
+
         # Speech that arrived before any slide was captured, held until the first
         # capture exists so early narration isn't lost (see on_chunk_ready).
         self._pending_speech = ""
@@ -411,6 +415,8 @@ class MainWindow(FramelessMainWindow):
     def on_session_selected(self, session: Session) -> None:
         self.current_session = session
         captures = self.storage.get_captures_by_session(session.id)
+        # Block stale saves while panels repopulate.
+        self._load_guard_until = time.monotonic() + 1.0
         self.transcript_panel.load_session(session, captures)
         
         # Close new session panel if its opened
@@ -1171,6 +1177,9 @@ class MainWindow(FramelessMainWindow):
     def on_text_changed(self, id, text, option: int) -> None:
         # Debounced saves can fire after session deletion; guard against missing session.
         if not self.current_session:
+            return
+        # Still in the post-load grace window — skip.
+        if time.monotonic() < self._load_guard_until:
             return
         now = datetime.now()
         self.current_session.date_modified = now

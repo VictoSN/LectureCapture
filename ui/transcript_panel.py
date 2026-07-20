@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (
-    QWidget, QLabel, QVBoxLayout, QHBoxLayout, QFrame, QPushButton, QSizePolicy, QProgressBar
+    QWidget, QLabel, QVBoxLayout, QHBoxLayout, QFrame, QPushButton, QSizePolicy, QProgressBar, QTextEdit
 )
 from ui.grip_splitter import GripSplitter
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
@@ -355,7 +355,23 @@ class TranscriptPanel(QWidget):
         """Call this when recording ends to ensure all row heights are correct."""
         QTimer.singleShot(0, self._sync_row_heights)
 
+    def cancel_pending_saves(self) -> None:
+        """Stop debounced save timers left over from the previous session so
+        they don't fire during a new session load."""
+        for panel in (self.ocr_panel, self.speech_panel):
+            for i in range(panel.feed_layout.count()):
+                widget = panel.feed_layout.itemAt(i).widget()
+                if not widget:
+                    continue
+                text_edit = widget.findChild(QTextEdit)
+                if text_edit and getattr(text_edit, "_save_timer", None):
+                    text_edit._save_timer.stop()
+        summary_timer = getattr(self.summary_panel.summary, "_save_timer", None)
+        if summary_timer is not None:
+            summary_timer.stop()
+
     def load_session(self, session: Session, captures: OCRCapture) -> None:
+        self.cancel_pending_saves()
         self.set_session_locked(False)
         self.session_name.setText(session.name)
         
