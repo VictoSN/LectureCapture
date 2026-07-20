@@ -1,10 +1,3 @@
-"""The quiz workspace is a splitter sibling shown via show_panel("quiz"), like Properties.
-
-Self-contained state machine over a QStackedWidget: intro → loading → answering →
-results. main_window drives generation/persistence; this panel owns the answering and
-review UI and emits `completed(score, total)` so the score can be saved.
-"""
-
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QStackedWidget,
     QRadioButton, QButtonGroup, QScrollArea, QFrame
@@ -63,7 +56,7 @@ class QuizPanel(QWidget):
         QShortcut(QKeySequence(Qt.Key.Key_Up), self, activated=lambda: self._kb_select(-1))
         QShortcut(QKeySequence(Qt.Key.Key_Down), self, activated=lambda: self._kb_select(1))
 
-    # ---- pages -----------------------------------------------------------
+    # Pages
 
     def _build_intro_page(self) -> QWidget:
         page = QWidget()
@@ -160,7 +153,6 @@ class QuizPanel(QWidget):
         self.next_button.clicked.connect(self._next)
         nav.addWidget(self.next_button)
         # No keyboard focus on the nav buttons so Enter/Esc only drive the shortcuts
-        # (and don't double-fire by also activating a focused button).
         self.prev_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.next_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         layout.addLayout(nav)
@@ -198,7 +190,7 @@ class QuizPanel(QWidget):
         layout.addLayout(row)
         return page
 
-    # ---- driven by main_window ------------------------------------------
+    # Driven by main_window
 
     def configure_intro(self, has_saved: bool, last_score, total, content_changed: bool) -> None:
         """Show the start screen. If a quiz is saved, offer Review/Retake; if the source
@@ -260,7 +252,7 @@ class QuizPanel(QWidget):
     def is_answering(self) -> bool:
         return self.stack.currentIndex() == 2
 
-    # ---- keyboard --------------------------------------------------------
+    # Keyboard
 
     def _kb_next(self) -> None:
         idx = self.stack.currentIndex()
@@ -296,7 +288,7 @@ class QuizPanel(QWidget):
             button.setChecked(True)
             self._on_option(new_id)
 
-    # ---- intro actions ---------------------------------------------------
+    # Intro actions
 
     def _retake(self) -> None:
         if self._saved_questions:
@@ -307,14 +299,12 @@ class QuizPanel(QWidget):
             return
         self._questions = list(self._saved_questions)
         # Use the saved per-question choices when we have a set that lines up with the
-        # questions; otherwise (older quizzes saved before answers were stored) fall back
-        # to showing just the answer key.
         have_answers = len(self._saved_answers) == len(self._questions)
         self._answers = list(self._saved_answers) if have_answers else [None] * len(self._questions)
         self._build_results(self._saved_score, show_user_answers=have_answers)
         self.stack.setCurrentIndex(3)
 
-    # ---- answering -------------------------------------------------------
+    # Answering
 
     def _show_question(self, idx: int) -> None:
         self._index = idx
@@ -363,7 +353,7 @@ class QuizPanel(QWidget):
         self.stack.setCurrentIndex(3)
         self.completed.emit(score, len(self._questions))
 
-    # ---- results ---------------------------------------------------------
+    # Results
 
     def _build_results(self, score, show_user_answers: bool) -> None:
         total = len(self._questions)

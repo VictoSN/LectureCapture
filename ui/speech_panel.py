@@ -32,8 +32,7 @@ class SpeechPanel(CaptureFeedPanel):
 
         capture_layout.addWidget(speech_text)
 
-        # Transient "transcribing…" hint, shown while a chunk for this slide is in
-        # flight (see show_pending/clear_pending) and hidden once its text lands.
+        # "transcribing…" placeholder, shown while a chunk is being processed.
         pending = QLabel("● transcribing…")
         pending.setObjectName("pendingIndicator")
         pending.setStyleSheet("color: #d97757; font-style: italic; padding: 0 4px;")

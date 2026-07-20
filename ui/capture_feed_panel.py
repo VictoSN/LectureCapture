@@ -1,12 +1,3 @@
-"""Shared chassis of the OCR and Audio transcript feeds (OCRPanel / SpeechPanel):
-the header with its icon label and Locked/Editable toggle, the scrollable capture
-feed, the debounced per-capture save timer, and the lock/busy handling that keeps
-both panels' editability in step.
-
-Subclasses build each capture's row in _create_capture_widget() and emit their own
-`<kind>_text_changed` signal from _emit_text_changed().
-"""
-
 from PyQt6.QtWidgets import (
     QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QScrollArea, QTextEdit
 )
@@ -52,17 +43,14 @@ class CaptureFeedPanel(QWidget):
         self.scroll = QScrollArea()
         self.scroll.setWidget(self.feed_widget)
         self.scroll.setWidgetResizable(True)
-        # Reserve the vertical scrollbar permanently. If it toggled on/off as the
-        # content height changed, the viewport width would flip-flop and the
-        # aspect-ratio images would oscillate (resize loop -> freeze -> crash);
-        # both feeds sharing it also keeps paired rows the same viewport width.
+        # Always-on scrollbar prevents viewport width changes that cause resize loops.
         self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
 
         main_layout.addLayout(header)
         main_layout.addWidget(self.scroll)
         self.setLayout(main_layout)
 
-    # ---- provided by subclasses -----------------------------------------
+    # Provided by subclasses
 
     def _create_capture_widget(self, capture: OCRCapture) -> QWidget:
         raise NotImplementedError
@@ -70,7 +58,7 @@ class CaptureFeedPanel(QWidget):
     def _emit_text_changed(self, capture_id: int, text: str) -> None:
         raise NotImplementedError
 
-    # ---- editing ----------------------------------------------------------
+    # Editing
 
     def _wire_save_timer(self, text_edit: QTextEdit, capture_id: int) -> None:
         """Debounce edits into one saved-text signal per pause in typing."""
@@ -90,9 +78,7 @@ class CaptureFeedPanel(QWidget):
         self._apply_read_only()
 
     def set_busy(self, busy: bool) -> None:
-        """Lock editing (and deletion) while a summary is generating. Scrolling and
-        the per-capture image toggle stay usable; the lock/edit toggle is disabled
-        so the text can't be made editable mid-summary."""
+        """Lock editing while a summary generates; scrolling/toggles stay usable."""
         self._busy = busy
         self.lock_button.setDisabled(busy or not self.has_content())
         self._apply_read_only()
@@ -113,7 +99,7 @@ class CaptureFeedPanel(QWidget):
                 if text_edit:
                     text_edit.setReadOnly(read_only)
 
-    # ---- feed management ---------------------------------------------------
+    # Feed management
 
     def clear_captures(self) -> None:
         while self.feed_layout.count():

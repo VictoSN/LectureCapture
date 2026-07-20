@@ -1,10 +1,3 @@
-"""Best-effort classification of Gemini API failures into a short status the UI can
-show ("No connection" / "Invalid API key"). We match on the exception text because
-the google-genai client raises several different exception types for what is, to the
-user, the same problem.
-"""
-
-
 def classify_api_error(exc: Exception) -> str:
     """Returns 'invalid_key', 'no_connection', or 'other'."""
     text = f"{type(exc).__name__} {exc}".lower()
@@ -29,8 +22,7 @@ SHORT_STATUS = {
     "no_key": "No API key",
     "invalid_key": "Invalid API key",
     "no_connection": "No connection",
-    # Not an API failure: "System Audio (Loopback)" was chosen but no loopback-capable
-    # device exists, so capture fell back to the default input (usually the microphone).
+    # Not an API failure: loopback wasn't available, fell back to mic.
     "mic_fallback": "No loopback device. Recording the microphone instead",
 }
 

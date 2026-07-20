@@ -79,7 +79,6 @@ class TranscriptPanel(QWidget):
         header.addWidget(self.import_button)
 
         # These are toggles driven by click or Shift+2/3/4, so they don't need to grab
-        # keyboard focus (the focus ring would just clutter the title bar).
         for _b in (self.ocr_visibility_button, self.speech_visibility_button, self.summary_visibility_button):
             _b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
@@ -88,8 +87,7 @@ class TranscriptPanel(QWidget):
         self.force_capture_button.setVisible(False)
         header.addWidget(self.force_capture_button)
 
-        # Pause/Resume an active recording. Sits between Capture Now and Record.
-        # Only shown while recording.
+        # Pause/Resume an active recording. Sits between Capture Now and Record. Only shown while recording.
         self.pause_button = create_button(icons_dir / 'pause.svg', self.pause_clicked, text="Pause", width=110)
         self.pause_button.setToolTip("Pause recording")
         self.pause_button.setVisible(False)
@@ -112,19 +110,14 @@ class TranscriptPanel(QWidget):
         self.splitter.setStretchFactor(1, 2)
         self.splitter.setStretchFactor(2, 1)
         # setSizes before the widget is shown has no effect (width=0).
-        # Defer so the splitter has its real pixel width on the first frame.
         QTimer.singleShot(0, self._rebalance_splitter)
 
         # Sync row heights whenever a new capture is added during recording.
-        # Defer via singleShot(0) so Qt finishes laying out the new widgets first.
         self.ocr_panel.capture_added.connect(
             lambda: QTimer.singleShot(0, self._sync_row_heights)
         )
 
         # Re-sync row heights after the user finishes resizing the window or
-        # dragging a splitter handle. Debounced so a burst of resize events
-        # collapses into a single recompute, and allowed to shrink so rows track
-        # the panel's new width in both directions.
         self._resync_timer = QTimer(self)
         self._resync_timer.setSingleShot(True)
         self._resync_timer.setInterval(120)
@@ -132,7 +125,6 @@ class TranscriptPanel(QWidget):
         self.splitter.splitterMoved.connect(lambda *_: self._resync_timer.start())
 
         # Deleting a capture (the trash button lives on the OCR row) removes the
-        # matching row from both panels and bubbles up so the controller can hit the DB.
         self.ocr_panel.capture_deleted.connect(self._on_capture_deleted)
 
         # Info Footer
@@ -148,8 +140,6 @@ class TranscriptPanel(QWidget):
         footer.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
         # Connection warning: a full-width red bar just above the engine labels, shown
-        # when an API call fails / there's no key during recording. Fixed height so it
-        # stays a thin horizontal strip; hidden (taking no space) the rest of the time.
         self._banner_dismissed = False
         self.connection_banner = QFrame()
         self.connection_banner.setObjectName("connectionBanner")
@@ -172,8 +162,6 @@ class TranscriptPanel(QWidget):
         banner_layout.addWidget(self._connection_close)
 
         # Media-import progress: a thin fixed-height row (label + bar + Pause/Stop) just
-        # above the footer, shown only while a file is being transcribed. Fixed vertical
-        # policy + capped height so it stays a single strip and never grabs panel space.
         self.import_row = QWidget()
         self.import_row.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.import_row.setMaximumHeight(34)
@@ -269,8 +257,6 @@ class TranscriptPanel(QWidget):
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         # Panel widths just changed -> the aspect-ratio images (and therefore the
-        # ideal row heights) changed too. Debounce so we recompute once the
-        # resize/drag settles rather than on every intermediate event.
         self._resync_timer.start()
 
     def _on_capture_deleted(self, capture_id: int) -> None:
@@ -286,11 +272,6 @@ class TranscriptPanel(QWidget):
 
     def _sync_row_heights(self, allow_shrink: bool = False):
         # allow_shrink=False (the default, used right after a capture is added):
-        #   never shorten a row -- a freshly added widget's sizeHint is unreliable
-        #   before it is painted, so we keep whatever height it already has.
-        # allow_shrink=True (used after a resize settles): size purely from the
-        #   now-reliable sizeHints so rows track the panel's new width downward
-        #   too, instead of ratcheting only upward.
         ocr_count = self.ocr_panel.feed_layout.count()
         speech_count = self.speech_panel.feed_layout.count()
         count = min(ocr_count, speech_count)
@@ -348,7 +329,6 @@ class TranscriptPanel(QWidget):
 
         self.splitter.setSizes(sizes)
         # setSizes() doesn't emit splitterMoved, so resync row heights to the new
-        # panel widths ourselves once the relayout settles.
         self._resync_timer.start()
 
     def on_recording_stopped(self) -> None:
@@ -379,11 +359,9 @@ class TranscriptPanel(QWidget):
         self.speech_panel.load_captures(captures)
         self._sync_row_heights()
         # Widths aren't final until the new widgets are laid out; recompute once
-        # that settles so rows match the actual panel width (and can shrink).
         self._resync_timer.start()
         
-        #  Summarize needs content; Quiz needs a generated summary (it tests on the
-        #  lecture material the summary distils). Gate each accordingly.
+        # Summarize needs content; Quiz needs a generated summary (it tests on the
         has_content = self.ocr_panel.has_content() or self.speech_panel.has_content()
         self.summary_panel.summary_button.setDisabled(not has_content)
         self.summary_panel.summary.setReadOnly(not has_content)
@@ -446,7 +424,6 @@ class TranscriptPanel(QWidget):
     def clear_panels(self) -> None:
         self.set_session_locked(True)
         # Reset the header back to the placeholder. Otherwise deleting the open session
-        # (or all sessions) leaves its name stranded in the title bar.
         self.session_name.setText("Select a session")
         self.ocr_panel.clear_captures()
         self.speech_panel.clear_captures()
@@ -468,6 +445,5 @@ class TranscriptPanel(QWidget):
 
     def _dismiss_connection_warning(self) -> None:
         # User closed the banner. Keep it hidden until the problem clears or a new
-        # recording starts, so it doesn't pop back on the next failed chunk.
         self._banner_dismissed = True
         self.connection_banner.setVisible(False)

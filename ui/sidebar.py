@@ -32,8 +32,6 @@ class Sidebar(QWidget):
         self.session_search.setPlaceholderText("Search")
         self.session_search.setToolTip("Search sessions by name")
         # Debounced: each emission triggers a DB query and rebuilds every session
-        # card, which stutters per-keystroke once the list is long. Emit once
-        # typing pauses instead.
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)
         self._search_timer.setInterval(250)
@@ -144,9 +142,7 @@ class Sidebar(QWidget):
         self.lecture_list.verticalScrollBar().setValue(scroll)
 
     def update_categories(self, activity_categories: list[str], module_categories: list[str]) -> None:
-        """Rebuild the filter dropdowns when categories change, keeping the current
-        selection if it still exists. Signals are blocked so this doesn't re-trigger
-        filtering (which would call back into refresh)."""
+        """Rebuild filter dropdowns, preserving selections."""
         for combo, values in ((self.activity_category, activity_categories),
                               (self.module_category, module_categories)):
             current = combo.currentText()
@@ -179,8 +175,7 @@ class Sidebar(QWidget):
                 or self.module_category.currentText() != "All")
 
     def _on_filter_button(self) -> None:
-        # While a filter is applied the button is an ✕ that clears it; otherwise it
-        # toggles the category/module dropdowns.
+        # While a filter is applied the button is an ✕ that clears it; otherwise it toggles the category/module dropdowns.
         if self._is_filter_active():
             self.activity_category.setCurrentIndex(0)
             self.module_category.setCurrentIndex(0)

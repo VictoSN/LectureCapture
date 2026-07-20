@@ -9,12 +9,10 @@ class CustomTitleBar(TitleBar):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         # Add padding so 46×32 buttons (with hardcoded icon pixel positions)
-        # positions), they naturally centre in the taller bar via the layout.
         self.setFixedHeight(self.height() + 10)
         self.title_logo = QLabel()
         self.title_logo._icon_path = icons_dir / "logo.png"
         # refresh_icons() re-renders on theme change using _icon_size (default 14). Set it
-        # to match the initial size, otherwise the logo shrinks to 14px when the theme flips.
         self.title_logo._icon_size = 20
         self.title_logo.setPixmap(
             load_icon(icons_dir / "logo.png").pixmap(20, 20)
@@ -45,10 +43,7 @@ class CustomTitleBar(TitleBar):
         self.hBoxLayout.setSpacing(10)
 
     def add_panel_buttons(self, buttons) -> None:
-        """Host the transcript's OCR / Audio / Summary toggle buttons in the title bar,
-        placed between the sidebar button and the session actions. A divider sits just
-        before the New Session button to separate the two groups. Called by MainWindow
-        once the TranscriptPanel (which owns the buttons) exists."""
+        """Host transcript panel toggle buttons in the title bar."""
         idx = self.hBoxLayout.indexOf(self.sidebar_button) + 1
         for btn in buttons:
             # Match the other title-bar icons: flat, borderless, transparent.

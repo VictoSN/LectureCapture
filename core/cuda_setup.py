@@ -1,9 +1,3 @@
-"""Make pip-installed CUDA 12 DLLs (cuBLAS + cuDNN) loadable by CTranslate2 on Windows.
-
-CTranslate2 calls LoadLibrary directly (ignoring add_dll_directory), so we add the
-nvidia wheel bin folders to both PATH and add_dll_directory for safety across loader paths.
-"""
-
 import os
 import sys
 import glob
@@ -23,9 +17,7 @@ def prepare_cuda() -> bool:
 
     _prepared = False
     try:
-        # CUDA DLLs live under site-packages/nvidia/*/bin from source, or next to the
-        # ctranslate2 native module in a frozen build. Add to PATH + add_dll_directory
-        # so CTranslate2's LoadLibrary resolves cuBLAS and cuDNN.
+        # CUDA DLLs under site-packages/nvidia/*/bin in source, or next to ctranslate2 when frozen.
         if getattr(sys, "frozen", False):
             ct2 = os.path.join(sys._MEIPASS, "ctranslate2")
             dll_dirs = [ct2] if os.path.isdir(ct2) else []

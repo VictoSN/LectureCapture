@@ -12,16 +12,10 @@ class Session:
     module_category: str | None = None
     summary: str | None = None
     summary_generated_at: datetime | None = None
-    # Saved quiz: JSON list of questions, the last score (correct count), a hash of the
-    # source text it was generated from (to detect when content changed), and when it was
-    # generated.
     quiz: str | None = None
     quiz_score: int | None = None
     quiz_source_hash: str | None = None
     quiz_generated_at: datetime | None = None
-    # Per-question chosen answer indices from the last attempt (JSON list; null entries =
-    # unanswered), so Review can highlight what the user got wrong. Backwards compatible:
-    # quizzes saved before this column existed have it NULL -> Review shows only the key.
     quiz_answers: str | None = None
 
 @dataclass

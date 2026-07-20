@@ -1,8 +1,3 @@
-"""Central Gemini generation with model fallback to handle free-tier per-model rate limits.
-Walks a model chain on rate-limit/quota/overload errors; auth and bad-request failures
-surface immediately since they'd fail on every model. Live API models are excluded."""
-
-
 # One-shot, quality-first tasks (summary, translate / define, quiz).
 MODEL_CHAIN = [
     "gemini-2.5-flash",
@@ -23,8 +18,7 @@ FREQUENT_MODEL_CHAIN = [
 # Every model the app might use (both chains, de-duplicated, preferred order first).
 ALL_MODELS = list(dict.fromkeys(MODEL_CHAIN + FREQUENT_MODEL_CHAIN))
 
-# Published free-tier requests-per-day per model (the API doesn't expose live remaining
-# quota, so this is a static reference shown alongside the live availability check).
+# Published free-tier requests-per-day per model (reference, not live quota).
 FREE_TIER_RPD = {
     "gemini-2.5-flash": 20,
     "gemini-2.5-flash-lite": 20,
@@ -34,8 +28,7 @@ FREE_TIER_RPD = {
 
 
 def probe_model(api_key: str, model: str) -> tuple[str, str]:
-    """Ping one model via the real call path. Returns (status, detail) where status
-    is 'ok' | 'limited' | 'missing' | 'invalid_key' | 'busy' | 'error'."""
+    """Ping one model. Returns (status, detail)."""
     try:
         generate(api_key, "ping", chain=[model])
         return "ok", ""
@@ -49,8 +42,7 @@ def probe_model(api_key: str, model: str) -> tuple[str, str]:
             return "limited", detail
         if any(k in text for k in ("404", "not found", "not_found")):
             return "missing", detail
-        # 503 / overload is transient: the model exists and the key works, the server is
-        # just busy right now. Not a real failure. The app falls back at call time.
+        # 503/overload is transient; server is busy but key is valid.
         if any(k in text for k in ("503", "unavailable", "overloaded", "high demand", "try again")):
             return "busy", detail
         print(f"[API Test] {model} error: {detail}")
@@ -66,8 +58,7 @@ def pretty_model(model_id: str) -> str:
 
 
 def _should_try_next(exc: Exception) -> bool:
-    """True for rate-limit, quota exhaustion, unavailable model, or transient overload.
-    Auth and bad-request failures are not retried. They would fail on every model."""
+    """True for rate-limit, quota, unavailable model, or transient overload."""
     text = f"{type(exc).__name__} {exc}".lower()
     return any(k in text for k in (
         "429", "resource_exhausted", "rate limit", "quota", "exceed",
@@ -76,7 +67,7 @@ def _should_try_next(exc: Exception) -> bool:
     ))
 
 
-# Cache one client per API key so per-chunk tasks don't rebuild it every few seconds.
+# Cache one client per API key so per-chunk tasks don't rebuild it each time.
 _clients: dict = {}
 
 

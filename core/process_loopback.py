@@ -1,8 +1,3 @@
-"""Per-process WASAPI loopback capture so only the target window's audio is recorded.
-Hand-rolled COM on pycaw's IAudioClient/WAVEFORMATEX since no pip package exists.
-Exposes start()/read()/stop() and returns mono float32 at 44.1 kHz. Failures raise for caller fallback.
-Requires Windows 10 2004+."""
-
 import queue
 import ctypes
 import threading
@@ -15,7 +10,7 @@ from pycaw.api.audioclient import IAudioClient, WAVEFORMATEX
 
 RECORD_SAMPLE_RATE = 44100
 
-# --- WASAPI / AudioClient constants --------------------------------------
+# WASAPI / AudioClient constants
 AUDCLNT_SHAREMODE_SHARED = 0
 AUDCLNT_STREAMFLAGS_LOOPBACK = 0x00020000
 AUDCLNT_STREAMFLAGS_EVENTCALLBACK = 0x00040000
@@ -39,7 +34,7 @@ _kernel32 = ctypes.windll.kernel32
 _ole32 = ctypes.windll.ole32
 
 
-# --- activation parameter structs ----------------------------------------
+# Activation parameter structs
 
 class _PROCESS_LOOPBACK_PARAMS(ctypes.Structure):
     _fields_ = [
@@ -49,8 +44,7 @@ class _PROCESS_LOOPBACK_PARAMS(ctypes.Structure):
 
 
 class AUDIOCLIENT_ACTIVATION_PARAMS(ctypes.Structure):
-    # The real struct has a union, but PROCESS_LOOPBACK is its only non-default member,
-    # so a plain struct with the loopback params laid out inline is byte-compatible.
+    # PROCESS_LOOPBACK is the only non-default union member, so a plain struct works.
     _fields_ = [
         ("ActivationType", ctypes.c_int),
         ("ProcessLoopbackParams", _PROCESS_LOOPBACK_PARAMS),
@@ -58,8 +52,7 @@ class AUDIOCLIENT_ACTIVATION_PARAMS(ctypes.Structure):
 
 
 class PROPVARIANT(ctypes.Structure):
-    # Minimal PROPVARIANT carrying a VT_BLOB. ctypes inserts the 4-byte pad before the
-    # 8-byte-aligned pointer automatically (matches the MSVC layout on x64).
+    # Minimal PROPVARIANT with VT_BLOB. ctypes auto-pads to match x64 MSVC layout.
     _fields_ = [
         ("vt", ctypes.c_ushort),
         ("wReserved1", ctypes.c_ushort),
@@ -70,7 +63,7 @@ class PROPVARIANT(ctypes.Structure):
     ]
 
 
-# --- COM interfaces not provided by pycaw --------------------------------
+# COM interfaces not provided by pycaw
 
 class IAudioCaptureClient(IUnknown):
     _iid_ = GUID("{C8ADBD64-E71E-48A0-A4DE-185C395CD317}")
@@ -116,9 +109,7 @@ class IActivateAudioInterfaceCompletionHandler(IUnknown):
 
 
 class IAgileObject(IUnknown):
-    # Marker interface (no methods of its own). ActivateAudioInterfaceAsync invokes the
-    # completion handler from the MTA, so the handler MUST be agile. Without advertising
-    # IAgileObject the activation call fails up front with E_ILLEGAL_METHOD_CALL.
+    # Marker interface (no methods). Required for the MTA completion handler to work.
     _iid_ = GUID("{94EA2B94-E9CC-49E0-C0FF-EE64CA8F5B90}")
     _methods_ = ()
 
@@ -174,14 +165,13 @@ class ProcessLoopbackRecorder:
         self._ready = threading.Event()   # set once capture is actually running
         self._error = None                # activation/init failure surfaced to start()
 
-    # ---- public API ----------------------------------------------------
+    # Public API
 
     def start(self) -> None:
         self._running = True
         self._thread = threading.Thread(target=self._run, name="ProcessLoopback", daemon=True)
         self._thread.start()
-        # Block until the stream is live or activation failed, so the caller knows
-        # immediately whether to fall back to system loopback.
+        # Block until stream live or activation failed, so caller knows to fall back.
         if not self._ready.wait(timeout=5.0):
             self._running = False
             raise RuntimeError("process loopback did not start in time")
@@ -207,7 +197,7 @@ class ProcessLoopbackRecorder:
         if self._thread is not None:
             self._thread.join(timeout=3)
 
-    # ---- capture thread ------------------------------------------------
+    # Capture thread
 
     def _run(self) -> None:
         _ole32.CoInitializeEx(None, COINIT_MULTITHREADED)
@@ -278,8 +268,7 @@ class ProcessLoopbackRecorder:
     def _capture_loop(self, capture, h_event) -> None:
         block_align = self.channels * 4
         while self._running:
-            # Auto-reset event fires when a packet is ready; the timeout keeps us
-            # responsive to stop() even when the target process is silent.
+            # Auto-reset event fires per packet; timeout keeps us responsive to stop().
             _kernel32.WaitForSingleObject(h_event, 200)
             while self._running:
                 num = capture.GetNextPacketSize()

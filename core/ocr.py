@@ -16,15 +16,13 @@ from difflib import SequenceMatcher
 from datetime import datetime
 from pathlib import Path
 
-# Slide-change dedup: OCR text is the authority; image hash provides a cheap fast path
-# and a fallback for text-less slides (diagrams, photos).
+# Slide-change dedup: text is authoritative, image hash is the cheap fast path.
 AHASH_SIZE = 16                 # hash is AHASH_SIZE*AHASH_SIZE bits
 AHASH_IDENTICAL = 1             # <= this many differing bits => same image, skip OCR
 IMAGE_HAMMING_THRESHOLD = 12    # for text-less slides: new slide if more bits differ
 TEXT_SIMILARITY = 0.90          # new slide if normalized text similarity drops below this
 BLANK_STD_THRESHOLD = 8         # ignore near-uniform, text-less frames (e.g. a blank screen)
-# Compare only the head fraction of tokens so dynamic elements (polls, timers) at
-# the bottom of slides don't trigger duplicate captures.
+# Compare only head fraction of tokens so footers/timers don't trigger duplicates.
 HEAD_FRACTION = 0.6
 
 # Set True to log why each frame was captured/skipped (helps diagnose/tune dedup).
@@ -34,9 +32,7 @@ DEBUG_DEDUP = False
 class OCRWorker(RecordingWorkerMixin, QThread):
     capture_ready = pyqtSignal(OCRCapture)
     engine_fallback = pyqtSignal(str)
-    # An API attempt failed mid-recording. Carries a status from core.api_errors
-    # ("invalid_key" | "no_connection" | "other") so the UI can warn the user.
-    api_error = pyqtSignal(str)
+    api_error = pyqtSignal(str)  # API failure mid-recording (from core.api_errors)
 
     def __init__(self, session_id, base_dir, interval, region: dict | None, monitor_index, start_time, offset, hwnd=None, ocr_api_key: str = "") -> None:
         super().__init__()
@@ -53,8 +49,7 @@ class OCRWorker(RecordingWorkerMixin, QThread):
         self.hwnd = hwnd
         self.ocr_api_key = ocr_api_key
 
-        # State for slide-change detection: saved image hash, last raw text (cheap pre-filter),
-        # and last saved vision text (authoritative post-filter).
+        # Slide-change detection state: image hash, last raw text, last saved text.
         self.previous_raw = ""
         self.previous_saved = ""
         self.previous_ahash = None
@@ -91,8 +86,7 @@ class OCRWorker(RecordingWorkerMixin, QThread):
                     "height": min(int(self.region["height"] * ratio), monitor["height"]),
                 }
 
-        # For hwnd captures, store the crop box (logical pixels within the window).
-        # When region is None the full window is captured.
+        # For hwnd captures, the crop box in logical pixels within the window.
         self.crop_box = None
         if self.hwnd and self.region:
             self.crop_box = (
@@ -106,13 +100,11 @@ class OCRWorker(RecordingWorkerMixin, QThread):
         captures_dir = Path(self.base_dir) / 'sessions' / str(self.session_id) / 'captures'
         captures_dir.mkdir(parents=True, exist_ok=True)
 
-    # ---- capture + slide-change detection ------------------------------
+    # Capture + slide-change detection
 
     def screenshot(self, force: bool = False) -> None:
         t0 = time.time()
-        # Stamp the capture at GRAB time, not save time. API OCR cleanup can take
-        # several seconds; stamping after it would push the slide's timestamp past the
-        # speech spoken while it was on screen, mis-attaching (or orphaning) that speech.
+        # Stamp at grab time, not save time (API cleanup delay would mis-attach speech).
         grab_ts = t0 - self.start_time + self.offset - self._paused_total
         pil_img = self._grab_pil()
         if pil_img is None:
@@ -160,8 +152,7 @@ class OCRWorker(RecordingWorkerMixin, QThread):
             print(f"[OCR timing] skipped (same slide) total: {time.time()-t0:.3f}s")
             return
 
-        # New slide by Tesseract/image signal: run vision OCR now (saved text uses the vision
-        # model so math notation is captured; Tesseract is only for dedup).
+        # New slide: run vision OCR. Tesseract text is for dedup only.
         text = self._maybe_clean(raw_text, pil_img)
         t3 = time.time()
         print(f"[OCR timing] cleanup: {t3-t2:.3f}s")
@@ -170,8 +161,7 @@ class OCRWorker(RecordingWorkerMixin, QThread):
         self.previous_raw = norm
         self.previous_ahash = ahash
 
-        # Authoritative safeguard: skip if vision text matches last save, since Tesseract
-        # can flag noise (animated embeds, video) as a new slide that the vision model transcribes identically.
+        # Skip if vision text matches last save (Tesseract can flag noise as new).
         saved_norm = self._normalize(text)
         if (not force and self.previous_saved and saved_norm
                 and self._text_similarity(saved_norm, self.previous_saved) >= TEXT_SIMILARITY):
@@ -198,7 +188,6 @@ class OCRWorker(RecordingWorkerMixin, QThread):
 
     def _normalize(self, text: str) -> str:
         # Lowercase, keep only alphanumeric tokens separated by single spaces.
-        # Makes the comparison robust to OCR flicker in punctuation/whitespace.
         return " ".join(re.sub(r"[^a-z0-9]+", " ", text.lower()).split())
 
     def _text_similarity(self, a: str, b: str) -> float:
@@ -231,11 +220,10 @@ class OCRWorker(RecordingWorkerMixin, QThread):
         capture = OCRCapture(timestamp, f"{name}.png", text, None, self.session_id, None)
         self.capture_ready.emit(capture)
 
-    # ---- API cleanup ---------------------------------------------------
+    # API cleanup
 
     def _maybe_clean(self, raw_text: str, pil_img) -> str:
         # When API available, use vision model for math notation (Tesseract can't read it).
-        # Don't early-return on empty raw_text. A math-only slide needs OCR despite no Tesseract text.
         if self._api_available():
             try:
                 text, model = self._ocr_with_api(pil_img)
@@ -280,7 +268,7 @@ class OCRWorker(RecordingWorkerMixin, QThread):
     def engine_name(self) -> str:
         return "gemini vision" if self.ocr_api_key else "pytesseract"
 
-    # ---- window screenshot --------------------------------------------
+    # Window screenshot
 
     def get_window_screenshot(self):
         if not self.hwnd or not win32gui.IsWindow(self.hwnd):
@@ -320,7 +308,7 @@ class OCRWorker(RecordingWorkerMixin, QThread):
             if bitmap:
                 win32gui.DeleteObject(bitmap.GetHandle())
 
-    # ---- worker loop ---------------------------------------------------
+    # Worker loop
 
     def run(self) -> None:
         self._force = False
@@ -340,8 +328,7 @@ class OCRWorker(RecordingWorkerMixin, QThread):
                     except Exception as e:
                         print(f"[OCR] capture error: {e}")
 
-                    # Sleep the remainder of the interval, staying responsive to
-                    # stop() and force_capture() (checked every 100ms).
+                    # Sleep the remainder of the interval, responsive to stop() and force_capture().
                     remaining = self.interval - (time.time() - start)
                     while remaining > 0 and self._running and not self._force and not self._paused:
                         time.sleep(min(0.1, remaining))
@@ -350,7 +337,7 @@ class OCRWorker(RecordingWorkerMixin, QThread):
             print(f"[OCR] worker stopped unexpectedly: {e}")
 
     def force_capture(self) -> None:
-        """Trigger an immediate screenshot and reset the interval countdown."""
+        """Trigger an immediate screenshot."""
         self._force = True
 
     def stop(self) -> None:

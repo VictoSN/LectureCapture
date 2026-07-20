@@ -1,11 +1,6 @@
-"""Shared state/behaviour for OCRWorker and AudioWorker: pause with timestamp alignment,
-engine-change dedup (emit only on change), and API cooldown after failure instead of
-permanently sticky fallback."""
-
 import time
 
-# After an API failure (e.g. a rate limit) stop calling the API for this long
-# before trying again, so a transient 429 doesn't permanently fall back to local.
+# Cooldown before retrying API after a failure (e.g. rate limit).
 API_COOLDOWN_SECONDS = 60
 
 

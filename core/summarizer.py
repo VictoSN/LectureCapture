@@ -2,16 +2,11 @@ import re
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
-# Summarization is Gemini-only, the same as Quiz / Translate / Define. OCR and speech keep
-# their local engines; summarization does not.
+# Summarization is Gemini-only (like Quiz / Translate / Define).
 
 
 def strip_code_fence(text: str) -> str:
-    """Unwrap a Markdown code fence that surrounds the ENTIRE text. Models often wrap
-    their whole answer in ```markdown ... ``` despite being told not to; rendered as
-    Markdown that becomes one literal code block (every ## and ** shown raw), so strip
-    it. Only unwraps a single all-enclosing fence. Content with inner code blocks is
-    left untouched."""
+    """Strip a single all-enclosing ```markdown fence if present."""
     if not text:
         return text
     lines = text.strip().splitlines()
@@ -63,9 +58,7 @@ class SummarizeWorker(QThread):
         try:
             summary, engine = summarize(self._text, self._api_key)
         except Exception as e:
-            # Turn raw client exceptions (no internet, bad key) into the same friendly
-            # sentence Translate / Define show; anything unclassified falls back to the
-            # raw text so we don't hide an unexpected error.
+        # Turn raw exceptions into friendly messages like Translate/Define.
             from core.api_errors import classify_api_error, status_message
             status = classify_api_error(e)
             self.failed.emit(status_message(status) if status != "other" else str(e))

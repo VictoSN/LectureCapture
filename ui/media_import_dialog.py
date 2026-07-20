@@ -14,8 +14,7 @@ AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac", ".wma"}
 
 
 class MediaImportDialog(QDialog):
-    """Preview imported media and choose where transcription starts. Play/pause, scrub, then
-    "Transcribe from here". Position becomes the import start offset."""
+    """Preview imported media and pick where transcription starts."""
 
     def __init__(self, path: str, parent=None) -> None:
         super().__init__(parent)
@@ -83,7 +82,7 @@ class MediaImportDialog(QDialog):
         self.player.playbackStateChanged.connect(self._on_state)
         self.player.setSource(QUrl.fromLocalFile(path))
 
-    # ---- transport -----------------------------------------------------
+    # Transport
 
     def _toggle_play(self) -> None:
         if self.player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
@@ -119,7 +118,7 @@ class MediaImportDialog(QDialog):
     def _fmt(ms: int) -> str:
         return FormatClock(ms / 1000)
 
-    # ---- result --------------------------------------------------------
+    # Result
 
     def start_seconds(self) -> float:
         return self.start_ms / 1000.0

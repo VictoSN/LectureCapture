@@ -1,6 +1,3 @@
-"""Mirror diagnostic messages to a rotating log file under %APPDATA%/LectureCapture/logs,
-since the frozen build discards stdout/stderr and failures would otherwise be invisible."""
-
 import os
 import sys
 import logging

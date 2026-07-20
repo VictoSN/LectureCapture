@@ -1,6 +1,3 @@
-"""Detect speech-transcription hardware and recommend a Whisper model.
-The probe runs on a worker thread since loading CUDA + inferring takes a few seconds."""
-
 import sys
 import subprocess
 
@@ -58,10 +55,7 @@ def _gpu_probe() -> str:
     from core.applog import get_logger
     log = get_logger()
 
-    # prepare_cuda() puts the bundled runtime dir on the DLL search path and confirms a
-    # CUDA device exists (it imports ctranslate2 + counts devices). That already loads
-    # ctranslate2's CUDA dependencies; we additionally confirm cuBLAS itself loads, since
-    # CTranslate2 only pulls cuBLAS in lazily when a model actually runs on the GPU.
+    # Confirm cuBLAS loads on top of prepare_cuda (it's lazy in CTranslate2).
     if not prepare_cuda():
         return "no_cuda"
     return "ok" if _cublas_loads(log) else "cuda_failed"

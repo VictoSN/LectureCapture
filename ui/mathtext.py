@@ -2,16 +2,10 @@ import re
 from pylatexenc.latex2text import LatexNodes2Text
 
 # The OCR vision model returns math wrapped in LaTeX ($...$ inline, $$...$$ display).
-# Tesseract can't read math at all, so the LaTeX is the only faithful transcription
-# we have. Here we convert just those math spans to Unicode (∈, ℕ, ⊕, ∫, ², ₙ …) for
-# display, so the panel shows readable symbols instead of raw "\in \mathbb{N}" / "G_n".
 
 _converter = LatexNodes2Text()
 
 # Unicode super/subscript tables. pylatexenc leaves ^ and _ as literal characters
-# (and strips the grouping braces), so we map them ourselves *before* handing the
-# rest to pylatexenc. Characters that map to themselves (*, †, ′) have no raised
-# Unicode form; baseline is the conventional plain-text rendering (e.g. C*-algebra).
 _SUPERSCRIPTS = {
     "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴", "5": "⁵", "6": "⁶", "7": "⁷",
     "8": "⁸", "9": "⁹", "+": "⁺", "-": "⁻", "=": "⁼", "(": "⁽", ")": "⁾",
@@ -29,7 +23,6 @@ _SUBSCRIPTS = {
 }
 
 # Operand commands that appear inside ^/_. Normalise to a single glyph first so the
-# super/subscript pass can handle them (e.g. the * in a C^\ast-algebra).
 _OPERAND_COMMANDS = {r"\ast": "*", r"\dagger": "†", r"\dag": "†", r"\prime": "′"}
 
 _BRACED = re.compile(r"([_^])\{([^{}]+)\}")       # ^{2n}, _{ij}
@@ -67,7 +60,6 @@ def _apply_scripts(latex: str) -> str:
 def _convert(match: "re.Match") -> str:
     try:
         # Super/subscripts first (needs the braces pylatexenc would strip), then let
-        # pylatexenc handle the symbol commands (\in, \mathbb, \bigoplus, …).
         inner = _apply_scripts(match.group(1))
         return _converter.latex_to_text(inner).strip()
     except Exception:

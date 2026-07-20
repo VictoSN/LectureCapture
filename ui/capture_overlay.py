@@ -181,9 +181,7 @@ class CaptureOverlay(QWidget):
         x1, y1 = int(self.start.x()), int(self.start.y())
         x2, y2 = int(self.end.x()),   int(self.end.y())
 
-        # A plain click (or a few-px twitch) is a mis-click, not a region: recording a
-        # 0×0 rectangle "succeeds" but every grab fails, so the session silently gets
-        # no slides. Treat it as cancelling the recording instead.
+        # Clicks/twitches (tiny rects) produce no slides — treat as cancel.
         if abs(x1 - x2) < 4 or abs(y1 - y2) < 4:
             self.close()
             self.cancel_callback()

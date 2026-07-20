@@ -212,8 +212,7 @@ class RecordingPanel(QWidget):
                 "height": self.height_dimension.value()
             }
             self.settings.setValue("region", self.region)
-            # The OCR worker expects absolute screen coordinates, so add the
-            # monitor's logical offset for the signal payload only.
+            # The OCR worker expects absolute screen coordinates, so add the monitor's logical offset for the signal payload only.
             emit_region = dict(self.region)
             if source["type"] == "monitor":
                 with mss.mss() as sct:

@@ -1,12 +1,3 @@
-"""A two-level help/guide panel (a splitter sibling shown via show_panel("help")).
-
-The main page lists every chapter as a clickable row; picking one swaps to that
-chapter's page, where an annotated screenshot's numbered callouts are explained by
-matching numbered notes underneath. Screenshots are matched to the active theme
-from assets/screenshots/light_mode|dark_mode; a chapter whose screenshot doesn't
-exist yet falls back to a captioned placeholder box.
-"""
-
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea,
     QGridLayout, QFrame, QStackedWidget
@@ -23,11 +14,7 @@ NUMBERING_DIR = resource_root() / "assets" / "icons" / "numbering"
 
 
 def _number_chip(number: str) -> QLabel:
-    """The coral callout circle: the SVG from assets/icons/numbering, or a
-    stylesheet-drawn stand-in if that file doesn't exist. QIcon.pixmap already
-    renders at the display's device-pixel ratio (Qt 6), so 24 logical px is
-    requested as-is. Pre-multiplying by the DPR makes the pixmap overflow the
-    label and get clipped."""
+    """The coral callout circle: SVG from assets/icons/numbering, or a styled fallback."""
     chip = QLabel()
     chip.setFixedSize(24, 24)
     chip.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -40,17 +27,7 @@ def _number_chip(number: str) -> QLabel:
     return chip
 
 
-# Each chapter is (title, card blurb, blocks). The title + blurb make the clickable
-# card on the main page; the blocks build the chapter's own page top-to-bottom:
-#   ("p", text)                      : a paragraph (rich text if it embeds an <a> tag)
-#   ("img", base, caption)           : full-width screenshot "<base> Light|Dark
-#                                      Mode.drawio.png", matched to the active theme
-#   ("items", [(num, name, text)])   : numbered notes matching the screenshot callouts
-#   ("figure", base, caption, items) : notes on the left, screenshot on the right, so
-#                                      the callouts and their explanations share the
-#                                      view; an item is (num, name, text) for a numbered
-#                                      note, or a plain string for a paragraph
-# blocks=None marks a chapter that hasn't been written yet (placeholder page).
+# Each chapter is (title, blurb, blocks). Block types: "p" paragraph, "img" screenshot,
 CHAPTERS = [
     (
         "Getting Started",
@@ -544,9 +521,7 @@ class HelpPanel(QWidget):
         super().__init__()
         self.setObjectName("helpPanel")
 
-        # (image-holder layout, caption, screenshot base name) per image, so every
-        # screenshot can be swapped when the theme changes. Resolve the active theme
-        # the way load_icon does.
+        # (holder layout, caption, screenshot base) per image, swappable on theme change.
         self._image_slots: list[tuple[QVBoxLayout, str, str]] = []
         self._dark = check_theme(str(QSettings("LectureCapture", "LectureCapture").value("theme", "auto")))
 
@@ -558,9 +533,7 @@ class HelpPanel(QWidget):
         self._stack = QStackedWidget()
         outer.addWidget(self._stack)
 
-        # Back and Close live in a persistent footer pinned below the stack (outside
-        # the scroll areas), so they're always reachable on any page. Back only shows
-        # while a chapter page is open.
+        # Persistent footer outside scroll areas. Back only shows on chapter pages.
         footer = QHBoxLayout()
         footer.setContentsMargins(24, 8, 24, 12)
         footer.setSpacing(10)
@@ -580,11 +553,7 @@ class HelpPanel(QWidget):
         # Per-page scroll areas, so opening a chapter can reset its scroll position.
         self._page_scrolls: dict[int, QScrollArea] = {}
 
-        # Only the tile grid (page 0) is built now; each chapter page is built on
-        # its first open. Building every page up front decoded all the chapter
-        # screenshots on app launch. Startup time and resident memory spent on
-        # pages most runs never visit. Empty placeholders hold the stack slots so
-        # a page's stack index always equals its chapter number.
+        # Only the tile grid is built now; each chapter builds on first open.
         self._stack.addWidget(self._main_page())
         self._page_count = len(CHAPTERS) + 1  # chapters + the shortcuts page
         for _ in range(self._page_count):
@@ -595,10 +564,10 @@ class HelpPanel(QWidget):
             if title == API_KEY_CHAPTER_TITLE
         )
 
-        # Esc backs out one level: chapter page → main page → close the panel.
+        # Esc backs out one level: chapter → main → close.
         QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self._on_escape)
 
-    # ---- Pages ------------------------------------------------------------
+    # Pages
 
     def _main_page(self) -> QWidget:
         page = QWidget()
@@ -625,8 +594,7 @@ class HelpPanel(QWidget):
         layout.addWidget(intro)
         layout.addSpacing(6)
 
-        # The 11 chapters + the shortcuts page as a 4-wide grid of cards, so the
-        # whole guide is visible without scrolling.
+        # The 11 chapters + shortcuts page as a 4-wide grid.
         grid = QGridLayout()
         grid.setHorizontalSpacing(10)
         grid.setVerticalSpacing(10)
@@ -710,15 +678,14 @@ class HelpPanel(QWidget):
         header.addStretch()
         return header
 
-    # ---- Chapter content blocks -------------------------------------------
+    # Chapter content blocks
 
     def _add_block(self, layout: QVBoxLayout, block: tuple) -> None:
         kind = block[0]
         if kind == "p":
             p = QLabel(block[1])
             p.setWordWrap(True)
-            # Only paragraphs that embed an <a> tag are treated as rich text +
-            # clickable, so plain steps with literal &, <, > stay safe.
+            # Only rich-text if the paragraph embeds <a>; otherwise plain text.
             if "<a " in block[1]:
                 p.setTextFormat(Qt.TextFormat.RichText)
                 p.setOpenExternalLinks(True)
@@ -768,13 +735,10 @@ class HelpPanel(QWidget):
         row.addWidget(body, 1)
         return box
 
-    # ---- Images -------------------------------------------------------------
+    # Images
 
     def _load_image(self, holder: QVBoxLayout, caption: str, base: str) -> None:
-        # Clear whatever's there, then add the theme-matched screenshot, or a
-        # captioned placeholder box if that file doesn't exist yet. The trailing
-        # stretch keeps the image pinned to the top when its column is taller
-        # (side-by-side figures), instead of the coral frame stretching to fill.
+        # Clear holder, then load theme-matched screenshot or placeholder.
         while holder.count():
             w = holder.takeAt(0).widget()
             if w:
@@ -794,16 +758,16 @@ class HelpPanel(QWidget):
         holder.addStretch()
 
     def _framed_image(self, pixmap: QPixmap) -> QWidget:
-        # A thin coral frame around the screenshot so its edges don't bleed into the panel.
+        # Thin coral frame so the screenshot edges don't bleed into the panel.
         frame = QFrame()
         frame.setObjectName("helpScreenshot")
         frame.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         inner = QVBoxLayout(frame)
-        inner.setContentsMargins(3, 3, 3, 3)  # 3px coral mat
+        inner.setContentsMargins(3, 3, 3, 3)
         inner.addWidget(ScalableImageLabel(pixmap))
         return frame
 
-    # ---- Navigation ---------------------------------------------------------
+    # Navigation
 
     def _build_page(self, index: int) -> None:
         # Swap the placeholder in this stack slot for the real page, keeping the index.
@@ -842,8 +806,7 @@ class HelpPanel(QWidget):
         super().hideEvent(event)
 
     def scroll_to_api_key(self) -> None:
-        """Open the 'Getting a Gemini API Key' chapter. Used when the user clicks
-        the step-by-step link in Settings so they land on the relevant page."""
+        """Open the 'Getting a Gemini API Key' chapter."""
         self._open(self._api_key_index)
 
     def refresh_theme(self, theme: str = None) -> None:
@@ -852,7 +815,7 @@ class HelpPanel(QWidget):
         for holder, caption, base in self._image_slots:
             self._load_image(holder, caption, base)
 
-    # ---- Shared helpers -------------------------------------------------------
+    # Shared helpers
 
     @staticmethod
     def _scroll_area() -> QScrollArea:

@@ -19,8 +19,7 @@ class SummaryPanel(QWidget):
         header = QHBoxLayout()
         header.setSpacing(8)
 
-        # The summary is edited as raw Markdown *source*. Preview is opt-in via the
-        # button below; rendering is read-only so the source is never lost.
+        # Summary is edited as raw Markdown source. Preview is opt-in.
         self._is_preview = False
         self._markdown_source = ""
         self._pre_preview_readonly = False
@@ -60,17 +59,12 @@ class SummaryPanel(QWidget):
 
     def current_source(self) -> str:
         # The canonical Markdown source: the editor text in edit mode, or the
-        # stashed source while the rendered preview is showing.
         return self._markdown_source if self._is_preview else self.summary.toPlainText()
 
     def set_summary(self, source: str) -> None:
-        # Default to the rendered Markdown preview; the user clicks the button to edit.
-        # Strip any all-enclosing ```markdown fence first, or QTextEdit renders the whole
-        # summary as one literal code block (raw ## and ** instead of formatting).
+        # Strip any all-enclosing ```markdown fence, or QTextEdit renders as literal code.
         self._markdown_source = strip_code_fence(source or "")
         # A set summary always has content, so edit mode is editable. Don't capture the
-        # Don't capture the current read-only state here. If a re-summarize happens while
-        # already in preview, that would be True and would lock editing after exiting preview.
         self._pre_preview_readonly = False
         self._is_preview = True
         self.preview_button.setText("Preview")  # current mode = Preview
@@ -100,10 +94,7 @@ class SummaryPanel(QWidget):
             self.preview_button.setText("Preview")  # current mode = Preview
             self._is_preview = True
         else:
-            # Preview -> Edit: restore the editable plain-text source. setMarkdown leaves
-            # rich formatting in the document (and clicking a bold heading in preview
-            # carries that into the cursor), so strip all character formatting back to
-            # plain text. Otherwise the raw source shows up bold in edit mode.
+        # Strip character formatting when switching from preview back to edit mode.
             self.summary.blockSignals(True)
             self.summary.setReadOnly(False)
             self.summary.setPlainText(self._markdown_source)

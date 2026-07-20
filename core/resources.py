@@ -1,15 +1,8 @@
-"""Locate bundled, read-only resources both from source and from a frozen build.
-
-When PyInstaller freezes the app, data files live under ``sys._MEIPASS`` (the bundle's
-``_internal`` folder for a one-folder build) rather than next to the source tree.
-"""
-
 import os
 import sys
 from pathlib import Path
 
-# Single source of truth for the app version shown in-app (Help panel footer).
-# Keep this in sync with MyAppVersion in installer.iss (Inno Setup can't import Python).
+# App version shown in-app. Keep in sync with MyAppVersion in installer.iss.
 APP_VERSION = "3.1.3"
 
 

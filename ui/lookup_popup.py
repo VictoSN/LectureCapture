@@ -1,6 +1,3 @@
-"""Frameless popup card near the cursor showing translate/define results. Reused across
-lookups to avoid deletion races with the worker that is still running."""
-
 from pathlib import Path
 
 from PyQt6.QtWidgets import (
@@ -13,8 +10,7 @@ from ui.styles import load_icon
 
 # Grow the result box to fit its content up to this height, then let it scroll.
 RESULT_MAX_HEIGHT = 280
-# The selected/original text grows to fit up to this height, then scrolls so long
-# selections (e.g. a whole paragraph) can be reviewed against the translation.
+# Max height for original text before scrolling (long selections can be reviewed).
 ORIGINAL_MAX_HEIGHT = 96
 
 
@@ -47,7 +43,6 @@ class LookupPopup(QDialog):
         header.addStretch()
         self.close_btn = QPushButton()
         # The ✕ icon is black in light mode and white in dark mode: load_icon tints it
-        # to the active theme, and _icon_path lets refresh_icons re-tint on theme change.
         self.close_btn._icon_path = self._icons_dir / "x.svg"
         self.close_btn.setIcon(load_icon(self.close_btn._icon_path))
         self.close_btn.setIconSize(QSize(14, 14))

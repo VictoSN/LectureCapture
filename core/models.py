@@ -1,10 +1,3 @@
-"""Model fetching that handles half-written caches and Windows symlink quirks.
-
-On a fresh install the Hub API can return incomplete file lists.  On Windows,
-hf_hub_download creates relative symlinks that don't resolve right away.  Both
-cause model.bin to look missing even though the files are on disk.
-"""
-
 import os
 
 # Silence the noisy "symlinks not supported" warning on Windows.
@@ -74,7 +67,7 @@ def model_is_complete(model_dir: str) -> bool:
 
 
 def _cached_complete(model_id: str) -> str | None:
-    """Cached and complete, or None.  No network."""
+    """Cached and complete, or None."""
     try:
         d = _download(model_id, local_files_only=True)
     except Exception:
@@ -130,7 +123,7 @@ class _disabled_tqdm:
     def refresh(): pass
 
 
-# Only download model files, not repo cruft like .gitattributes or README.
+# Only download model files, not repo cruft.
 _DIRECT_ALLOW_PATTERNS = [
     "config.json", "preprocessor_config.json",
     "model.bin", "tokenizer.json", "vocabulary.*",
@@ -185,8 +178,7 @@ def _direct_download(model_id: str, log=None) -> str | None:
                 if log:
                     log.warning("direct-download: %s skipped (%s)", filename, e)
         else:
-            # Download loop completed without breaking.  Replace any broken
-            # Windows symlinks with direct file copies.
+        # Replace broken Windows symlinks with file copies.
             for filename in filenames:
                 ptr = os.path.join(snapshot_dir, filename)
                 try:

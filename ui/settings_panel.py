@@ -17,9 +17,7 @@ from ui.progress import indeterminate_progress_bar
 
 from pathlib import Path
 
-# Hugging Face repo for each selectable speech model, used to check the local cache and
-# mark already-downloaded models in the dropdown (mirrors faster-whisper's own mapping.
-# Note the distilled models live under "faster-distil-whisper-*").
+# Hugging Face repo IDs for selectable speech models (used to check local cache).
 SPEECH_MODEL_REPOS = {
     "tiny.en": "Systran/faster-whisper-tiny.en",
     "base.en": "Systran/faster-whisper-base.en",
@@ -63,9 +61,6 @@ class ModelDownloadWorker(QThread):
 
     def run(self) -> None:
         # Route through core.models.ensure_model so this shares the same process-wide
-        # download lock + completeness check as the hardware probe and the recording.
-        # Otherwise a "download model" click could race the probe into a half-written
-        # cache (the broken-symlink model.bin that looked like a CUDA failure).
         from core.models import ensure_model, model_is_complete
         from core.applog import get_logger
         log = get_logger()
@@ -121,7 +116,6 @@ class SettingsPanel(QWidget):
         self.setLayout(outer_layout)
         
         # Section spacing: a section is a heading label stacked over its controls,
-        # with the control rows/grids sharing one consistent gap.
         def _section(v: QVBoxLayout) -> QVBoxLayout:
             v.setSpacing(10)
             return v
@@ -195,9 +189,6 @@ class SettingsPanel(QWidget):
         processing_layout.addWidget(processing_note)
 
         # Local speech model + Gemini key share ONE grid so their label/control columns
-        # line up exactly. Each is: label + control on row 0/6, an explanatory note, then
-        # a full-width action button and an on-demand output area. A spacer row separates
-        # the two halves.
         local_model_label = QLabel("Local Speech Model")
         self.api_layout.addWidget(local_model_label, 0, 0)
 
@@ -205,8 +196,6 @@ class SettingsPanel(QWidget):
         self.speech_model_dropdown.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         no_wheel(self.speech_model_dropdown)
         # Approximate on-disk download size per model, shown in the dropdown so the user
-        # can weigh bandwidth/storage before picking one. Kept on self so install markers
-        # ("✓ installed") can be re-applied without losing the base label.
         self._speech_model_items = [
             ("tiny.en: fastest, lowest accuracy (~75 MB)", "tiny.en"),
             ("base.en: fast (~145 MB)", "base.en"),
@@ -222,11 +211,9 @@ class SettingsPanel(QWidget):
             "Whisper model used for local speech-to-text. Larger models are more accurate but heavier"
         )
         # Picking a model downloads it now (activated = user choice only, not the
-        # programmatic setCurrentIndex in load_settings / Apply Recommended).
         self.speech_model_dropdown.activated.connect(self._on_speech_model_chosen)
         self._dl_workers = set()
         # Models that have actually entered the "downloading" state (vs. an instant
-        # already-cached "ready"), so completion feedback only fires for real downloads.
         self._downloading_models = set()
         self.api_layout.addWidget(self.speech_model_dropdown, 0, 1)
 
@@ -248,7 +235,6 @@ class SettingsPanel(QWidget):
         self.speech_model_status.setVisible(False)
         note_layout.addWidget(self.speech_model_status)
         # Indeterminate progress bar (huggingface_hub doesn't expose granular progress),
-        # shown only while a model is actively downloading.
         self.speech_model_progress = indeterminate_progress_bar(height=6)
         self.speech_model_progress.setVisible(False)
         note_layout.addWidget(self.speech_model_progress)
@@ -290,9 +276,6 @@ class SettingsPanel(QWidget):
         self.api_layout.addWidget(self.gemini_input, 6, 1)
 
         # Rich-text note with two links: an external one to AI Studio, and an internal
-        # "step-by-step guide" link that opens the Help panel at the API-key chapter.
-        # openExternalLinks is OFF so BOTH go through _on_api_note_link, which routes the
-        # internal "#help" href to the help_requested signal and opens real URLs itself.
         api_note = QLabel(
             'Need a key? Get one free at '
             '<a href="https://aistudio.google.com/api-keys" style="color:#c15f3c;">AI Studio</a>. '
@@ -309,8 +292,6 @@ class SettingsPanel(QWidget):
         self.api_layout.addWidget(api_note, 7, 0, 1, 2)
 
         # Per-engine API selection: each step can independently use the API or the
-        # local engine. Only relevant in API mode, so this block hides for Local, but
-        # the key + Test above stay visible because Translate / Define always need them.
         self.api_engines_container = QWidget()
         engines_layout = QVBoxLayout(self.api_engines_container)
         engines_layout.setContentsMargins(0, 0, 0, 0)
@@ -320,8 +301,6 @@ class SettingsPanel(QWidget):
         engines_layout.addWidget(use_label)
 
         # Only OCR and Speech have a local engine to toggle against. Summarize is
-        # Gemini-only, so it has no toggle; it always uses the Gemini key, like Quiz /
-        # Translate / Define.
         self.api_use_ocr = QCheckBox("OCR (slides)")
         self.api_use_ocr.setToolTip("Use Gemini vision for slide OCR (captures math/symbols). Off = local Tesseract.")
         self.api_use_speech = QCheckBox("Audio (speech)")
@@ -413,7 +392,6 @@ class SettingsPanel(QWidget):
         preferences_layout.addWidget(preferences_note)
 
         # These mirror the recording panel's fields. They set the values that panel is
-        # pre-filled with when Recording preference is "Default".
         ## Interval
         self.interval_label = QLabel("Default Interval (s):")
         self.default_layout.addWidget(self.interval_label, 0, 0)
@@ -597,8 +575,6 @@ class SettingsPanel(QWidget):
         action_layout.insertStretch(0)
 
         # Assemble sections, each separated by a divider so they read as distinct
-        # groups. The Processing / Appearance / Recording layouts carry their own
-        # section headers; the rest get one here.
         main_layout.addLayout(processing_layout)
         main_layout.addWidget(self._divider())
         main_layout.addLayout(theme_layout)
@@ -617,8 +593,6 @@ class SettingsPanel(QWidget):
         main_layout.addStretch()
         
         # Footer pinned below the scroll area (outside it). Close/Save stay reachable
-        # without scrolling. status_label shows save/download feedback as plain text,
-        # left of the buttons.
         self.status_label = QLabel("")
         self._status_timer = QTimer(self)
         self._status_timer.setSingleShot(True)
@@ -652,14 +626,12 @@ class SettingsPanel(QWidget):
 
     def _set_selected(self, btn, selected: bool) -> None:
         # Toggle the [selected] property the QSS keys off, then repolish so the new
-        # style applies immediately (Qt doesn't re-evaluate property selectors on its own).
         btn.setProperty("selected", selected)
         btn.style().unpolish(btn)
         btn.style().polish(btn)
 
     def _refresh_active_buttons(self) -> None:
         # Highlight the active choice in each toggle group. getattr guards calls that
-        # happen mid-construction before every mode attribute is set.
         for mapping, active in (
             ({"local": self.local_button, "api": self.api_button}, getattr(self, "proc_mode", None)),
             ({"auto": self.auto_button, "light": self.light_button, "dark": self.dark_button}, getattr(self, "theme", None)),
@@ -670,8 +642,6 @@ class SettingsPanel(QWidget):
 
     def update_ui(self) -> None:
         # Processing Visibility. The key + Test Connection stay visible in both modes
-        # (Translate / Define always need them); only the per-engine pipeline toggles
-        # are specific to API mode.
         self.api_engines_container.setVisible(self.proc_mode == "api")
         self.default_container.setVisible(self.pref_mode == "default")
         self._refresh_active_buttons()
@@ -681,8 +651,6 @@ class SettingsPanel(QWidget):
             
     def set_proc_mode(self, mode):
         # Selection only. Persisting + announcing happens in _save_settings, and
-        # Cancel reverts via load_settings, the same lifecycle as every other
-        # field, so Cancel genuinely discards a Local/API click.
         self.proc_mode = mode
         self.update_ui()
         
@@ -701,16 +669,14 @@ class SettingsPanel(QWidget):
         self.stop_sound_dropdown.addItem("None", None)
         
         seen = set()
-        for wav in list(self.bundled_sounds_dir.glob("*.wav")) + list(sound_dir.glob("*.wav")):
-            if wav.name not in seen:
-                seen.add(wav.name)
-                self.start_sound_dropdown.addItem(wav.name, str(wav))
-                self.stop_sound_dropdown.addItem(wav.name, str(wav))
+        for f in list(self.bundled_sounds_dir.glob("*.*")) + list(sound_dir.glob("*.*")):
+            if f.suffix.lower() in {".wav", ".mp3", ".ogg", ".flac", ".m4a", ".aac"}:
+                if f.name not in seen:
+                    seen.add(f.name)
+                    self.start_sound_dropdown.addItem(f.name, str(f))
+                    self.stop_sound_dropdown.addItem(f.name, str(f))
         
         # `or default`: a stored empty string ("None") falls back to the default so the
-        # dropdown shows a real sound instead of silently sitting on "None" (matches the
-        # default applied in MainWindow's audio setup).  An empty string means the user
-        # explicitly chose "None" on a previous save — don't override it.
         saved_start = self.settings.value("start_sound")
         if saved_start is None:
             saved_start = str(self.bundled_sounds_dir / 'Beep 1 (Default).wav')
@@ -726,7 +692,6 @@ class SettingsPanel(QWidget):
     
     def play_sound(self, dropdown: QComboBox) -> None:
         # QMediaPlayer (not QSoundEffect). QSoundEffect produced no audio on several machines.
-        # One reusable player/output kept on self so it isn't garbage-collected mid-play.
         path = dropdown.currentData()
         if not path:
             return
@@ -746,8 +711,7 @@ class SettingsPanel(QWidget):
             QDesktopServices.openUrl(QUrl(href))
 
     def _on_save(self) -> None:
-        # Brief "Saving…" state on the button so a click always registers visibly, even
-        # though the write itself is fast/synchronous. Restored in the finally block.
+        """Brief "Saving…" feedback, then write settings."""
         original_text = self.save_button.text()
         self.save_button.setDisabled(True)
         self.save_button.setText("Saving…")
@@ -805,7 +769,7 @@ class SettingsPanel(QWidget):
         self._status_timer.start(duration_ms)
     
     def import_sound(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "Import Sound", "", "WAV Files (*.wav)")
+        path, _ = QFileDialog.getOpenFileName(self, "Import Sound", "", "Sound Files (*.wav *.mp3 *.ogg *.flac *.m4a *.aac);;All Files (*.*)")
         if path:
             dst = Path(self.base_dir) / 'sound_effects' / Path(path).name
             
@@ -816,9 +780,7 @@ class SettingsPanel(QWidget):
                 self.stop_sound_dropdown.addItem(Path(path).name, str(dst))
     
     def _emit_export(self) -> None:
-        # currentData() is None when the dropdown is empty (no sessions). export_clicked
-# is typed pyqtSignal(int), so emitting None raises TypeError and crashes the app.
-# Guard it so clicking Export with nothing to export is a no-op.
+        # currentData() is None when dropdown is empty. Guard TypeError.
         session_id = self.export_dropdown.currentData()
         if session_id is not None:
             self.export_clicked.emit(session_id)
@@ -827,17 +789,14 @@ class SettingsPanel(QWidget):
         self.export_dropdown.clear()
         for session in sessions:
             self.export_dropdown.addItem(session.name, session.id)
-        # Nothing to export when there are no sessions; disable the button so the
-        # empty-selection path can't even be reached.
+        # Nothing to export when there are no sessions; disable the button so the empty-selection path can't even be reached.
         self.export_button.setDisabled(len(sessions) == 0)
     
     def reload_sources(self) -> None:
         # Re-enumerate monitors/windows and audio devices so the dropdowns reflect
-        # what's open right now (called each time the panel is shown).
         setup_source(self.source_dropdown, self.icons_dir)
         setup_audio(self.audio_dropdown, self.icons_dir)
-        # Refresh here (panel-open) rather than in __init__ so the cache lookup is off the
-        # startup path.
+        # Refresh here (panel-open) rather than in __init__ so the cache lookup is off the startup path.
         self._refresh_model_install_markers()
 
     def _is_model_installed(self, model_id: str) -> bool:
@@ -929,7 +888,6 @@ class SettingsPanel(QWidget):
 
         from core.gemini import ALL_MODELS
         # List every model upfront as "testing" so the user sees all of them are being
-        # checked; each line updates in place as its result lands.
         self._conn_results = {model: ("testing", "") for model in ALL_MODELS}
         self.api_test_note.setVisible(True)  # mirror the output box's visibility
         self.test_api_button.setDisabled(True)
@@ -1045,12 +1003,10 @@ class SettingsPanel(QWidget):
             # Block re-picking mid-download so a second worker can't race the first.
             self.speech_model_dropdown.setEnabled(False)
             # Tell the app a download is in progress so it can block local recording
-            # (which would otherwise stall on the shared model-download lock).
             if first:
                 self.model_download_active.emit(True)
         else:
             # Only treat this as a finished *download* if it actually started one; an
-            # already-cached model reports "ready" immediately with no "downloading".
             was_downloading = model in self._downloading_models
             self._downloading_models.discard(model)
             if state == "ready":

@@ -6,7 +6,6 @@ from PyQt6.QtCore import Qt, QSize, QSettings, QObject, QEvent, pyqtSignal
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QPalette
 
 # Offered in the right-click "Translate to" submenu of any transcript text. The
-# user can also pick "Other…" for a language not listed here.
 LOOKUP_LANGUAGES = [
     "Arabic", "Chinese (Simplified)", "French", "German", "Indonesian",
     "Japanese", "Korean", "Malay", "Spanish", "Tamil",
@@ -79,8 +78,7 @@ class NoLeakTextEdit(QTextEdit):
     lookup_requested = pyqtSignal(str, str, str)
 
     def _build_context_menu(self):
-        # Built separately from contextMenuEvent so it can be inspected in tests without
-        # the blocking menu.exec().
+        # Built separately from contextMenuEvent so it can be inspected in tests without the blocking menu.exec().
         menu = self.createStandardContextMenu()  # keep Copy / Select All / etc.
         selected = self.textCursor().selectedText().replace("\u2029", "\n").strip()
         if selected:
@@ -122,8 +120,6 @@ def get_system_theme() -> str:
     return "dark" if bg.lightness() < 128 else "light"
 
 # Dark/light as resolved by the last apply_theme(). load_icon() reads this instead of
-# re-opening QSettings (a registry hit on Windows) for every icon it hands out. A
-# session load requests icons per capture row, so those reads add up.
 _applied_dark: bool | None = None
 
 
@@ -138,15 +134,12 @@ def apply_theme(theme: str, themes_dir) -> None:
     if qss_path.exists():
         qss = qss_path.read_text(encoding="utf-8")
         # Resolve url(__ASSETS__/...) image paths to an absolute location so QSS-loaded
-        # images (e.g. the checkbox tick) work regardless of the process's working dir.
         assets = Path(themes_dir).parent.as_posix()
         QApplication.instance().setStyleSheet(qss.replace("__ASSETS__", assets))
     else:
         QApplication.instance().setStyleSheet("")
 
     # Render rich-text links in the body text colour (Qt underlines them by default)
-    # rather than the default blue, which is hard to read on the light theme. Driven by
-    # the app palette's Link role so every QLabel picks it up and it refreshes on switch.
     app = QApplication.instance()
     palette = app.palette()
     link_color = QColor("#ece7df" if theme == "dark" else "#423f37")
@@ -174,10 +167,6 @@ def refresh_icons(root: QWidget, theme: str = None) -> None:
             widget.setPixmap(load_icon(path, theme).pixmap(size, size))
 
 # Recolored icons are identical for a given (path, dark/light) and were being rebuilt
-# (QPixmap load + a QPainter recolor pass) for every button/row that used them, e.g. the
-# delete + minimize icons recolored once per capture row on session load. Cache the result
-# (QIcon is implicitly shared, so handing the same instance to many widgets is fine). A
-# theme change uses a different key, so refresh_icons() still re-resolves correctly.
 _icon_cache: dict[tuple[str, bool], QIcon] = {}
 
 
@@ -190,8 +179,7 @@ def load_icon(icon_path: str | Path, theme: str = None) -> QIcon:
         if _applied_dark is not None:
             dark_mode = _applied_dark
         else:
-            # No theme applied yet this process (e.g. widgets built in tests).
-            # fall back to the saved setting.
+            # No theme applied yet this process (e.g. widgets built in tests). fall back to the saved setting.
             settings = QSettings("LectureCapture", "LectureCapture")
             dark_mode = check_theme(str(settings.value("theme", "auto")))
     elif theme == "auto":

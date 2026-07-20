@@ -5,8 +5,7 @@ import threading
 
 import numpy as np
 
-# Import sounddevice and soundfile lazily inside methods instead of at module level.
-# This avoids PortAudio's ~0.5s init cost on every app launch.
+# Import sounddevice/soundfile lazily to avoid PortAudio init cost on startup.
 
 from PyQt6.QtCore import QThread, pyqtSignal
 
@@ -14,57 +13,50 @@ from models.lecture import OCRCapture
 from core.worker_common import API_COOLDOWN_SECONDS, RecordingWorkerMixin
 
 RECORD_SAMPLE_RATE = 44100
-# faster-whisper wants 16 kHz mono; resampling there cuts both local decode work
-# and the API payload size (~5× smaller than 44.1 kHz).
+# faster-whisper wants 16 kHz mono; also reduces API payload size ~5x.
 WHISPER_SAMPLE_RATE = 16000
-# Caps how many recorded chunks may wait for transcription (bounds memory).
+# Caps pending chunks for transcription (bounds memory).
 MAX_PENDING_CHUNKS = 5
-# Chunks whose RMS level is below this are treated as silence and NOT transcribed,
-# which stops Whisper/Gemini from hallucinating gibberish over quiet/empty audio.
+# Drop silent chunks below this RMS threshold (avoids hallucinated gibberish).
 SILENCE_RMS_THRESHOLD = 0.005
 
-# GPU uses a large accurate model (distil-large-v3); CPU uses tiny.en.
-# English-only so transcription needs no extra config.
+# GPU uses distil-large-v3; CPU uses tiny.en. English-only.
 CPU_WHISPER_MODEL = "tiny.en"
 
-# Default speech model when the user hasn't picked one. The retired "auto" is handled
-# below as a safety net for settings saved by older builds.
+# Default speech model. Legacy "auto" handled in _ensure_model.
 DEFAULT_SPEECH_MODEL = "small.en"
 
 
 class AudioWorker(RecordingWorkerMixin, QThread):
     chunk_ready = pyqtSignal(float, str)
-    # Emitted while a non-silent chunk starts transcribing. The UI shows a placeholder until chunk_ready clears it.
+    # Shows placeholder while a chunk is being transcribed.
     chunk_pending = pyqtSignal(float)
     engine_fallback = pyqtSignal(str)
-    # An API attempt failed mid-recording. Carries a status from core.api_errors
-    # ("invalid_key" | "no_connection" | "other") so the UI can warn the user.
+    # API failure mid-recording status (from core.api_errors).
     api_error = pyqtSignal(str)
 
     def __init__(self, session_id: int, base_dir: str, interval: int, device, start_time, offset: int, speech_api_key: str = "", speech_model: str = DEFAULT_SPEECH_MODEL, loopback_pid: int | None = None) -> None:
         super().__init__()
         self._running = True
 
-        # Target window's PID for WASAPI process loopback (captures only that process's
-        # audio instead of the whole system mix). Falls back to system loopback on failure.
+    # Target window PID for WASAPI process loopback. Falls back to system loopback.
         self.loopback_pid = loopback_pid
 
         self.session_id = session_id
         self.base_dir = base_dir
         self.interval = interval
         self.speech_api_key = speech_api_key
-        # Which local Whisper model to use. A concrete id (e.g. "small.en"); a legacy
-        # "auto" is still accepted and resolved per-device in _ensure_model.
+        # Local Whisper model id (e.g. "small.en").
         self.speech_model = speech_model or DEFAULT_SPEECH_MODEL
 
-        # Pause tracking + API-cooldown state shared with the OCR worker.
+        # Pause tracking + API-cooldown state shared with OCR worker.
         self._init_worker_common()
 
-        # Whisper is loaded lazily, only if/when local transcription actually runs.
+        # Lazy-loaded only if local transcription runs.
         self.model = None
-        # Set once the local model is loaded, so the footer can show GPU vs CPU.
+        # Footer label: GPU vs CPU.
         self._local_engine_label = "faster-whisper"
-        # Stops retrying GPU load after failure so the footer doesn't flap between models on every chunk.
+        # Stops retrying GPU after failure (avoids model text flapping on every chunk).
         self._gpu_disabled = False
 
         # Decode the device selection (may be int, dict, or None).
@@ -80,15 +72,14 @@ class AudioWorker(RecordingWorkerMixin, QThread):
 
         self.start_time = start_time
         self.offset = offset
-        # Input sample rate for _transcribe. Live capture uses RECORD_SAMPLE_RATE;
-        # MediaImportWorker decodes files straight to 16 kHz so resample is a no-op.
+        # Sample rate for _transcribe; live uses 44100, import uses 16000.
         self.sample_rate = RECORD_SAMPLE_RATE
 
-        # Queue of recorded chunks drained by a consumer thread so capture never pauses during transcription.
+        # Queue drained by consumer thread so capture never pauses during transcription.
         self._queue: queue.Queue = queue.Queue(maxsize=MAX_PENDING_CHUNKS)
         self._consumer = None
 
-    # ---- device selection ----------------------------------------------
+    # Device selection
 
     def find_loopback_device(self):
         import sounddevice as sd
@@ -98,8 +89,7 @@ class AudioWorker(RecordingWorkerMixin, QThread):
                 name = device["name"].lower()
                 if "wasapi" in name or "stereo mix" in name or "loopback" in name:
                     return i
-        # No loopback input available (Stereo Mix disabled on modern drivers).
-        # Falls back to the default microphone. Emit the banner so the user knows.
+        # No loopback available; fall back to default mic.
         self.api_error.emit("mic_fallback")
         try:
             default = sd.default.device[0]
@@ -119,7 +109,7 @@ class AudioWorker(RecordingWorkerMixin, QThread):
             max_ch = 1
         return device, (2 if max_ch >= 2 else 1)
 
-    # ---- capture (producer) --------------------------------------------
+    # Capture (producer)
 
     def run(self) -> None:
         self._consumer = threading.Thread(target=self._consume, daemon=True)
@@ -136,8 +126,7 @@ class AudioWorker(RecordingWorkerMixin, QThread):
             self._consumer.join(timeout=5)
 
     def _capture(self) -> None:
-        # Process loopback captures only the target window's audio. Falls through to
-        # system loopback if the per-process stream can't start.
+        # Process loopback captures only the target window's audio.
         if self.loopback_pid:
             if self._try_process_loopback():
                 return
@@ -174,8 +163,7 @@ class AudioWorker(RecordingWorkerMixin, QThread):
         return True
 
     def _drain_loopback(self, recorder) -> None:
-        # Same chunking as _run_stream, but blocks come from the process-loopback recorder
-        # (mono float32 at RECORD_SAMPLE_RATE) instead of a sounddevice callback.
+            # Same chunking as _run_stream but from the process-loopback recorder.
         frames_per_chunk = int(self.interval * RECORD_SAMPLE_RATE)
         blocks, blen = [], 0
         while self._running:
@@ -211,8 +199,7 @@ class AudioWorker(RecordingWorkerMixin, QThread):
             mono = indata.mean(axis=1) if (indata.ndim > 1 and indata.shape[1] > 1) else indata.reshape(-1)
             cb_queue.put(mono.copy())
 
-        # The stream is opened AND closed on this thread (the context manager),
-        # so there are no cross-thread sounddevice calls to crash PortAudio.
+            # Stream opened and closed on this thread; no cross-thread PortAudio calls.
         with sd.InputStream(samplerate=RECORD_SAMPLE_RATE, channels=channels, device=device, dtype="float32", callback=callback):
             blocks, blen = [], 0
             while self._running:
@@ -220,8 +207,7 @@ class AudioWorker(RecordingWorkerMixin, QThread):
                     block = cb_queue.get(timeout=0.2)
                 except queue.Empty:
                     continue
-                # While paused, drop captured audio and any partial buffer so nothing
-                # recorded during the pause is transcribed or leaks into the next chunk.
+                # Drop audio captured while paused.
                 if self._paused:
                     blocks, blen = [], 0
                     continue
@@ -241,11 +227,10 @@ class AudioWorker(RecordingWorkerMixin, QThread):
                 blocks = [buf] if len(buf) else []
                 blen = len(buf)
 
-    # ---- transcription (consumer) --------------------------------------
+    # Transcription (consumer)
 
     def _consume(self) -> None:
-        # Preload and warm the local model on this thread so CUDA first-inference latency
-        # overlaps with the first chunk being recorded rather than stalling transcription.
+        # Preload and warm the local model so first-chunk latency overlaps recording.
         if not self.speech_api_key:
             try:
                 self._ensure_model()
@@ -269,8 +254,7 @@ class AudioWorker(RecordingWorkerMixin, QThread):
                     print(f"[Audio] transcription error: {e}")
                     text = ""
                 print(f"[Audio timing] chunk@{chunk_start:.1f}s transcribed in {time.time()-t0:.2f}s")
-            # Attach speech to the slide active when the audio window started (chunk_start),
-            # so even late-chunk slide transitions land speech on the right slide.
+            # Attach speech to the slide that was on screen at chunk_start.
             self.chunk_ready.emit(chunk_start, text)
 
     def _is_silent(self, audio: np.ndarray) -> bool:
@@ -291,7 +275,7 @@ class AudioWorker(RecordingWorkerMixin, QThread):
         ).astype(np.float32)
 
     def _to_wav_bytes_16k(self, audio: np.ndarray) -> bytes:
-        """Resample to 16kHz and encode as WAV. ~5× smaller than 44100Hz."""
+        # Resample to 16kHz and encode as WAV. Smaller payload for Gemini API.
         import soundfile as sf
         buf = io.BytesIO()
         sf.write(buf, self._to_16k_array(audio, self.sample_rate), WHISPER_SAMPLE_RATE, format="WAV", subtype="PCM_16")
@@ -306,8 +290,6 @@ class AudioWorker(RecordingWorkerMixin, QThread):
     def _transcribe(self, audio: np.ndarray, chunk_start: float) -> str:
         if self._api_available():
             try:
-                # Send a downsampled 16kHz WAV. Its about 5x smaller than 44100Hz,
-                # which significantly cuts Gemini API round-trip latency.
                 text, model = self._transcribe_api(self._to_wav_bytes_16k(audio), chunk_start)
                 from core.gemini import pretty_model
                 self._emit_engine(pretty_model(model))
@@ -335,17 +317,13 @@ class AudioWorker(RecordingWorkerMixin, QThread):
         # Honour the chosen model on the available device; legacy "auto" resolves per-device below.
         chosen = self.speech_model if self.speech_model != "auto" else None
 
-        # Prefer GPU for large models; fall back to CPU if CUDA runtime doesn't load.
+        # Prefer GPU for large models; fall back to CPU if CUDA fails.
         from core.cuda_setup import prepare_cuda
         if prepare_cuda() and not self._gpu_disabled:
-            # "Automatic" → best model for the detected GPU's VRAM (not always the biggest).
+            # "Automatic" → best model for the detected GPU's VRAM.
             from core.hardware import auto_gpu_model
             model_id = chosen or auto_gpu_model()
-            # On first use this downloads the model (can be hundreds of MB) before it
-            # loads. Surface that so the empty transcript doesn't look like a freeze.
             self._emit_engine(f"faster-whisper · loading {model_id}…")
-            # Make sure model.bin is fully on disk before handing it to CUDA. A partial or
-            # broken-symlink cache masqueraded as a CUDA failure on first launch.
             model_dir = ensure_model(model_id, log)
             if model_dir is not None:
                 try:
@@ -363,14 +341,12 @@ class AudioWorker(RecordingWorkerMixin, QThread):
                 log.warning("GPU model %s unavailable (download/cache); trying CPU", model_id)
             self._gpu_disabled = True  # don't re-attempt GPU on every chunk (footer flap)
 
-        # CPU fallback (int8, greedy). "auto" becomes tiny.en, otherwise the user's choice.
-        # The UI already flags GPU-oriented models so they know what to expect.
+        # CPU fallback (int8, greedy).
         model_id = chosen or CPU_WHISPER_MODEL
         self._emit_engine(f"faster-whisper · loading {model_id}…")
         model_dir = ensure_model(model_id, log)
         if model_dir is None:
-            # Both paths failed to get the model on disk. Usually happens offline with an
-            # empty cache. Raise instead of silently retrying every chunk.
+            # Both paths failed. Usually offline with empty cache.
             log.error("CPU model %s unavailable (offline / broken cache)", model_id)
             self._emit_engine("faster-whisper · model unavailable (offline?)")
             raise RuntimeError(f"speech model {model_id} unavailable")
@@ -380,15 +356,14 @@ class AudioWorker(RecordingWorkerMixin, QThread):
         return self.model
 
     def _warmup(self, model) -> None:
-        # Quick CUDA warmup so the first real chunk doesn't pay the JIT cost.
+        # Quick CUDA warmup so the first chunk doesn't pay JIT cost.
         dummy = (np.random.randn(WHISPER_SAMPLE_RATE // 4).astype(np.float32)) * 0.01
         list(model.transcribe(dummy, beam_size=1, language="en")[0])
 
     def _transcribe_local(self, audio: np.ndarray, chunk_start: float) -> str:
         try:
             model = self._ensure_model()
-            # Feed a 16 kHz float32 array directly (no WAV encode/decode round-trip).
-            # vad_filter drops non-speech segments (extra hallucination guard).
+            # Feed 16 kHz float32 directly (no WAV round-trip). vad_filter guards against hallucination.
             segments, _info = model.transcribe(
                 self._to_16k_array(audio, self.sample_rate), beam_size=1, language="en", vad_filter=True
             )
@@ -436,33 +411,21 @@ class AudioWorker(RecordingWorkerMixin, QThread):
 
 
 class MediaImportWorker(AudioWorker):
-    """Transcribe a local media file in interval-sized segments, each producing one capture card.
+    """Transcribe a local media file into interval-sized capture cards."""
 
-    Splits the file into `interval`-second segments, grabs+OCRs a frame for video, transcribes
-    the audio, and lands all on a single capture per segment. Subclasses AudioWorker to reuse
-    `_transcribe`/`_ensure_model`/`_is_silent`; live-capture machinery is replaced by `_process`.
-    """
+    capture_ready = pyqtSignal(OCRCapture)  # One capture card per segment.
+    progress = pyqtSignal(float, float)  # processed_s, total_s
+    import_finished = pyqtSignal(float)  # transcribed length
+    import_failed = pyqtSignal(str)  # decode error
+    ocr_engine_fallback = pyqtSignal(str)  # OCR engine name for footer
 
-    # One finished capture (frame image + slide OCR + speech) per interval segment.
-    capture_ready = pyqtSignal(OCRCapture)
-    # processed_seconds, total_seconds: media time progress (for "M:SS / M:SS" + the bar).
-    progress = pyqtSignal(float, float)
-    # Emitted when all segments are processed, carrying the transcribed media length so the
-    # controller can extend the session length.
-    import_finished = pyqtSignal(float)
-    # Decoding failed (unsupported/corrupt file). Carries a short message for the UI.
-    import_failed = pyqtSignal(str)
-    # OCR engine name for the footer (the inherited engine_fallback carries the SPEECH one).
-    ocr_engine_fallback = pyqtSignal(str)
-
-    # Frames bigger than this (longest side) are downscaled before OCR + saving, so a 4K
-    # video doesn't produce multi-MB slide images or stall Tesseract.
+    # Downscale frames larger than this before OCR (avoids multi-MB slide images).
     MAX_FRAME_SIDE = 1600
 
     def __init__(self, session_id: int, base_dir: str, interval: int, file_path: str, start_time, offset: int, speech_api_key: str = "", speech_model: str = DEFAULT_SPEECH_MODEL, ocr_api_key: str = "", start_offset: float = 0.0) -> None:
         # device is irrelevant for a file import. Pass None.
         super().__init__(session_id, base_dir, interval, None, start_time, offset, speech_api_key=speech_api_key, speech_model=speech_model)
-        # Decode files at 16 kHz. Uses ~2.75x less RAM than 44.1 kHz, and per-segment resample becomes a no-op.
+        # Decode audio at 16 kHz (~2.75× less RAM than 44.1 kHz).
         self.sample_rate = WHISPER_SAMPLE_RATE
         self.file_path = file_path
         self.ocr_api_key = ocr_api_key
@@ -482,8 +445,7 @@ class MediaImportWorker(AudioWorker):
         from faster_whisper.audio import decode_audio
         from core.ocr import OCRWorker
 
-        # Decode the whole audio track once at the transcription rate. PyAV under the hood
-        # handles every common audio and video container.
+        # Decode the whole audio track once at the transcription rate.
         try:
             audio = np.asarray(decode_audio(self.file_path, sampling_rate=self.sample_rate), dtype=np.float32)
         except Exception as e:
@@ -492,8 +454,7 @@ class MediaImportWorker(AudioWorker):
             return
         duration = len(audio) / self.sample_rate
 
-        # Open the video stream (if any) for per-segment frame grabs. Decoding only
-        # keyframes keeps seeking fast and is plenty for slide-style lecture video.
+        # Video stream for per-segment frame grabs. Keyframes only (fast, enough for slides).
         container = vstream = None
         try:
             container = av.open(self.file_path)
@@ -504,8 +465,7 @@ class MediaImportWorker(AudioWorker):
             print(f"[Import] no video stream: {e}")
             container = vstream = None
 
-        # OCR helper: a non-running OCRWorker (no screen region/hwnd) reused only for its
-        # text-extraction + Gemini-vision-cleanup logic. Forward its engine/error signals.
+        # Non-running OCRWorker reused for text extraction and Gemini cleanup.
         self._ocr = OCRWorker(self.session_id, self.base_dir, self.interval, None, 1, self.start_time, self.offset, ocr_api_key=self.ocr_api_key)
         self._ocr.engine_fallback.connect(self.ocr_engine_fallback)
         self._ocr.api_error.connect(self.api_error)

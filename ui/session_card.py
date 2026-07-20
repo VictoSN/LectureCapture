@@ -19,8 +19,7 @@ class SessionCard(QWidget):
         strip = QFrame()
         strip.setFixedWidth(3)
         
-        # Built-in categories have fixed colours; custom ones get a stable colour
-        # derived from their name (see category_color).
+        # Built-in categories have fixed colours; custom ones get a stable colour derived from their name (see category_color).
         color = category_color(self.session.activity_category)
         if color:
             strip.setStyleSheet(f"background-color: {color};")

@@ -28,9 +28,7 @@ class Storage:
         self.create_table()
 
     def _rename_legacy_columns(self) -> None:
-        """session_category → activity_category: renamed in place (not wiped) so
-        existing sessions survive. Runs after the old-schema wipe check, so the
-        table here is otherwise current."""
+        """Rename session_category → activity_category if needed."""
         self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='session'")
         if not self.cursor.fetchone():
             return  # fresh database. create_table builds the current schema.
@@ -42,10 +40,7 @@ class Storage:
             self.conn.commit()
 
     def _wipe_if_old_schema(self) -> None:
-        """Some schema changes were made without a migration (agreed: wipe rather than
-        migrate). The quiz columns, and later the group_category → module_category
-        rename. CREATE TABLE IF NOT EXISTS can't alter an existing table, so if we find a
-        pre-current schema we drop the tables and clear stored captures."""
+        """Drop tables if the schema is pre-current (no migration needed)."""
         self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='session'")
         if not self.cursor.fetchone():
             return  # fresh database. Nothing to wipe.
@@ -92,15 +87,12 @@ class Storage:
                             )
                             """)
 
-        # Turns capture lookups by session (and the timestamp-ordered query used
-        # to attach speech to the right slide) from a full scan into an index seek.
+        # Index capture lookups by session + timestamp for efficient queries.
         self.cursor.execute("""
                             CREATE INDEX IF NOT EXISTS idx_ocrcapture_session
                             ON ocrcapture(session_id, timestamp)
                             """)
-        # Additive, non-destructive migration: a DB created before quiz_answers existed
-        # already has the session table (so CREATE TABLE IF NOT EXISTS won't add the
-        # column). Add it in place rather than wiping, so existing sessions/quizzes survive.
+        # Add quiz_answers column without wiping (additive migration).
         self._add_column_if_missing("session", "quiz_answers", "TEXT")
         self.conn.commit()
 
@@ -182,8 +174,7 @@ class Storage:
         self.conn.commit()
     
     def save_quiz(self, session_id: int, quiz_json: str, source_hash: str) -> None:
-        """Store a freshly generated quiz: stamps the generation time and resets the
-        score (NULL), since it's a new quiz."""
+        """Store a newly generated quiz, resetting score and answers."""
         self.cursor.execute(
             "UPDATE session SET quiz = ?, quiz_source_hash = ?, quiz_generated_at = ?, quiz_score = NULL, quiz_answers = NULL WHERE id = ?",
             (quiz_json, source_hash, datetime.now().isoformat(), session_id)
@@ -191,8 +182,7 @@ class Storage:
         self.conn.commit()
 
     def update_quiz_result(self, session_id: int, score: int, answers_json: str) -> None:
-        """Persist a completed attempt: the score and the per-question chosen answers
-        (JSON list) so Review can show what the user got wrong."""
+        """Persist score and per-question answers for Review."""
         self.cursor.execute(
             "UPDATE session SET quiz_score = ?, quiz_answers = ? WHERE id = ?",
             (score, answers_json, session_id)
@@ -247,14 +237,12 @@ class Storage:
         )
 
     def get_captures_by_session(self, session_id: int) -> list[OCRCapture]:
-        # Timeline order, not insertion order. An import or an orphan speech capture
-        # can be inserted after rows it belongs before, and the panels show list order.
+        # Timeline order (panels display list order).
         self.cursor.execute("SELECT id, timestamp, image_path, extracted_text, speech_text, session_id FROM ocrcapture WHERE session_id = ? ORDER BY timestamp", (session_id,))
         return [self._row_to_ocrcapture(captures) for captures in self.cursor.fetchall()]        
 
     def get_latest_capture_before(self, session_id: int, timestamp: float) -> OCRCapture | None:
-        # Most recent capture at or before `timestamp`. Used to attach a speech
-        # chunk to the slide that was on screen when it was spoken. Indexed, O(log n).
+        # Most recent capture at or before timestamp (indexed).
         self.cursor.execute(
             "SELECT id, timestamp, image_path, extracted_text, speech_text, session_id "
             "FROM ocrcapture WHERE session_id = ? AND timestamp <= ? "
@@ -265,8 +253,7 @@ class Storage:
         return self._row_to_ocrcapture(row) if row else None
 
     def get_earliest_capture(self, session_id: int) -> OCRCapture | None:
-        # First slide captured in the session. Speech that predates every slide
-        # (e.g. narration before the first slide finished processing) attaches here.
+        # First captured slide in the session.
         self.cursor.execute(
             "SELECT id, timestamp, image_path, extracted_text, speech_text, session_id "
             "FROM ocrcapture WHERE session_id = ? ORDER BY timestamp ASC LIMIT 1",
@@ -282,8 +269,7 @@ class Storage:
         if row:
             image_path, session_id = row
             file_path = Path(self.base_dir) / 'sessions' / str(session_id) / 'captures' / image_path
-            # Guard speech-only captures (empty image_path -> the captures folder
-            # itself); unlinking a directory raises PermissionError on Windows.
+            # Speech-only captures: empty image_path -> skip file unlink (avoids PermissionError).
             if image_path and file_path.is_file():
                 file_path.unlink()
 
@@ -317,8 +303,7 @@ class Storage:
         return [row[0] for row in self.cursor.fetchall()]
 
     def get_activity_categories(self) -> list[str]:
-        """Distinct activity categories the user has actually used (custom ones the user
-        added show up here). Merged with the built-in defaults by the caller."""
+        """Distinct activity categories in use. Merged with built-in defaults by caller."""
         self.cursor.execute(
             "SELECT DISTINCT activity_category FROM session "
             "WHERE activity_category IS NOT NULL AND activity_category != ''"

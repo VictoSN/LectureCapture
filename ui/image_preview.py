@@ -1,18 +1,3 @@
-"""Full-screen-resizable image viewer with zoom + pan, used for previewing a captured
-slide at full resolution (OCRPanel._show_full_image).
-
-Built on QGraphicsView/QGraphicsScene so pan and cursor-anchored zoom come essentially
-for free:
-  * mouse wheel  : zoom in/out about the cursor
-  * drag         : pan (ScrollHandDrag)
-  * double-click / F / 0 : fit the whole image to the window
-  * 1            : 100% (actual pixels)
-  * +/-          : zoom in/out
-  * Esc          : close
-The dialog opens large and is freely resizable; while "fitted" it keeps the image fit
-to the window as it's resized.
-"""
-
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem
 )
@@ -58,7 +43,7 @@ class ImagePreviewDialog(QDialog):
         screen = QGuiApplication.primaryScreen().availableGeometry()
         self.resize(int(screen.width() * 0.85), int(screen.height() * 0.85))
 
-    # ---- fit / zoom ------------------------------------------------------
+    # Fit / zoom
 
     def _fit(self) -> None:
         self._view.fitInView(self._item, Qt.AspectRatioMode.KeepAspectRatio)
@@ -86,7 +71,7 @@ class ImagePreviewDialog(QDialog):
         self._fitted = False
         self._view.scale(factor, factor)
 
-    # ---- events ----------------------------------------------------------
+    # Events
 
     def showEvent(self, event) -> None:
         super().showEvent(event)

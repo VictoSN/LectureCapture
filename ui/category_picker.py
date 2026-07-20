@@ -1,6 +1,3 @@
-"""A dropdown of existing categories plus an "Add new…" entry that reveals a text field.
-Used for activity/module categories in New Session and Properties panels."""
-
 import hashlib
 
 from PyQt6.QtWidgets import QWidget, QComboBox, QLineEdit, QVBoxLayout

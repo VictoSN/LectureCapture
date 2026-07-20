@@ -1,11 +1,3 @@
-"""Gemini-generated revision quiz from a session's combined transcript.
-
-JSON mode with a response schema, so the result is structured and auto-gradable
-(multiple-choice + true/false). Runs off the GUI thread like SummarizeWorker, and is
-gated on a Gemini key (there's no good local equivalent). The number of questions is
-left to the model. It's told to scale to how much substantive material there is.
-"""
-
 import hashlib
 import json
 
@@ -13,8 +5,7 @@ from PyQt6.QtCore import QThread, pyqtSignal
 
 
 def source_hash(text: str) -> str:
-    """Stable hash of the source text, stored with a saved quiz so we can tell when the
-    session content has changed and offer to regenerate."""
+    """Stable hash of source text, used to detect when session content changed."""
     return hashlib.md5((text or "").encode("utf-8")).hexdigest()
 
 

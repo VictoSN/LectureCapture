@@ -8,7 +8,6 @@ from ui.styles import load_icon
 
 def _app_name(title: str) -> str:
     # Most apps put their display name last, after a dash. Keep just that, e.g.
-    # "main.py - LectureCapture - Visual Studio Code" -> "Visual Studio Code".
     for sep in (" - ", " — ", " – ", " | "):
         if sep in title:
             return title.rsplit(sep, 1)[-1].strip()
@@ -16,8 +15,7 @@ def _app_name(title: str) -> str:
 
 
 def _window_detail(title: str) -> str:
-    # The part before the app name, used only to tell apart several windows of
-    # the same app.
+    # The part before the app name, used only to tell apart several windows of the same app.
     for sep in (" - ", " — ", " – ", " | "):
         if sep in title:
             return title.rsplit(sep, 1)[0].strip()
@@ -43,7 +41,6 @@ def setup_source(source_dropdown: QComboBox, icons_dir: Path) -> None:
             )
 
     # Collect windows, then label them by application name. The full title is only
-    # used when several windows share an app, so the list stays easy to scan.
     _EXCLUDED = {"LectureCapture", "Program Manager", ""}
     windows = []
     def collect(hwnd, _):
@@ -94,7 +91,6 @@ def update_ranges_for_source(source, x: QSpinBox, y: QSpinBox, width: QSpinBox, 
         update_coord_ranges(source["index"], x, y, width, height)
         return
     # GetWindowRect, not GetClientRect: the capture (PrintWindow) renders the full
-    # window rect, and validation measures against it too.
     left, top, right, bottom = win32gui.GetWindowRect(source["hwnd"])
     w, h = right - left, bottom - top
     x.setRange(0, w)
