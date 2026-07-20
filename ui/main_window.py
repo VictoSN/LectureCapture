@@ -555,6 +555,21 @@ class MainWindow(FramelessMainWindow):
         """Block local recording while a model download holds the lock; API speech is unaffected."""
         return self._model_download_active and not self._effective_api_key("speech")
 
+    def _any_model_installed(self) -> bool:
+        """True if a speech model that local recording will use is ready in the HF cache."""
+        from pathlib import Path
+        from huggingface_hub import try_to_load_from_cache
+        from ui.settings_panel import SPEECH_MODEL_REPOS
+        model_id = self.settings.value("speech_model", DEFAULT_SPEECH_MODEL)
+        repo = SPEECH_MODEL_REPOS.get(model_id)
+        if not repo:
+            return False
+        try:
+            path = try_to_load_from_cache(repo, "model.bin")
+            return isinstance(path, str) and Path(path).is_file() and Path(path).stat().st_size > 0
+        except Exception:
+            return False
+
     def _apply_record_download_lock(self) -> None:
         """Disable Record during model download; restore when session is loaded and idle."""
         btn = self.transcript_panel.record_button
@@ -572,7 +587,6 @@ class MainWindow(FramelessMainWindow):
         self._apply_record_download_lock()
 
     def on_record_clicked(self) -> None:
-        # Opens the recording panel. Does NOT stop recording. Stop goes through confirmation.
         if not self.current_session:
             print('Need to select session first')
             return
@@ -581,6 +595,14 @@ class MainWindow(FramelessMainWindow):
                 self, "Speech model downloading",
                 "A speech model is still downloading. Local recording will be available "
                 "once it finishes, or switch Audio to the Gemini API in Settings."
+            )
+            return
+        # If speech will run locally and no model is cached, show the banner
+        # so the user knows they need to download one first.
+        if not self._effective_api_key("speech") and not self._any_model_installed():
+            model = self.settings.value("speech_model", DEFAULT_SPEECH_MODEL)
+            self.transcript_panel.show_connection_warning(
+                f"No speech model found ({model}). Download it in Settings to record locally."
             )
             return
         if not self.is_recording:
