@@ -1553,6 +1553,16 @@ class MainWindow(FramelessMainWindow):
         self._quiz_worker = None
 
     def closeEvent(self, event) -> None:
+        if self._model_download_active:
+            reply = QMessageBox.question(
+                self,
+                "Speech model downloading",
+                "A speech model is still downloading. Close anyway and cancel the download?"
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                event.ignore()
+                return
+
         if self._summarize_worker is not None:
             reply = QMessageBox.question(
                 self,
