@@ -1,7 +1,7 @@
 import mss
 
 from PyQt6.QtWidgets import (
-    QPushButton, QComboBox, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QSpinBox, QLabel
+    QApplication, QPushButton, QComboBox, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QSpinBox, QLabel
 )
 from PyQt6.QtCore import QSettings, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QShortcut, QKeySequence
@@ -204,6 +204,7 @@ class RecordingPanel(QWidget):
         self.settings.setValue("audio", self.audio_dropdown.currentText())
 
         if self.capture_method == "Coordinates":
+            # Save spinner values as preferences (relative to the monitor).
             self.region = {
                 "left": self.x_coords.value(),
                 "top": self.y_coords.value(),
@@ -211,13 +212,32 @@ class RecordingPanel(QWidget):
                 "height": self.height_dimension.value()
             }
             self.settings.setValue("region", self.region)
+            # The OCR worker expects absolute screen coordinates, so add the
+            # monitor's logical offset for the signal payload only.
+            emit_region = dict(self.region)
+            if source["type"] == "monitor":
+                with mss.mss() as sct:
+                    m = sct.monitors[source["index"]]
+                ratio = 1.0
+                for screen in QApplication.screens():
+                    sg = screen.geometry()
+                    if int(sg.x() * screen.devicePixelRatio()) == m["left"] and \
+                       int(sg.y() * screen.devicePixelRatio()) == m["top"]:
+                        ratio = screen.devicePixelRatio()
+                        break
+                emit_region["left"] += m["left"] // ratio
+                emit_region["top"] += m["top"] // ratio
         elif self.capture_method == "Full Window":
             self.region = None
+            emit_region = None
+        else:
+            # Mouse Select: region comes from the overlay, emit whatever is loaded.
+            emit_region = self.region
 
         self.settings.sync()
         self.record_clicked.emit({
             "interval": self.session_interval.value(),
-            "region": self.region,
+            "region": emit_region,
             "capture_option": self.capture_method,
             "hwnd": source["hwnd"] if source["type"] == "window" else None,
             "monitor": source["index"] if source["type"] == "monitor" else None,
