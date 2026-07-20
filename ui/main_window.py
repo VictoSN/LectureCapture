@@ -101,20 +101,28 @@ class MainWindow(FramelessMainWindow):
         self.DEFAULT_START_SOUND = str(BUNDLED_SOUNDS_DIR / 'Beep 1 (Default).wav')
         self.DEFAULT_STOP_SOUND = str(BUNDLED_SOUNDS_DIR / 'Chirp 1 (Default).wav')
 
-        # Use `or DEFAULT` so an empty stored string falls back to a working sound.
-        start_path = self.settings.value("start_sound") or self.DEFAULT_START_SOUND
-        stop_path = self.settings.value("stop_sound") or self.DEFAULT_STOP_SOUND
+        # `or DEFAULT` ensures a first-launch uses bundled sounds, but an
+        # empty string means the user explicitly chose "None" — skip it.
+        start_path = self.settings.value("start_sound")
+        if not start_path and start_path is not None:
+            pass  # user chose "None", keep empty
+        elif not start_path:
+            start_path = self.DEFAULT_START_SOUND
+        stop_path = self.settings.value("stop_sound")
+        if not stop_path and stop_path is not None:
+            pass  # user chose "None"
+        elif not stop_path:
+            stop_path = self.DEFAULT_STOP_SOUND
         
-        # QMediaPlayer for WAV playback; keep QAudioOutput alive or audio is silent.
         self._start_output = QAudioOutput()
         self.start_audio = QMediaPlayer()
         self.start_audio.setAudioOutput(self._start_output)
-        self.start_audio.setSource(QUrl.fromLocalFile(start_path))
+        self.start_audio.setSource(QUrl.fromLocalFile(start_path) if start_path else QUrl())
 
         self._stop_output = QAudioOutput()
         self.stop_audio = QMediaPlayer()
         self.stop_audio.setAudioOutput(self._stop_output)
-        self.stop_audio.setSource(QUrl.fromLocalFile(stop_path))
+        self.stop_audio.setSource(QUrl.fromLocalFile(stop_path) if stop_path else QUrl())
         
         self.filter_name = ""
         self.filter_category = ""
@@ -1294,14 +1302,13 @@ class MainWindow(FramelessMainWindow):
         self.help_panel.refresh_theme(theme)
 
     def _play_effect(self, player: QMediaPlayer) -> None:
-        # stop() rewinds to the start so a second/third recording replays from the
-        # beginning (QMediaPlayer won't replay a finished clip on play() alone).
-        player.stop()
-        player.play()
+        if not player.source().isEmpty():
+            player.stop()
+            player.play()
 
     def on_sound_effects_changed(self, start: str, stop: str) -> None:
-        self.start_audio.setSource(QUrl.fromLocalFile(start if start else self.DEFAULT_START_SOUND))
-        self.stop_audio.setSource(QUrl.fromLocalFile(stop if stop else self.DEFAULT_STOP_SOUND))
+        self.start_audio.setSource(QUrl.fromLocalFile(start) if start else QUrl())
+        self.stop_audio.setSource(QUrl.fromLocalFile(stop) if stop else QUrl())
         
         self.settings.setValue("start_sound", start)
         self.settings.setValue("stop_sound", stop)

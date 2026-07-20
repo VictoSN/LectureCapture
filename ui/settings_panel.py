@@ -709,9 +709,14 @@ class SettingsPanel(QWidget):
         
         # `or default`: a stored empty string ("None") falls back to the default so the
         # dropdown shows a real sound instead of silently sitting on "None" (matches the
-        # default applied in MainWindow's audio setup).
-        saved_start = self.settings.value("start_sound") or str(self.bundled_sounds_dir / 'Beep 1 (Default).wav')
-        saved_stop = self.settings.value("stop_sound") or str(self.bundled_sounds_dir / 'Chirp 1 (Default).wav')
+        # default applied in MainWindow's audio setup).  An empty string means the user
+        # explicitly chose "None" on a previous save — don't override it.
+        saved_start = self.settings.value("start_sound")
+        if saved_start is None:
+            saved_start = str(self.bundled_sounds_dir / 'Beep 1 (Default).wav')
+        saved_stop = self.settings.value("stop_sound")
+        if saved_stop is None:
+            saved_stop = str(self.bundled_sounds_dir / 'Chirp 1 (Default).wav')
 
         for saved, dropdown in [(saved_start, self.start_sound_dropdown), (saved_stop, self.stop_sound_dropdown)]:
             if saved:
@@ -903,7 +908,12 @@ class SettingsPanel(QWidget):
         self.theme_changed.emit(theme)
 
     def _set_dropdown(self, dropdown: QComboBox, path: str, default: str) -> None:
-        resolved = path if path and Path(path).exists() else default
+        if path is None:
+            resolved = default  # never saved, use factory default
+        elif path == "":
+            resolved = None     # user explicitly chose "None"
+        else:
+            resolved = path if Path(path).exists() else default
         idx = dropdown.findData(resolved)
         if idx >= 0:
             dropdown.setCurrentIndex(idx)
