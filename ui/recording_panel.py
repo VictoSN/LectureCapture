@@ -3,7 +3,7 @@ import mss
 from PyQt6.QtWidgets import (
     QPushButton, QComboBox, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QSpinBox, QLabel
 )
-from PyQt6.QtCore import QSettings, Qt, pyqtSignal
+from PyQt6.QtCore import QSettings, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QShortcut, QKeySequence
 
 from ui.setup_recording import setup_source, setup_audio, update_ranges_for_source, set_coord_fields_visible
@@ -12,17 +12,15 @@ from ui.styles import no_wheel
 class RecordingPanel(QWidget):
     record_clicked = pyqtSignal(dict)
     cancel_clicked = pyqtSignal()
-    
+
     def __init__(self, icons_dir) -> None:
         super().__init__()
         main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(24, 24, 24, 24)
+        main_layout.setContentsMargins(24, 22, 24, 0)
         main_layout.setSpacing(18)
         self.default_layout = QGridLayout()
         self.default_layout.setHorizontalSpacing(14)
         self.default_layout.setVerticalSpacing(12)
-        action_layout = QHBoxLayout()
-        action_layout.setSpacing(10)
 
         self.settings = QSettings("LectureCapture", "LectureCapture")
         self.icons_dir = icons_dir
@@ -34,7 +32,6 @@ class RecordingPanel(QWidget):
         main_layout.addWidget(self.recording_name)
 
         # Input Fields
-        # Used QSpinBox for integer validation
         ## Interval
         self.interval_label = QLabel("Interval (s):")
         self.default_layout.addWidget(self.interval_label, 0, 0)
@@ -128,10 +125,23 @@ class RecordingPanel(QWidget):
         self.audio_label.setToolTip(audio_tip)
         self.audio_dropdown.setToolTip(audio_tip)
 
-        # Ranges must be set (via _on_source_changed above) before setValue
-        self.load_preferences()
+        main_layout.addLayout(self.default_layout)
+        main_layout.addStretch()
 
-        # Actions Buttons
+        # Footer matches the Settings panel layout exactly.
+        footer = QHBoxLayout()
+        footer.setContentsMargins(4, 8, 0, 12)
+
+        self.status_label = QLabel("")
+        self._status_timer = QTimer(self)
+        self._status_timer.setSingleShot(True)
+        self._status_timer.timeout.connect(lambda: self.status_label.setText(""))
+        footer.addWidget(self.status_label)
+        footer.addStretch()
+
+        action_layout = QHBoxLayout()
+        action_layout.setSpacing(12)
+
         cancel_button = QPushButton("Cancel")
         cancel_button.setToolTip("Cancel (Esc)")
         cancel_button.clicked.connect(self._on_cancel)
@@ -143,18 +153,17 @@ class RecordingPanel(QWidget):
         action_layout.addWidget(start_button)
 
         action_layout.insertStretch(0)
-
-        main_layout.addLayout(self.default_layout)
-        main_layout.addStretch()
-        main_layout.addLayout(action_layout)
+        footer.addLayout(action_layout)
+        main_layout.addLayout(footer)
         self.setLayout(main_layout)
-        
+
+        # Ranges must be set before setValue
+        self.load_preferences()
         self.set_user_option()
         QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self._on_cancel)
         QShortcut(QKeySequence(Qt.Key.Key_Return), self, activated=self.try_record)
 
     def _find_source_index(self, saved: str) -> int:
-        """Match by app_name stored in item data, falling back to label text."""
         for i in range(self.source_dropdown.count()):
             data = self.source_dropdown.itemData(i) or {}
             if data.get("app_name") == saved:
@@ -162,8 +171,6 @@ class RecordingPanel(QWidget):
         return self.source_dropdown.findText(saved)
 
     def reload_sources(self) -> None:
-        # Re-enumerate monitors/windows and audio devices so the dropdowns reflect
-        # what's open right now (called each time the panel is shown).
         setup_source(self.source_dropdown, self.icons_dir)
         setup_audio(self.audio_dropdown, self.icons_dir)
 
@@ -189,7 +196,6 @@ class RecordingPanel(QWidget):
                                  self.width_dimension, self.height_dimension)
 
     def on_record(self) -> None:
-        # Save preferences
         source = self.source_dropdown.currentData()
         self.settings.setValue("interval", self.session_interval.value())
         self.settings.setValue("capture_method", self.capture_method)
@@ -198,19 +204,17 @@ class RecordingPanel(QWidget):
         self.settings.setValue("audio", self.audio_dropdown.currentText())
 
         if self.capture_method == "Coordinates":
-            # Saved to return
             self.region = {
                 "left": self.x_coords.value(),
                 "top": self.y_coords.value(),
                 "width": self.width_dimension.value(),
                 "height": self.height_dimension.value()
             }
-            # Saved for preferences
             self.settings.setValue("region", self.region)
         elif self.capture_method == "Full Window":
             self.region = None
 
-        self.settings.sync()  # persist last-used choices so they survive a restart
+        self.settings.sync()
         self.record_clicked.emit({
             "interval": self.session_interval.value(),
             "region": self.region,
@@ -219,23 +223,20 @@ class RecordingPanel(QWidget):
             "monitor": source["index"] if source["type"] == "monitor" else None,
             "audio_device": self.audio_dropdown.currentData()
         })
-        
-    # Hide or Show the user option for screenshots
+
     def set_user_option(self) -> None:
         self.capture_method = self.capture_method_dropdown.currentText()
         set_coord_fields_visible(self, self.capture_method == "Coordinates")
-        
-    def validate(self) -> bool:
-        # The coordinate rectangle must be non-empty and fit inside the chosen
-        # source. .value() (not int(.text())) so locale formatting can't break
-        # parsing, and it matches what on_record actually records.
+
+    def validate(self) -> str | None:
+        """Return None if valid, or an error message string."""
         if self.capture_method != "Coordinates":
-            return True
+            return None
 
         x, y = self.x_coords.value(), self.y_coords.value()
         w, h = self.width_dimension.value(), self.height_dimension.value()
         if w <= 0 or h <= 0:
-            return False  # a 0-size region records nothing (every grab fails)
+            return "Width and height must be greater than zero."
 
         source = self.source_dropdown.currentData()
         if source["type"] == "monitor":
@@ -246,8 +247,11 @@ class RecordingPanel(QWidget):
             import win32gui
             left, top, right, bottom = win32gui.GetWindowRect(source["hwnd"])
             max_w, max_h = right - left, bottom - top
-        return x + w <= max_w and y + h <= max_h
-    
+
+        if x + w > max_w or y + h > max_h:
+            return f"Capture region exceeds the source bounds ({max_w}x{max_h})."
+        return None
+
     def reload_state(self):
         mode = self.settings.value("preferences_mode", "last")
 
@@ -269,12 +273,19 @@ class RecordingPanel(QWidget):
             self.region = self.settings.value("region", {"left": 0, "top": 0, "width": 800, "height": 800})
             self.saved_source = self.settings.value("source", "")
             self.saved_audio = self.settings.value("audio", "")
-    
+
     def try_record(self) -> None:
-        if self.validate():
+        error = self.validate()
+        if error is None:
             self.on_record()
-    
+        else:
+            self._show_status(error)
+
     def _on_cancel(self) -> None:
         self.reload_state()
         self.load_preferences()
         self.cancel_clicked.emit()
+
+    def _show_status(self, text: str, duration_ms: int = 3000) -> None:
+        self.status_label.setText(text)
+        self._status_timer.start(duration_ms)
