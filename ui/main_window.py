@@ -588,7 +588,7 @@ class MainWindow(FramelessMainWindow):
             self.is_properties_open = False # Close Properties when opening recording
 
     def on_recording_confirmed(self, data) -> None:
-        if not self.recording_panel.validate():
+        if self.recording_panel.validate() is not None:
             return
         
         self.is_recording = True
