@@ -997,6 +997,8 @@ class MainWindow(FramelessMainWindow):
                 parts.append(c.extracted_text)
             if c.speech_text:
                 parts.append(c.speech_text)
+        if self.current_session.summary:
+            parts.append(self.current_session.summary)
         return "\n".join(parts)
 
     def _parse_saved_quiz(self) -> list | None:
