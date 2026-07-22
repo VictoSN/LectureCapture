@@ -5,8 +5,10 @@ from ctypes import wintypes
 
 import numpy as np
 
+import comtypes
 from comtypes import GUID, IUnknown, COMMETHOD, HRESULT, COMObject
 from pycaw.api.audioclient import IAudioClient, WAVEFORMATEX
+from pycaw.api.mmdeviceapi import IMMDeviceEnumerator, IMMDevice
 
 RECORD_SAMPLE_RATE = 44100
 
@@ -152,11 +154,11 @@ def _make_float_format(samplerate: int, channels: int) -> WAVEFORMATEX:
 
 
 class ProcessLoopbackRecorder:
-    """Capture audio from `pid` via WASAPI process loopback. start() raises on failure;
-    read() returns mono float32 (or None). COM work runs on an internal MTA thread."""
+    """Capture audio via WASAPI loopback. pid=None captures all system output;
+    a pid captures just that process. COM runs on an internal MTA thread."""
 
-    def __init__(self, pid: int, samplerate: int = RECORD_SAMPLE_RATE, channels: int = 2) -> None:
-        self.pid = int(pid)
+    def __init__(self, pid: int | None = None, samplerate: int = RECORD_SAMPLE_RATE, channels: int = 2) -> None:
+        self.pid = int(pid) if pid is not None else None
         self.samplerate = samplerate
         self.channels = channels
         self._queue: queue.Queue = queue.Queue()
@@ -233,6 +235,11 @@ class ProcessLoopbackRecorder:
             _ole32.CoUninitialize()
 
     def _activate(self) -> IAudioClient:
+        if self.pid is not None:
+            return self._activate_process_loopback()
+        return self._activate_system_loopback()
+
+    def _activate_process_loopback(self) -> IAudioClient:
         params = AUDIOCLIENT_ACTIVATION_PARAMS()
         params.ActivationType = AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK
         params.ProcessLoopbackParams.TargetProcessId = self.pid
@@ -264,6 +271,16 @@ class ProcessLoopbackRecorder:
         if activate_hr != S_OK:
             raise RuntimeError(f"GetActivateResult failed (hr=0x{activate_hr & 0xFFFFFFFF:08X})")
         return activated.QueryInterface(IAudioClient)
+
+    def _activate_system_loopback(self) -> IAudioClient:
+        enumerator = comtypes.CoCreateInstance(
+            GUID("{BCDE0395-E52F-467C-8E3D-C4579291692E}"),
+            interface=IMMDeviceEnumerator,
+            clsctx=comtypes.CLSCTX_INPROC_SERVER,
+        )
+        device = enumerator.GetDefaultAudioEndpoint(0, 0)  # eRender=0, eConsole=0
+        unk = device.Activate(IAudioClient._iid_, comtypes.CLSCTX_ALL, None)
+        return unk.QueryInterface(IAudioClient)
 
     def _capture_loop(self, capture, h_event) -> None:
         block_align = self.channels * 4

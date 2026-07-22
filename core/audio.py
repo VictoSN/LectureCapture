@@ -132,6 +132,12 @@ class AudioWorker(RecordingWorkerMixin, QThread):
                 return
             print("[Audio] process loopback unavailable; using system loopback")
 
+        # System-wide WASAPI loopback captures all system audio output.
+        if self.device_type == "loopback":
+            if self._try_system_loopback():
+                return
+            print("[Audio] WASAPI system loopback unavailable; trying sounddevice")
+
         device, channels = self._resolve_input()
         # Try the resolved config, then progressively safer fallbacks.
         for dev, ch in [(device, channels), (device, 1), (None, 1)]:
@@ -158,6 +164,24 @@ class AudioWorker(RecordingWorkerMixin, QThread):
             self._drain_loopback(recorder)
         except Exception as e:
             print(f"[Audio] process loopback capture error: {e}")
+        finally:
+            recorder.stop()
+        return True
+
+    def _try_system_loopback(self) -> bool:
+        """Capture all system audio via WASAPI loopback. Returns True if stream ran."""
+        from core.process_loopback import ProcessLoopbackRecorder
+        recorder = ProcessLoopbackRecorder(pid=None, samplerate=RECORD_SAMPLE_RATE)
+        try:
+            recorder.start()
+        except Exception as e:
+            print(f"[Audio] WASAPI system loopback start failed: {e}")
+            return False
+        print("[Audio] capturing system-wide WASAPI loopback")
+        try:
+            self._drain_loopback(recorder)
+        except Exception as e:
+            print(f"[Audio] system loopback capture error: {e}")
         finally:
             recorder.stop()
         return True
