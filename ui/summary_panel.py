@@ -3,6 +3,7 @@ from PyQt6.QtCore import pyqtSignal, QTimer
 from PyQt6.QtGui import QTextCharFormat, QTextCursor
 
 from core.summarizer import strip_code_fence
+from ui.mathtext import render_math
 from ui.styles import create_label, create_button, NoLeakTextEdit
 
 class SummaryPanel(QWidget):
@@ -69,7 +70,7 @@ class SummaryPanel(QWidget):
         self._is_preview = True
         self.preview_button.setText("Preview")  # current mode = Preview
         self.summary.blockSignals(True)
-        self.summary.setMarkdown(self._markdown_source)
+        self.summary.setMarkdown(render_math(self._markdown_source))
         self.summary.blockSignals(False)
         self.summary.setReadOnly(True)
 
@@ -88,7 +89,7 @@ class SummaryPanel(QWidget):
             self._markdown_source = self.summary.toPlainText()
             self._pre_preview_readonly = self.summary.isReadOnly()
             self.summary.blockSignals(True)
-            self.summary.setMarkdown(self._markdown_source)
+            self.summary.setMarkdown(render_math(self._markdown_source))
             self.summary.blockSignals(False)
             self.summary.setReadOnly(True)
             self.preview_button.setText("Preview")  # current mode = Preview
