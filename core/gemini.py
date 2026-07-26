@@ -1,9 +1,9 @@
 # One-shot, quality-first tasks (summary, translate / define, quiz).
 MODEL_CHAIN = [
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
-    "gemini-3.1-flash-lite-preview",
     "gemini-3.5-flash",
+    "gemini-2.5-flash",
+    "gemini-3.1-flash-lite-preview",
+    "gemini-2.5-flash-lite",
 ]
 
 # Lead with the highest-daily-allowance model for frequent per-chunk tasks, then fall back.
