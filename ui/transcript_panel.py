@@ -36,6 +36,7 @@ class TranscriptPanel(QWidget):
         self._icons_dir = icons_dir
 
         self._sync_scroll_enabled = False
+        self._recording_active = False
 
         # Header Layout. Label with a border-bottom separator for the underline effect.
         self.session_name = QLabel()
@@ -212,6 +213,7 @@ class TranscriptPanel(QWidget):
 
     def set_recording_active(self, active: bool) -> None:
         """Show/hide the force-capture and pause controls based on recording state."""
+        self._recording_active = active
         self.force_capture_button.setVisible(active)
         self.pause_button.setVisible(active)
         self.import_button.setDisabled(active)
@@ -377,6 +379,8 @@ class TranscriptPanel(QWidget):
         """Quiz requires a summary to exist first (see the Quiz help chapter). Reflect that
         in the button state AND the tooltip so it's clear why it's disabled. Otherwise the
         button silently does nothing after a recording until a summary is made."""
+        if self._recording_active:
+            return
         self.quiz_button.setDisabled(not available)
         self.quiz_button.setToolTip(
             "Generate a quiz from this session"
