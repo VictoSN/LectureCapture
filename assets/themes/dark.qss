@@ -232,6 +232,7 @@ QMenu {
     border: 1px solid #36322b;
     border-radius: 8px;
     padding: 4px;
+    color: #d5cfc5;
 }
 QMenu::item {
     padding: 6px 18px;

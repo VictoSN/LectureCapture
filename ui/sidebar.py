@@ -2,9 +2,8 @@ from PyQt6.QtWidgets import (
     QWidget, QListWidget, QVBoxLayout, QLineEdit, QComboBox, QListWidgetItem, QHBoxLayout, QMenu
 )
 from PyQt6.QtCore import pyqtSignal, QSize, Qt, QTimer, QPoint
-from PyQt6.QtGui import QFont, QAction
+from PyQt6.QtGui import QFont, QIcon
 from datetime import datetime, timedelta
-from PyQt6.QtGui import QIcon
 
 from models.lecture import Session
 from ui.styles import create_button, load_icon, no_wheel
@@ -81,6 +80,7 @@ class Sidebar(QWidget):
         self.lecture_list.itemClicked.connect(self._on_item_clicked)
         self.lecture_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.lecture_list.customContextMenuRequested.connect(self._on_context_menu)
+        self._icons_dir = icons_dir
 
         main_layout.addLayout(search_layout)
         main_layout.addLayout(header)
@@ -148,12 +148,10 @@ class Sidebar(QWidget):
         if not isinstance(session_id, int):
             return
         menu = QMenu(self)
-        dup_action = QAction("Duplicate", menu)
-        del_action = QAction("Delete", menu)
+        dup_action = menu.addAction(load_icon(self._icons_dir / "plus.svg"), "Duplicate")
+        del_action = menu.addAction(load_icon(self._icons_dir / "delete.svg"), "Delete")
         dup_action.triggered.connect(lambda: self.session_duplicate_requested.emit(session_id))
         del_action.triggered.connect(lambda: self.session_delete_requested.emit(session_id))
-        menu.addAction(dup_action)
-        menu.addAction(del_action)
         menu.exec(self.lecture_list.mapToGlobal(pos))
 
     def refresh(self, sessions: list[Session], selected_id: int = None) -> None:
