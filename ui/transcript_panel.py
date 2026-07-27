@@ -214,8 +214,9 @@ class TranscriptPanel(QWidget):
         """Show/hide the force-capture and pause controls based on recording state."""
         self.force_capture_button.setVisible(active)
         self.pause_button.setVisible(active)
-        # Can't import a file while a live recording is running (shared engines/timeline).
         self.import_button.setDisabled(active)
+        self.summary_panel.summary_button.setDisabled(active)
+        self.quiz_button.setDisabled(active)
         if active:
             self.set_paused(False)  # every recording starts unpaused
 
