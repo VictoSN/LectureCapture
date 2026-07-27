@@ -500,6 +500,8 @@ class MediaImportWorker(AudioWorker):
         total = max(0.0, duration - self.start_offset)
         processed = 0.0
 
+        pending_speech = ""
+        ts = self.offset
         try:
             while pos < len(audio) and self._running:
                 # Honour pause without busy-spinning.
@@ -520,19 +522,30 @@ class MediaImportWorker(AudioWorker):
                     except Exception as e:
                         print(f"[Import] transcribe error: {e}")
 
-                image_name, ocr_text = "", ""
+                emitted = False
                 if vstream is not None:
                     img = self._frame_at(container, vstream, media_t)
                     if img is not None:
                         try:
-                            ocr_text = self._ocr._maybe_clean(self._ocr._extract_text(img), img)
+                            ocr_text, is_new = self._ocr._process_frame(img)
+                            if is_new:
+                                image_name = self._save_frame(img)
+                                combined = (pending_speech + "\n" + speech).strip("\n") if pending_speech else speech
+                                self.capture_ready.emit(
+                                    OCRCapture(ts, image_name, ocr_text, None, self.session_id, combined or None)
+                                )
+                                pending_speech = ""
+                                emitted = True
+                            elif speech:
+                                pending_speech = (pending_speech + "\n" + speech).strip("\n")
+                                emitted = True
                         except Exception as e:
                             print(f"[Import] OCR error: {e}")
-                        image_name = self._save_frame(img)
 
-                self.capture_ready.emit(
-                    OCRCapture(ts, image_name, ocr_text, None, self.session_id, speech or None)
-                )
+                if not emitted and (speech or vstream is None):
+                    self.capture_ready.emit(
+                        OCRCapture(ts, "", "", None, self.session_id, speech or None)
+                    )
 
                 pos += frames_per_seg
                 processed = min(total, processed + self.interval)
@@ -540,6 +553,11 @@ class MediaImportWorker(AudioWorker):
         finally:
             if container is not None:
                 container.close()
+
+        if pending_speech:
+            self.capture_ready.emit(
+                OCRCapture(ts, "", "", None, self.session_id, pending_speech or None)
+            )
 
         self.import_finished.emit(total if self._running else processed)
 

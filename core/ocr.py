@@ -112,6 +112,18 @@ class OCRWorker(RecordingWorkerMixin, QThread):
         t1 = time.time()
         print(f"[OCR timing] grab:    {t1-t0:.3f}s")
 
+        text, is_new = self._process_frame(pil_img, force)
+        if is_new:
+            self._save_capture(text, pil_img, grab_ts)
+            print(f"[OCR timing] save+emit: {time.time()-t1:.3f}s  TOTAL: {time.time()-t0:.3f}s")
+        else:
+            print(f"[OCR timing] skipped (dedup) total: {time.time()-t0:.3f}s")
+
+    def _process_frame(self, pil_img, force: bool = False):
+        """Run dedup checks + vision OCR on a pre-grabbed frame.
+        Returns (text, is_new) where is_new=True means the frame should be saved.
+        Updates internal dedup state (previous_ahash, previous_raw, previous_saved)."""
+        t0 = time.time()
         gray = self._downscale_gray(pil_img)
         ahash = gray > gray.mean()
         img_dist = self._hamming(ahash, self.previous_ahash) if self.previous_ahash is not None else -1
@@ -120,20 +132,18 @@ class OCRWorker(RecordingWorkerMixin, QThread):
         if not force and self.previous_ahash is not None and img_dist <= AHASH_IDENTICAL:
             if DEBUG_DEDUP:
                 print(f"[OCR dedup] img_dist={img_dist} -> SKIP (image identical)")
-            print(f"[OCR timing] skipped (identical image) total: {time.time()-t0:.3f}s")
-            return
+            return "", False
 
         raw_text = self._extract_text(pil_img)
-        t2 = time.time()
-        print(f"[OCR timing] tesseract: {t2-t1:.3f}s  chars={len(raw_text.strip())}")
+        t1 = time.time()
+        print(f"[OCR timing] tesseract: {t1-t0:.3f}s  chars={len(raw_text.strip())}")
         norm = self._normalize(raw_text)
 
         # Blank frame (no text, uniform image): ignore without updating state so the real slide isn't re-captured.
         if not force and not norm and float(gray.std()) < BLANK_STD_THRESHOLD:
             if DEBUG_DEDUP:
                 print(f"[OCR dedup] std={gray.std():.1f} chars=0 -> SKIP (blank frame)")
-            print(f"[OCR timing] skipped (blank frame) total: {time.time()-t0:.3f}s")
-            return
+            return "", False
 
         # Compare text first; fall back to image hash for text-less slides.
         if self.previous_ahash is None:
@@ -149,13 +159,12 @@ class OCRWorker(RecordingWorkerMixin, QThread):
                   f"chars={len(norm)} -> {'CAPTURE' if (force or is_new) else 'SKIP'} :: {norm[:60]!r}")
 
         if not force and not is_new:
-            print(f"[OCR timing] skipped (same slide) total: {time.time()-t0:.3f}s")
-            return
+            return "", False
 
         # New slide: run vision OCR. Tesseract text is for dedup only.
         text = self._maybe_clean(raw_text, pil_img)
-        t3 = time.time()
-        print(f"[OCR timing] cleanup: {t3-t2:.3f}s")
+        t2 = time.time()
+        print(f"[OCR timing] cleanup: {t2-t1:.3f}s")
 
         # Mark this frame as seen so the image fast-path can skip its repeats.
         self.previous_raw = norm
@@ -167,12 +176,10 @@ class OCRWorker(RecordingWorkerMixin, QThread):
                 and self._text_similarity(saved_norm, self.previous_saved) >= TEXT_SIMILARITY):
             if DEBUG_DEDUP:
                 print(f"[OCR dedup] vision text == last save -> SKIP :: {saved_norm[:60]!r}")
-            print(f"[OCR timing] skipped (same saved text) total: {time.time()-t0:.3f}s")
-            return
+            return "", False
 
         self.previous_saved = saved_norm
-        self._save_capture(text, pil_img, grab_ts)
-        print(f"[OCR timing] save+emit: {time.time()-t3:.3f}s  TOTAL: {time.time()-t0:.3f}s")
+        return text, True
 
     def _grab_pil(self):
         if self.hwnd:

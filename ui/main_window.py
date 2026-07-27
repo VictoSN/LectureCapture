@@ -805,11 +805,18 @@ class MainWindow(FramelessMainWindow):
 
 
     def on_capture_ready(self, capture: OCRCapture) -> None:
-        self.storage.create_ocr_capture(capture)
-        # Attach any speech that arrived before this slide was captured.
-        if self._pending_speech:
-            self.storage.append_speech_text(capture.id, self._pending_speech)
-            capture.speech_text = (capture.speech_text or "") + self._pending_speech
+        try:
+            self.storage.create_ocr_capture(capture)
+        except Exception as e:
+            print(f"[DB] create_ocr_capture failed: {e}")
+        pending = self._pending_speech
+        if pending:
+            if capture.id is not None:
+                try:
+                    self.storage.append_speech_text(capture.id, pending)
+                except Exception as e:
+                    print(f"[DB] append_speech_text failed: {e}")
+            capture.speech_text = (capture.speech_text or "") + pending
             self._pending_speech = ""
         self.transcript_panel.ocr_panel.add_capture(capture)
         self.transcript_panel.speech_panel.add_capture(capture)

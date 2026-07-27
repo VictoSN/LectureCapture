@@ -228,5 +228,6 @@ out.txt
 
 # Local unit-test suite + tracking docs (dev-only, not part of the shipped app)
 tests/
+tests_new/
 pytest.ini
 S1.zip

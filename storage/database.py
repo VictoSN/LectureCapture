@@ -23,12 +23,12 @@ class Storage:
 
         self.cursor = self.conn.cursor()
         self.cursor.execute("PRAGMA foreign_keys = ON") # Enable foreign keys
-        self._wipe_if_old_schema()
         self._rename_legacy_columns()
+        self._wipe_if_old_schema()
         self.create_table()
 
     def _rename_legacy_columns(self) -> None:
-        """Rename session_category → activity_category if needed."""
+        """Rename legacy column names to current naming."""
         self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='session'")
         if not self.cursor.fetchone():
             return  # fresh database. create_table builds the current schema.
@@ -37,6 +37,12 @@ class Storage:
         if "session_category" in columns and "activity_category" not in columns:
             self.cursor.execute(
                 "ALTER TABLE session RENAME COLUMN session_category TO activity_category")
+            self.conn.commit()
+        self.cursor.execute("PRAGMA table_info(session)")
+        columns = {row[1] for row in self.cursor.fetchall()}
+        if "group_category" in columns and "module_category" not in columns:
+            self.cursor.execute(
+                "ALTER TABLE session RENAME COLUMN group_category TO module_category")
             self.conn.commit()
 
     def _wipe_if_old_schema(self) -> None:
@@ -48,6 +54,18 @@ class Storage:
         columns = {row[1] for row in self.cursor.fetchall()}
         if "quiz_generated_at" in columns and "module_category" in columns:
             return  # already on the current schema
+        # Recent-enough schemas (have activity_category):
+        # migrate by adding missing columns instead of wiping.
+        if "activity_category" in columns:
+            self._add_column_if_missing("session", "module_category", "TEXT")
+            self._add_column_if_missing("session", "quiz", "TEXT")
+            self._add_column_if_missing("session", "quiz_score", "INTEGER")
+            self._add_column_if_missing("session", "quiz_source_hash", "TEXT")
+            self._add_column_if_missing("session", "quiz_generated_at", "TEXT")
+            self._add_column_if_missing("session", "quiz_answers", "TEXT")
+            self.conn.commit()
+            return
+        # Truly ancient schema: wipe and rebuild.
         self.cursor.execute("DROP TABLE IF EXISTS ocrcapture")
         self.cursor.execute("DROP TABLE IF EXISTS session")
         self.conn.commit()
