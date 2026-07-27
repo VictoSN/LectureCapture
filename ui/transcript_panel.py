@@ -165,7 +165,7 @@ class TranscriptPanel(QWidget):
         # Media-import progress: a thin fixed-height row (label + bar + Pause/Stop) just
         self.import_row = QWidget()
         self.import_row.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.import_row.setMaximumHeight(34)
+        self.import_row.setMaximumHeight(38)
         import_layout = QHBoxLayout(self.import_row)
         import_layout.setContentsMargins(2, 2, 2, 2)
         import_layout.setSpacing(10)
