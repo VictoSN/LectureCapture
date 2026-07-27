@@ -48,7 +48,7 @@ class _JustifyFilter(QObject):
         if event.type() == QEvent.Type.Show:
             if isinstance(obj, QLabel):
                 if obj.alignment() == self._LABEL_DEFAULT:
-                    obj.setAlignment(Qt.AlignmentFlag.AlignJustify)
+                    obj.setAlignment(Qt.AlignmentFlag.AlignJustify | Qt.AlignmentFlag.AlignVCenter)
             elif isinstance(obj, QTextEdit):
                 if obj.alignment() == self._TEXTEDIT_DEFAULT:
                     obj.setAlignment(Qt.AlignmentFlag.AlignJustify)
