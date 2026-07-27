@@ -141,6 +141,8 @@ class MainWindow(FramelessMainWindow):
         self.sidebar = Sidebar(sessions, self.on_session_selected, self._activity_categories(), module_categories, ICONS_DIR)
         self.sidebar.new_session_clicked.connect(self.on_new_session_clicked)
         self.sidebar.settings_clicked.connect(self.on_settings_clicked)
+        self.sidebar.session_duplicate_requested.connect(self._on_sidebar_duplicate)
+        self.sidebar.session_delete_requested.connect(self._on_sidebar_delete)
         self.splitter.addWidget(self.sidebar)
         # Keep sidebar width sane to prevent splitter collapse.
         self.sidebar.setMinimumWidth(200)
@@ -1156,6 +1158,23 @@ class MainWindow(FramelessMainWindow):
         self.current_session = self.storage.duplicate_sessions(self.current_session.id)
         self._refresh_session_lists()
         self.on_session_selected(self.current_session)
+
+    def _on_sidebar_duplicate(self, session_id: int) -> None:
+        dup = self.storage.duplicate_sessions(session_id)
+        self._refresh_session_lists()
+        self.on_session_selected(dup)
+
+    def _on_sidebar_delete(self, session_id: int) -> None:
+        reply = QMessageBox.question(
+            self, "Delete Session", "Delete this session?"
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            was_open = self.current_session and self.current_session.id == session_id
+            self.storage.delete_session(session_id)
+            if was_open:
+                self.current_session = None
+                self.transcript_panel.clear_panels()
+            self._refresh_session_lists()
     
     def unsaved_changes(self) -> None:
         self.transcript_panel.saved_label.setText("Unsaved")

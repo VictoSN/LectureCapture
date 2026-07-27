@@ -5,7 +5,7 @@ from PyQt6.QtCore import pyqtSignal, Qt
 from PyQt6.QtGui import QShortcut, QKeySequence
 
 from models.lecture import Session
-from ui.format_time import FormatDetailedTime
+from ui.format_time import FormatDetailedTime, FormatClock
 from ui.category_picker import CategoryPicker, DEFAULT_ACTIVITY_CATEGORIES, merged_activity_categories
 
 class PropertiesPanel(QWidget):
@@ -82,20 +82,27 @@ class PropertiesPanel(QWidget):
         
         self.date_modified = QLabel(FormatDetailedTime(session.date_modified))
         grid_layout.addWidget(self.date_modified, 4, 1)
-        
+
+        # Session Length
+        length_label = QLabel("Session Length:")
+        grid_layout.addWidget(length_label, 5, 0)
+
+        self.session_length = QLabel(FormatClock(session.length, pad_minutes=True))
+        grid_layout.addWidget(self.session_length, 5, 1)
+
         # Summary Generated
         summary_generated_label = QLabel("Summary Generated:")
-        grid_layout.addWidget(summary_generated_label, 5, 0)
+        grid_layout.addWidget(summary_generated_label, 6, 0)
 
         self.summary_generated = QLabel(FormatDetailedTime(session.summary_generated_at) or "None")
-        grid_layout.addWidget(self.summary_generated, 5, 1)
+        grid_layout.addWidget(self.summary_generated, 6, 1)
 
         # Quiz Generated
         quiz_generated_label = QLabel("Quiz Generated:")
-        grid_layout.addWidget(quiz_generated_label, 6, 0)
+        grid_layout.addWidget(quiz_generated_label, 7, 0)
 
         self.quiz_generated = QLabel(FormatDetailedTime(session.quiz_generated_at) or "None")
-        grid_layout.addWidget(self.quiz_generated, 6, 1)
+        grid_layout.addWidget(self.quiz_generated, 7, 1)
 
         # Actions Buttons
         self.cancel_button = QPushButton("Close")

@@ -1,8 +1,8 @@
 from PyQt6.QtWidgets import (
-    QWidget, QListWidget, QVBoxLayout, QLineEdit, QComboBox, QListWidgetItem, QHBoxLayout
+    QWidget, QListWidget, QVBoxLayout, QLineEdit, QComboBox, QListWidgetItem, QHBoxLayout, QMenu
 )
-from PyQt6.QtCore import pyqtSignal, QSize, Qt, QTimer
-from PyQt6.QtGui import QFont
+from PyQt6.QtCore import pyqtSignal, QSize, Qt, QTimer, QPoint
+from PyQt6.QtGui import QFont, QAction
 from datetime import datetime, timedelta
 from PyQt6.QtGui import QIcon
 
@@ -13,6 +13,8 @@ from ui.session_card import SessionCard
 class Sidebar(QWidget):
     new_session_clicked = pyqtSignal()
     settings_clicked = pyqtSignal()
+    session_duplicate_requested = pyqtSignal(int)
+    session_delete_requested = pyqtSignal(int)
     
     search_changed = pyqtSignal(str)
     category_filter_changed = pyqtSignal(str)
@@ -77,6 +79,8 @@ class Sidebar(QWidget):
         self._on_session_selected = on_session_selected
         self._populate_list(sessions)
         self.lecture_list.itemClicked.connect(self._on_item_clicked)
+        self.lecture_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.lecture_list.customContextMenuRequested.connect(self._on_context_menu)
 
         main_layout.addLayout(search_layout)
         main_layout.addLayout(header)
@@ -135,6 +139,22 @@ class Sidebar(QWidget):
         session = next((s for s in self.sessions if s.id == session_id), None)
         if session:
             self._on_session_selected(session)
+
+    def _on_context_menu(self, pos: QPoint) -> None:
+        item = self.lecture_list.itemAt(pos)
+        if item is None:
+            return
+        session_id = item.data(Qt.ItemDataRole.UserRole)
+        if not isinstance(session_id, int):
+            return
+        menu = QMenu(self)
+        dup_action = QAction("Duplicate", menu)
+        del_action = QAction("Delete", menu)
+        dup_action.triggered.connect(lambda: self.session_duplicate_requested.emit(session_id))
+        del_action.triggered.connect(lambda: self.session_delete_requested.emit(session_id))
+        menu.addAction(dup_action)
+        menu.addAction(del_action)
+        menu.exec(self.lecture_list.mapToGlobal(pos))
 
     def refresh(self, sessions: list[Session], selected_id: int = None) -> None:
         scroll = self.lecture_list.verticalScrollBar().value()
