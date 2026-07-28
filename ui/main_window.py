@@ -243,6 +243,7 @@ class MainWindow(FramelessMainWindow):
         self.quiz_panel.generate_requested.connect(self.on_quiz_generate)
         self.quiz_panel.completed.connect(self.on_quiz_completed)
         self.quiz_panel.exit_requested.connect(self.on_quiz_exit)
+        self.quiz_panel.back_to_intro.connect(self._on_quiz_back_to_intro)
         self.splitter.addWidget(self.quiz_panel)
         self.quiz_panel.setVisible(False)
         self._quiz_worker = None
@@ -1133,6 +1134,20 @@ class MainWindow(FramelessMainWindow):
         self.is_quizzing = False
         self._set_quizzing(False)
         self.show_panel("transcript")
+
+    def _on_quiz_back_to_intro(self) -> None:
+        # Reconfigure and show the intro page with latest saved score/answers.
+        saved = self._parse_saved_quiz()
+        self.quiz_panel.set_saved_quiz(
+            saved,
+            self.current_session.quiz_score if saved else None,
+            self._parse_saved_answers() if saved else None,
+        )
+        if saved:
+            changed = self.current_session.quiz_source_hash != self._quiz_hash
+            self.quiz_panel.configure_intro(True, self.current_session.quiz_score, len(saved), changed)
+        else:
+            self.quiz_panel.configure_intro(False, None, 0, False)
 
     def _set_quizzing(self, busy: bool) -> None:
         """Lock the app during quiz (like summarizing)."""

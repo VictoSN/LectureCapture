@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 # App version shown in-app. Keep in sync with MyAppVersion in installer.iss.
-APP_VERSION = "3.1.4"
+APP_VERSION = "3.2.0"
 
 
 def resource_root() -> Path:

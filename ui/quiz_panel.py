@@ -11,6 +11,7 @@ from ui.progress import indeterminate_progress_bar
 class QuizPanel(QWidget):
     generate_requested = pyqtSignal()   # (re)generate from the session content
     exit_requested = pyqtSignal()       # leave the quiz (main_window confirms if needed)
+    back_to_intro = pyqtSignal()        # back from results to the intro page
     completed = pyqtSignal(int, int)    # score, total. So the score can be persisted.
 
     def __init__(self) -> None:
@@ -152,7 +153,6 @@ class QuizPanel(QWidget):
         self.next_button.setToolTip("Next question (Enter)")
         self.next_button.clicked.connect(self._next)
         nav.addWidget(self.next_button)
-        # No keyboard focus on the nav buttons so Enter/Esc only drive the shortcuts
         self.prev_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.next_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         layout.addLayout(nav)
@@ -184,8 +184,8 @@ class QuizPanel(QWidget):
         self.results_retake_button.clicked.connect(self._retake)
         row.addWidget(self.results_retake_button)
         self.results_exit_button = QPushButton("Done")
-        self.results_exit_button.setToolTip("Close the results and return to the session.")
-        self.results_exit_button.clicked.connect(self.exit_requested)
+        self.results_exit_button.setToolTip("Return to the quiz overview.")
+        self.results_exit_button.clicked.connect(self.back_to_intro)
         row.addWidget(self.results_exit_button)
         layout.addLayout(row)
         return page
