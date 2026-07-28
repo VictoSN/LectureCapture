@@ -130,11 +130,13 @@ class TranscriptPanel(QWidget):
 
         # Info Footer
         clock_w, self.recording_time_label = create_label(icons_dir / 'clock.svg', '00:00')
+        next_cap_w, self.next_capture_label = create_label(icons_dir / 'clock.svg', '')
+        self.next_capture_label.setToolTip("Countdown to the next capture interval")
         saved_w, self.saved_label = create_label(icons_dir / 'save.svg', 'Saved')
         ocr_w, self.ocr_engine_label = create_label(icons_dir / 'scan.svg', 'pytesseract')
         speech_w, self.speech_engine_label = create_label(icons_dir / 'microphone.svg', 'faster-whisper')
 
-        for w in [clock_w, saved_w, ocr_w, speech_w]:
+        for w in [clock_w, next_cap_w, saved_w, ocr_w, speech_w]:
             footer.addWidget(w)
 
         footer.setSpacing(14)
@@ -437,6 +439,15 @@ class TranscriptPanel(QWidget):
     def update_engine_labels(self, ocr_engine: str, speech_engine: str) -> None:
         self.ocr_engine_label.setText(ocr_engine)
         self.speech_engine_label.setText(speech_engine)
+
+    def set_next_capture_countdown(self, seconds: float | None) -> None:
+        """Show time until the next capture interval. None/negative hides the label."""
+        if seconds is None or seconds <= 0:
+            self.next_capture_label.setText("")
+            self.next_capture_label.setVisible(False)
+        else:
+            self.next_capture_label.setText(f"Next: {seconds:.1f}s")
+            self.next_capture_label.setVisible(True)
 
     def show_connection_warning(self, message: str) -> None:
         if self._banner_dismissed:  # user closed it; stay hidden until cleared/next recording

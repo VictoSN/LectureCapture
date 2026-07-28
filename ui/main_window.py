@@ -136,6 +136,13 @@ class MainWindow(FramelessMainWindow):
         self.timer.timeout.connect(self.update_timer)
         self.elapse_s = 0
 
+        self.capture_countdown_timer = QTimer()
+        self.capture_countdown_timer.timeout.connect(self.update_capture_countdown)
+        self._capture_interval = 0.0
+        self._recording_start_time = 0.0
+        self._recording_paused_total = 0.0
+        self._recording_pause_started = None
+
         sessions = self.storage.get_all_sessions()
         module_categories = self.storage.get_module_categories() # Get all module categories
         self.sidebar = Sidebar(sessions, self.on_session_selected, self._activity_categories(), module_categories, ICONS_DIR)
@@ -431,8 +438,14 @@ class MainWindow(FramelessMainWindow):
 
         # Start timer when capture actually begins (not during overlay selection).
         self.elapse_s = 0
+        self._capture_interval = interval
+        self._recording_start_time = start_time
+        self._recording_paused_total = 0.0
+        self._recording_pause_started = None
         self.transcript_panel.recording_time_label.setText("00:00")
+        self.transcript_panel.set_next_capture_countdown(interval)
         self.timer.start(1000)
+        self.capture_countdown_timer.start(100)
 
         # Create ocr worker thread
         self.ocr_worker = OCRWorker(
@@ -491,6 +504,11 @@ class MainWindow(FramelessMainWindow):
         if not self.is_recording:
             return
         self.is_paused = not self.is_paused
+        if self.is_paused:
+            self._recording_pause_started = time.time()
+        elif self._recording_pause_started is not None:
+            self._recording_paused_total += time.time() - self._recording_pause_started
+            self._recording_pause_started = None
         self.ocr_worker.set_paused(self.is_paused)
         self.audio_worker.set_paused(self.is_paused)
         self.transcript_panel.set_paused(self.is_paused)
@@ -505,13 +523,26 @@ class MainWindow(FramelessMainWindow):
                 FormatClock(self.elapse_s, pad_minutes=True)
             )
 
+    def update_capture_countdown(self) -> None:
+        if not self.is_recording or self._capture_interval <= 0:
+            self.transcript_panel.set_next_capture_countdown(None)
+            return
+        if self.is_paused:
+            # Keep the last remaining value visible; the actual capture is frozen too.
+            return
+        elapsed = time.time() - self._recording_start_time - self._recording_paused_total
+        remaining = self._capture_interval - (elapsed % self._capture_interval)
+        self.transcript_panel.set_next_capture_countdown(remaining)
+
     def on_record_aborted(self) -> None:
         self.is_recording = False
         self.is_paused = False
         self.timer.stop()
+        self.capture_countdown_timer.stop()
         self.elapse_s = 0
         
         self.transcript_panel.recording_time_label.setText("00:00")
+        self.transcript_panel.set_next_capture_countdown(None)
         self.transcript_panel.record_button.setText("Record")
         self.transcript_panel.set_recording_active(False)
         self._set_nav_locked(False)
@@ -622,15 +653,18 @@ class MainWindow(FramelessMainWindow):
         self.show_panel("transcript")
         # Capture active time before resetting (elapse_s pauses while paused).
         self.timer.stop()
+        self.capture_countdown_timer.stop()
         recorded_seconds = self.elapse_s
         self.elapse_s = 0
 
         self.is_recording = False
         self.is_paused = False
+        self._recording_pause_started = None
         self._play_effect(self.stop_audio)
         
         # Update labels
         self.transcript_panel.recording_time_label.setText("00:00")
+        self.transcript_panel.set_next_capture_countdown(None)
         self.transcript_panel.record_button.setText("Record")
         self.transcript_panel.set_recording_active(False)
         self.transcript_panel.clear_connection_warning()  # warning is recording-only
