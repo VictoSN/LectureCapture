@@ -374,11 +374,8 @@ class SettingsPanel(QWidget):
         self.scale_dropdown = QComboBox()
         no_wheel(self.scale_dropdown)
         self.scale_options = [
-            ("100%", 1.0),
-            ("125%", 1.25),
-            ("150%", 1.5),
-            ("175%", 1.75),
-            ("200%", 2.0),
+            (f"{pct}%", pct / 100.0)
+            for pct in range(90, 126, 5)
         ]
         for label, value in self.scale_options:
             self.scale_dropdown.addItem(label, value)

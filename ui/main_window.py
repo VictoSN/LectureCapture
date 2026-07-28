@@ -768,6 +768,8 @@ class MainWindow(FramelessMainWindow):
         self.transcript_panel.set_import_active(True)
         self._set_import_locked(True)
         self.transcript_panel.clear_connection_warning()
+        # Hide the live-recording countdown while importing.
+        self.transcript_panel.set_next_capture_countdown(None)
         # Footer clock tracks transcribed-media time (driven by progress).
         self.transcript_panel.recording_time_label.setText("00:00")
 
