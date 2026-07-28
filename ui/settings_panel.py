@@ -94,6 +94,7 @@ class SettingsPanel(QWidget):
     delete_clicked = pyqtSignal()
     help_requested = pyqtSignal()  # open the Help panel at the API-key guide
     model_download_active = pyqtSignal(bool)  # True while a speech model is downloading
+    scale_changed = pyqtSignal(float)  # new scale factor, main window restarts to apply
     
     def __init__(self, sessions, base_dir, bundled_sounds_dir, icons_dir, themes_dir) -> None:
         super().__init__()
@@ -366,10 +367,10 @@ class SettingsPanel(QWidget):
         theme_buttons_layout.addWidget(self.dark_button)
         theme_layout.addLayout(theme_buttons_layout)
 
-        # UI Scale (magnifier) — requires restart to take effect.
+        # UI Scale (magnifier), requires restart to take effect.
         scale_layout = _row(QHBoxLayout())
         scale_label = QLabel("UI Scale:")
-        scale_label.setToolTip("Magnifies the entire interface. Requires a restart to take effect.")
+        scale_label.setToolTip("Magnifies the entire interface. The app will restart when saved.")
         scale_layout.addWidget(scale_label)
         self.scale_dropdown = QComboBox()
         no_wheel(self.scale_dropdown)
@@ -379,15 +380,11 @@ class SettingsPanel(QWidget):
         ]
         for label, value in self.scale_options:
             self.scale_dropdown.addItem(label, value)
-        self.scale_dropdown.setToolTip("Magnifies the entire interface. Requires a restart to take effect.")
+        self.scale_dropdown.setToolTip("Magnifies the entire interface. The app will restart when saved.")
         scale_layout.addWidget(self.scale_dropdown)
         scale_layout.addStretch()
         theme_layout.addLayout(scale_layout)
 
-        scale_note = QLabel("Requires a restart to take effect.")
-        scale_note.setWordWrap(True)
-        scale_note.setObjectName("muted")
-        theme_layout.addWidget(scale_note)
         
         # Last used, Set Default, Empty
         preferences_label = QLabel("Recording")
@@ -746,7 +743,18 @@ class SettingsPanel(QWidget):
             self._show_status(f"Couldn't save settings: {exc}")
         else:
             if scale_changed:
-                self._show_status("Settings saved. Restart to apply the new UI scale.", 5000)
+                new_scale = self.scale_dropdown.currentData()
+                pct = int(round(new_scale * 100))
+                answer = QMessageBox.question(
+                    self, "Restart Required",
+                    f"UI Scale changed to {pct}%. Restart now to apply?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.Yes,
+                )
+                if answer == QMessageBox.StandardButton.Yes:
+                    self.scale_changed.emit(new_scale)
+                else:
+                    self._show_status("Settings saved. Restart later to apply the new UI scale.", 5000)
             else:
                 self._show_status("Settings saved successfully!")
         finally:

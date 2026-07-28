@@ -1,3 +1,4 @@
+import sys
 import time
 import zipfile, json
 
@@ -5,7 +6,7 @@ from qframelesswindow import FramelessMainWindow
 from PyQt6.QtWidgets import QMessageBox, QFileDialog, QApplication, QInputDialog, QDialog
 from ui.grip_splitter import GripSplitter
 from PyQt6.QtGui import QShortcut, QKeySequence, QGuiApplication, QCursor, QIcon
-from PyQt6.QtCore import Qt, QTimer, QUrl, QSettings
+from PyQt6.QtCore import Qt, QTimer, QUrl, QSettings, QProcess
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 
 from pathlib import Path
@@ -183,6 +184,7 @@ class MainWindow(FramelessMainWindow):
         self.settings_panel.delete_clicked.connect(self.on_all_deleted_clicked)
         self.settings_panel.help_requested.connect(self.on_settings_help_requested)
         self.settings_panel.model_download_active.connect(self.on_model_download_active)
+        self.settings_panel.scale_changed.connect(self.on_scale_changed)
         
         self.splitter.addWidget(self.settings_panel)
         self.settings_panel.setVisible(False)
@@ -1226,7 +1228,7 @@ class MainWindow(FramelessMainWindow):
         # Debounced saves can fire after session deletion; guard against missing session.
         if not self.current_session:
             return
-        # Still in the post-load grace window — skip.
+        # Still in the post-load grace window, skip.
         if time.monotonic() < self._load_guard_until:
             return
         now = datetime.now()
@@ -1354,6 +1356,10 @@ class MainWindow(FramelessMainWindow):
         refresh_icons(self, theme)
         self.sidebar.refresh_theme(theme)
         self.help_panel.refresh_theme(theme)
+
+    def on_scale_changed(self, scale: float) -> None:
+        QProcess.startDetached(sys.executable, sys.argv)
+        QApplication.quit()
 
     def _play_effect(self, player: QMediaPlayer) -> None:
         if not player.source().isEmpty():

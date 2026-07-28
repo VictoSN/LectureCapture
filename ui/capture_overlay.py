@@ -181,7 +181,7 @@ class CaptureOverlay(QWidget):
         x1, y1 = int(self.start.x()), int(self.start.y())
         x2, y2 = int(self.end.x()),   int(self.end.y())
 
-        # Clicks/twitches (tiny rects) produce no slides — treat as cancel.
+        # Clicks/twitches (tiny rects) produce no slides, treat as cancel.
         if abs(x1 - x2) < 4 or abs(y1 - y2) < 4:
             self.close()
             self.cancel_callback()
