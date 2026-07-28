@@ -365,6 +365,32 @@ class SettingsPanel(QWidget):
         self.dark_button.setToolTip("Always use the dark theme.")
         theme_buttons_layout.addWidget(self.dark_button)
         theme_layout.addLayout(theme_buttons_layout)
+
+        # UI Scale (magnifier) — requires restart to take effect.
+        scale_layout = _row(QHBoxLayout())
+        scale_label = QLabel("UI Scale:")
+        scale_label.setToolTip("Magnifies the entire interface. Requires a restart to take effect.")
+        scale_layout.addWidget(scale_label)
+        self.scale_dropdown = QComboBox()
+        no_wheel(self.scale_dropdown)
+        self.scale_options = [
+            ("100%", 1.0),
+            ("125%", 1.25),
+            ("150%", 1.5),
+            ("175%", 1.75),
+            ("200%", 2.0),
+        ]
+        for label, value in self.scale_options:
+            self.scale_dropdown.addItem(label, value)
+        self.scale_dropdown.setToolTip("Magnifies the entire interface. Requires a restart to take effect.")
+        scale_layout.addWidget(self.scale_dropdown)
+        scale_layout.addStretch()
+        theme_layout.addLayout(scale_layout)
+
+        scale_note = QLabel("Requires a restart to take effect.")
+        scale_note.setWordWrap(True)
+        scale_note.setObjectName("muted")
+        theme_layout.addWidget(scale_note)
         
         # Last used, Set Default, Empty
         preferences_label = QLabel("Recording")
@@ -716,12 +742,16 @@ class SettingsPanel(QWidget):
         self.save_button.setDisabled(True)
         self.save_button.setText("Saving…")
         QApplication.processEvents()  # paint the disabled/"Saving…" state before we block
+        scale_changed = abs(self.scale_dropdown.currentData() - self._loaded_ui_scale) > 0.001
         try:
             self._save_settings()
         except Exception as exc:  # noqa: BLE001. Surface any failure to the user.
             self._show_status(f"Couldn't save settings: {exc}")
         else:
-            self._show_status("Settings saved successfully!")
+            if scale_changed:
+                self._show_status("Settings saved. Restart to apply the new UI scale.", 5000)
+            else:
+                self._show_status("Settings saved successfully!")
         finally:
             self.save_button.setText(original_text)
             self.save_button.setDisabled(False)
@@ -733,6 +763,9 @@ class SettingsPanel(QWidget):
 
         # Save theme
         self.settings.setValue("theme", self.theme)
+
+        # Save UI scale (requires restart)
+        self.settings.setValue("ui_scale", self.scale_dropdown.currentData())
 
         # Save Recording Preferences
         self.settings.setValue("default_interval", self.interval_input.value())
@@ -824,7 +857,17 @@ class SettingsPanel(QWidget):
         self.proc_mode = str(self.settings.value("processing_mode", "local"))
         self.revert_theme()
         self.pref_mode = str(self.settings.value("preferences_mode", "last"))
-        
+
+        # Load UI scale (applied on next launch via QT_SCALE_FACTOR).
+        saved_scale = self.settings.value("ui_scale", 1.0)
+        try:
+            saved_scale = float(saved_scale)
+        except Exception:
+            saved_scale = 1.0
+        self._loaded_ui_scale = saved_scale
+        scale_idx = next((i for i, (_, v) in enumerate(self.scale_options) if abs(v - saved_scale) < 0.001), 0)
+        self.scale_dropdown.setCurrentIndex(scale_idx)
+
         region = self.settings.value("default_region", {"left": 0, "top": 0, "width": 800, "height": 800})
     
         self.interval_input.setValue(int(self.settings.value("default_interval", 10)))
