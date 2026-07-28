@@ -833,6 +833,8 @@ class MainWindow(FramelessMainWindow):
         self.transcript_panel.set_import_active(False)
         self._set_import_locked(False)
         self.transcript_panel.recording_time_label.setText("00:00")
+        # Refresh sidebar so re-selecting the session sees the updated length/date.
+        self._refresh_session_lists()
         # An import gives content, so summarize becomes available (quiz still needs a summary).
         has_content = (self.transcript_panel.ocr_panel.has_content()
                        or self.transcript_panel.speech_panel.has_content())
