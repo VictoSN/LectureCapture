@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QAbstractScrollArea
 )
 from PyQt6.QtCore import Qt, QSize, QSettings, QObject, QEvent, pyqtSignal
-from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QPalette
+from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QPalette, QImage
 
 # Offered in the right-click "Translate to" submenu of any transcript text. The
 LOOKUP_LANGUAGES = [
@@ -80,6 +80,11 @@ class NoLeakTextEdit(QTextEdit):
     def _build_context_menu(self):
         # Built separately from contextMenuEvent so it can be inspected in tests without the blocking menu.exec().
         menu = self.createStandardContextMenu()  # keep Copy / Select All / etc.
+        # Standard context-menu icons follow the OS theme; recolour them so they remain
+        # visible against the app's light/dark menu background.
+        for action in menu.actions():
+            if action.icon() and not action.isSeparator():
+                action.setIcon(_recolor_icon(action.icon()))
         selected = self.textCursor().selectedText().replace("\u2029", "\n").strip()
         if selected:
             menu.addSeparator()
@@ -170,18 +175,21 @@ def refresh_icons(root: QWidget, theme: str = None) -> None:
 _icon_cache: dict[tuple[str, bool], QIcon] = {}
 
 
+def _is_dark_mode() -> bool:
+    """Return whether the app is currently in dark mode, falling back to the saved setting."""
+    if _applied_dark is not None:
+        return _applied_dark
+    settings = QSettings("LectureCapture", "LectureCapture")
+    return check_theme(str(settings.value("theme", "auto")))
+
+
 def load_icon(icon_path: str | Path, theme: str = None) -> QIcon:
     name = Path(icon_path).name
     if name in ("light_mode.svg", "dark_mode.svg", "red_dot.svg"):
         return QIcon(str(icon_path))
 
     if not theme:
-        if _applied_dark is not None:
-            dark_mode = _applied_dark
-        else:
-            # No theme applied yet this process (e.g. widgets built in tests). fall back to the saved setting.
-            settings = QSettings("LectureCapture", "LectureCapture")
-            dark_mode = check_theme(str(settings.value("theme", "auto")))
+        dark_mode = _is_dark_mode()
     elif theme == "auto":
         dark_mode = check_theme(get_system_theme())
     else:
@@ -208,6 +216,35 @@ def load_icon(icon_path: str | Path, theme: str = None) -> QIcon:
 
     _icon_cache[key] = icon
     return icon
+
+
+def _recolor_icon(icon: QIcon, size: int = 16) -> QIcon:
+    """Tint a QIcon to the current theme colour (white in dark, dark in light).
+
+    Used for standard icons that do not follow the app's theme (e.g. the system
+    icons in QTextEdit's default context menu). Pixel-level recolouring preserves
+    the original alpha channel so anti-aliased edges stay smooth and don't turn
+    into speckled halos.
+    """
+    pixmap = icon.pixmap(size, size)
+    if pixmap.isNull():
+        return icon
+
+    image = pixmap.toImage().convertToFormat(QImage.Format.Format_ARGB32)
+    color = QColor("white") if _is_dark_mode() else QColor("#423f37")
+    r, g, b = color.red(), color.green(), color.blue()
+
+    for y in range(image.height()):
+        for x in range(image.width()):
+            pixel = image.pixelColor(x, y)
+            if pixel.alpha() > 0:
+                pixel.setRed(r)
+                pixel.setGreen(g)
+                pixel.setBlue(b)
+                image.setPixelColor(x, y, pixel)
+
+    return QIcon(QPixmap.fromImage(image))
+
 
 def create_label(icon_path: str | Path, text: str) -> tuple[QWidget, QLabel]:
     w = QWidget()
