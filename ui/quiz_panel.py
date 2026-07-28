@@ -34,11 +34,6 @@ class QuizPanel(QWidget):
         title = QLabel("Quiz")
         title.setStyleSheet("font-size: 18px; font-weight: 600;")
         header.addWidget(title)
-        header.addStretch()
-        self.exit_button = QPushButton("Exit")
-        self.exit_button.setToolTip("Leave the quiz (Esc)")
-        self.exit_button.clicked.connect(self.exit_requested)
-        header.addWidget(self.exit_button)
         root.addLayout(header)
 
         self.stack = QStackedWidget()
@@ -73,6 +68,10 @@ class QuizPanel(QWidget):
 
         row = QHBoxLayout()
         row.addStretch()
+        self.intro_exit_button = QPushButton("Exit")
+        self.intro_exit_button.setToolTip("Leave the quiz (Esc)")
+        self.intro_exit_button.clicked.connect(self.exit_requested)
+        row.addWidget(self.intro_exit_button)
         self.review_button = QPushButton("Review")
         self.review_button.setToolTip("Look over your last attempt's answers and results.")
         self.review_button.clicked.connect(self._review_existing)
@@ -119,6 +118,14 @@ class QuizPanel(QWidget):
         self.loading_engine.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.loading_engine)
         layout.addStretch()
+
+        row = QHBoxLayout()
+        self.loading_exit_button = QPushButton("Exit")
+        self.loading_exit_button.setToolTip("Leave the quiz (Esc)")
+        self.loading_exit_button.clicked.connect(self.exit_requested)
+        row.addWidget(self.loading_exit_button)
+        row.addStretch()
+        layout.addLayout(row)
         return page
 
     def _build_quiz_page(self) -> QWidget:
@@ -144,6 +151,10 @@ class QuizPanel(QWidget):
         layout.addStretch()
 
         nav = QHBoxLayout()
+        self.question_exit_button = QPushButton("Exit")
+        self.question_exit_button.setToolTip("Leave the quiz (Esc)")
+        self.question_exit_button.clicked.connect(self.exit_requested)
+        nav.addWidget(self.question_exit_button)
         nav.addStretch()
         self.prev_button = QPushButton("Previous")
         self.prev_button.setToolTip("Previous question (Esc)")
@@ -155,6 +166,7 @@ class QuizPanel(QWidget):
         nav.addWidget(self.next_button)
         self.prev_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.next_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.question_exit_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         layout.addLayout(nav)
         return page
 
@@ -178,15 +190,19 @@ class QuizPanel(QWidget):
         layout.addWidget(scroll)
 
         row = QHBoxLayout()
+        self.results_exit_button = QPushButton("Exit")
+        self.results_exit_button.setToolTip("Leave the quiz (Esc)")
+        self.results_exit_button.clicked.connect(self.exit_requested)
+        row.addWidget(self.results_exit_button)
         row.addStretch()
         self.results_retake_button = QPushButton("Retake")
         self.results_retake_button.setToolTip("Answer this quiz again from the start.")
         self.results_retake_button.clicked.connect(self._retake)
         row.addWidget(self.results_retake_button)
-        self.results_exit_button = QPushButton("Done")
-        self.results_exit_button.setToolTip("Return to the quiz overview.")
-        self.results_exit_button.clicked.connect(self.back_to_intro)
-        row.addWidget(self.results_exit_button)
+        self.results_done_button = QPushButton("Done")
+        self.results_done_button.setToolTip("Return to the quiz overview.")
+        self.results_done_button.clicked.connect(self.back_to_intro)
+        row.addWidget(self.results_done_button)
         layout.addLayout(row)
         return page
 
