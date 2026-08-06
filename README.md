@@ -24,17 +24,11 @@ LectureCapture is a Windows desktop app that turns an online lecture or meeting 
 ## Getting started
 Everything happens in one window. This is what the default view looks like with a mock lecture:
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/dark_mode/Default.png">
-  <img alt="The default view" src="assets/screenshots/light_mode/Default.png">
-</picture>
+<img alt="The default view" src="assets/screenshots/dark_mode/Default.png">
 
 And here is the same window with every control numbered:
 
-<picture>
-  <source media="(prefers-color-scheme: light)" srcset="assets/screenshots/light_mode/Help%20Panel%201%20Light%20Mode.drawio.png">
-  <img alt="The main window with every control numbered" src="assets/screenshots/dark_mode/Help%20Panel%201%20Dark%20Mode.drawio.png">
-</picture>
+<img alt="The main window with every control numbered" src="assets/screenshots/light_mode/Help%20Panel%201%20Light%20Mode.drawio.png">
 
 1. **Panel toggles**: show and hide the big parts of the window: the sidebar, the Screen OCR panel, the Audio transcript panel, and the AI summary panel (`Shift+1` to `Shift+4`).
 2. **Session list**: every session you've made, grouped by date. A session is one lecture: its slides, transcript, summary and quiz all live in it. The search box finds sessions by name, and the funnel button filters by activity or module.
