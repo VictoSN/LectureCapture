@@ -22,17 +22,17 @@ LectureCapture is a Windows desktop app that turns an online lecture or meeting 
 - **Sessions**: organised by category/group, searchable, with editable transcripts, plus light/dark/auto themes, keyboard shortcuts, and an in-app help guide.
 
 ## Getting started
-Everything happens in one window. This is what it looks like when you first open the app, before any sessions exist:
+Everything happens in one window. This is what the default view looks like with a mock lecture:
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/dark_mode/Help%20Panel%200%20Dark%20Mode.drawio.png">
-  <img alt="The main window as it first opens" src="assets/screenshots/light_mode/Help%20Panel%200%20Light%20Mode.drawio.png">
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/dark_mode/Default.png">
+  <img alt="The default view" src="assets/screenshots/light_mode/Default.png">
 </picture>
 
 And here is the same window with every control numbered:
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/light_mode/Help%20Panel%201%20Light%20Mode.drawio.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/screenshots/light_mode/Help%20Panel%201%20Light%20Mode.drawio.png">
   <img alt="The main window with every control numbered" src="assets/screenshots/dark_mode/Help%20Panel%201%20Dark%20Mode.drawio.png">
 </picture>
 
